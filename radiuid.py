@@ -7,6 +7,7 @@
 
 
 import os
+import re
 import sys
 import time
 import urllib
@@ -16,8 +17,6 @@ import argparse
 import ConfigParser
 
 
-
-
 ##########################Main RadiUID Functions#########################
 #########################################################################
 #########################################################################
@@ -25,6 +24,163 @@ import ConfigParser
 #########################################################################
 #########################################################################
 
+
+##### Writes lines to the log file and prints them to the terminal #####
+def log_writer(input):
+	target = open(logfile, 'a')
+	target.write(time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + input + "\n")
+	print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + input + "\n"
+	target.close()
+
+
+##### Function to pull API key from firewall to be used for REST HTTP calls #####
+def pull_api_key(username, password):
+	url = 'https://' + hostname + '/api/?type=keygen&user=' + username + '&password=' + password
+	response = urllib2.urlopen(url).read()
+	log_writer("Pulling API key using PAN credentials: " + username + "\\" + password + "\n")
+	log_writer(response + "\n")
+	if 'success' in response:
+		stripped1 = response.replace("<response status = 'success'><result><key>", "")
+		stripped2 = stripped1.replace("</key></result></response>", "")
+		return stripped2
+	else:
+		print 'ERROR: Username\\password failed. Please re-enter in config file...' + '\n'
+		quit()
+
+
+##### List all files in a directory path and subdirs #####
+def listfiles(path):
+	filelist = []
+	for root, directories, filenames in os.walk(path):
+		for filename in filenames:
+			entry = os.path.join(root, filename)
+			filelist.append(entry)
+			log_writer("Found File: " + entry + "...   Adding to file list")
+	if len(filelist) == 0:
+		log_writer("No Log Files Found. Nothing to Do.")
+		return filelist
+	else:
+		return filelist
+
+
+##### Search list of files for a searchterm and use deliniator term to count instances file, then return a dictionary where key=instance and value=line where term was found #####
+def search_to_dict(filelist, delineator, searchterm):
+	dict = {}
+	entry = 0
+	for filename in filelist:
+		log_writer('Searching File: ' + filename + ' for ' + searchterm)
+		with open(filename, 'r') as filetext:
+			for line in filetext:
+				if delineator in line:
+					entry = entry + 1
+				if searchterm in line:
+					dict[entry] = line
+	return dict
+
+
+##### Clean up IP addresses in dictionary #####
+def clean_ips(dictionary):
+	newdict = {}
+	for key, value in dictionary.iteritems():
+		clean1 = value.replace("\t" + ipaddressterm + " = ", "")
+		cleaned = clean1.replace("\n", "")
+		newdict[key] = cleaned
+	log_writer("IP Address List Cleaned Up!")
+	return newdict
+
+
+##### Clean up user names in dictionary #####
+def clean_names(dictionary):
+	newdict = {}
+	for key, value in dictionary.iteritems():
+		clean1 = value.replace("\t" + usernameterm + " = '", "")
+		cleaned = clean1.replace("'\n", "")
+		newdict[key] = cleaned
+	log_writer("Username List Cleaned Up!")
+	return newdict
+
+
+##### Merge dictionary values from two dictionaries into one dictionary and remove duplicates #####
+def merge_dicts(keydict, valuedict):
+	newdict = {}
+	keydictkeylist = keydict.keys()
+	for each in keydictkeylist:
+		v = valuedict[each]
+		k = keydict[each]
+		newdict[k] = v
+	log_writer("Dictionary values merged into one dictionary")
+	return newdict
+
+
+##### Delete all files in provided list #####
+def remove_files(filelist):
+	for filename in filelist:
+		os.remove(filename)
+		log_writer("Removed file: " + filename)
+
+
+##### Encode username and IP address in to URL REST format for PAN #####
+def url_converter_v7(username, ip):
+	if panosversion == '7':
+		urldecoded = '<uid-message>\
+                <version>1.0</version>\
+                <type>update</type>\
+                <payload>\
+                <login>\
+                <entry name="%s\%s" ip="%s" timeout="%s">\
+                </entry>\
+                </login>\
+                </payload>\
+                </uid-message>' % (userdomain, username, ip, timeout)
+		urljunk = urllib.quote_plus(urldecoded)
+		finishedurl = 'https://' + hostname + '/api/?key=' + pankey + extrastuff + urljunk
+		return finishedurl
+	else:
+		log_writer("PAN-OS version not supported for XML push!")
+		quit()
+
+
+##### Use urlconverter (above) to encode the URL to acceptable format and use REST call to push UID info to PAN #####
+def push_uids(ipanduserdict, filelist):
+	iteration = 0
+	ipaddresses = ipanduserdict.keys()
+	for ip in ipaddresses:
+		url = url_converter_v7(ipanduserdict[ip], ip)
+		log_writer("Pushing    |    " + userdomain + "\\" + ipanduserdict[ip] + ":" + ip)
+		response = urllib2.urlopen(url).read()
+		log_writer(response + "\n")
+		iteration = iteration + 1
+	remove_files(filelist)
+
+
+#######################RadiUID Installer Functions#######################
+#########################################################################
+#########################################################################
+#########################################################################
+#########################################################################
+#########################################################################
+
+
+##### Add '/' to directory path if not included #####
+def cidr_checker(cidr_ip_block):
+	check = re.search("^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\/(?:[0-9]|1[0-9]|2[0-9]|3[0-2]?)$", cidr_ip_block)
+	if check is None:
+		result = "no"
+	else:
+		result = "yes"
+	return result
+
+
+##### Add '/' to directory path if not included #####
+def directory_slash_add(directorypath):
+	check = re.search("^.*\/$", directorypath)
+	if check is None:
+		result = directorypath + "/"
+		print "~~~ Added a '/' to the end of the path. Make sure to include it next time"
+		return result
+	else:
+		result = directorypath
+		return result
 
 
 ##### Check if specific file exists #####
@@ -52,173 +208,6 @@ def check_directory(directory):
 			exists = 'yes'
 	return exists
 
-	
-##### Writes lines to the log file and prints them to the terminal #####
-def log_writer(input):
-        target = open(logfile, 'a')
-        target.write(time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + input + "\n")
-        print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + input + "\n"
-        target.close()
-
-
-
-
-##### Function to pull API key from firewall to be used for REST HTTP calls #####
-def pull_api_key(username, password):
-        url = 'https://' + hostname + '/api/?type=keygen&user=' + username + '&password=' + password
-        response = urllib2.urlopen(url).read()
-        log_writer("Pulling API key using PAN credentials: " + username + "\\" + password + "\n")
-        log_writer(response + "\n")
-        if 'success' in response:
-                stripped1 = response.replace("<response status = 'success'><result><key>", "")
-                stripped2 = stripped1.replace("</key></result></response>", "")
-                return stripped2
-        else:
-                print 'ERROR: Username\\password failed. Please re-enter in config file...' + '\n'
-                quit()
-
-
-
-
-
-
-
-
-
-
-##### List all files in a directory path and subdirs #####
-def listfiles(path):
-        filelist = []
-        for root, directories, filenames in os.walk(path):
-                for filename in filenames:
-                        entry = os.path.join(root,filename)
-                        filelist.append(entry)
-                        log_writer("Found File: " + entry + "...   Adding to file list")
-        if len(filelist) == 0:
-                log_writer("No Log Files Found. Nothing to Do.")
-                return filelist
-        else:
-                return filelist
-
-
-
-##### Search list of files for a searchterm and use deliniator term to count instances file, then return a dictionary where key=instance and value=line where term was found #####
-def search_to_dict(filelist, delineator, searchterm):
-        dict = {}
-        entry = 0
-        for filename in filelist:
-                log_writer('Searching File: ' + filename + ' for ' + searchterm)
-                with open(filename, 'r') as filetext:
-                        for line in filetext:
-                                if delineator in line:
-                                        entry = entry + 1
-                                if searchterm in line:
-                                        dict[entry] = line
-        return dict
-
-
-
-
-
-
-
-##### Clean up IP addresses in dictionary #####
-def clean_ips(dictionary):
-        newdict={}
-        for key, value in dictionary.iteritems():
-                clean1 = value.replace("\t" + ipaddressterm + " = ", "")
-                cleaned = clean1.replace("\n", "")
-                newdict[key] = cleaned
-        log_writer("IP Address List Cleaned Up!")
-        return newdict
-
-
-
-
-##### Clean up user names in dictionary #####
-def clean_names(dictionary):
-        newdict={}
-        for key, value in dictionary.iteritems():
-                clean1 = value.replace("\t" + usernameterm + " = '", "")
-                cleaned = clean1.replace("'\n", "")
-                newdict[key] = cleaned
-        log_writer("Username List Cleaned Up!")
-        return newdict
-
-
-##### Merge dictionary values from two dictionaries into one dictionary and remove duplicates #####
-def merge_dicts(keydict, valuedict):
-        newdict = {}
-        keydictkeylist = keydict.keys()
-        for each in keydictkeylist:
-                v = valuedict[each]
-                k = keydict[each]
-                newdict[k] = v
-        log_writer("Dictionary values merged into one dictionary")
-        return newdict
-
-
-
-
-
-##### Delete all files in provided list #####
-def remove_files(filelist):
-        for filename in filelist:
-                os.remove(filename)
-                log_writer("Removed file: " + filename)
-
-
-
-##### Encode username and IP address in to URL REST format for PAN #####
-def url_converter_v7(username, ip):
-        if panosversion == '7':
-                urldecoded = '<uid-message>\
-                <version>1.0</version>\
-                <type>update</type>\
-                <payload>\
-                <login>\
-                <entry name="%s\%s" ip="%s" timeout="%s">\
-                </entry>\
-                </login>\
-                </payload>\
-                </uid-message>' % (userdomain, username, ip, timeout)
-                urljunk = urllib.quote_plus(urldecoded)
-                finishedurl = 'https://' + hostname + '/api/?key=' + pankey + extrastuff + urljunk
-                return (finishedurl)
-        else:
-                log_writer("PAN-OS version not supported for XML push!")
-                quit()
-
-
-
-
-
-##### Use urlconverter (above) to encode the URL to acceptable format and use REST call to push UID info to PAN #####
-def push_uids(ipanduserdict, filelist):
-        iteration = 0
-        ipaddresses = ipanduserdict.keys()
-        for ip in ipaddresses:
-                url = url_converter_v7 (ipanduserdict[ip], ip)
-                log_writer("Pushing    |    " + userdomain + "\\" + ipanduserdict[ip] + ":" + ip)
-                response = urllib2.urlopen(url).read()
-                log_writer(response + "\n")
-                iteration = iteration + 1
-        remove_files(filelist)
-
-
-
-
-
-
-
-
-
-#######################RadiUID Installer Functions#######################
-#########################################################################
-#########################################################################
-#########################################################################
-#########################################################################
-#########################################################################
 
 ######################Find/Replace entries in config file##########################
 def config_replace(searchfor, replacewith):
@@ -322,11 +311,11 @@ def install_radiuid(installationpath):
 	                                 "\n" + "Type=simple" \
 	                                        "\n" + "User=root" \
 	                                               "\n" + "ExecStart=/bin/bash -c 'cd " + installationpath + "; python radiuid.py'" \
-	                                                                                                    "\n" + "Restart=on-abort" \
-	                                                                                                           "\n" \
-	                                                                                                           "\n" \
-	                                                                                                           "\n" + "[Install]" \
-	                                                                                                                  "\n" + "WantedBy=multi-user.target" \
+	                                                                                                         "\n" + "Restart=on-abort" \
+	                                                                                                                "\n" \
+	                                                                                                                "\n" \
+	                                                                                                                "\n" + "[Install]" \
+	                                                                                                                       "\n" + "WantedBy=multi-user.target" \
 		##############STARTFILE DATA STOP##############
 	f = open('/etc/systemd/system/radiuid.service', 'w')
 	f.write(startfile)
@@ -369,7 +358,6 @@ def freeradius_create_changes():
 	#####Set variables for use later#####
 	keepchanging = "yes"
 	addips = []
-	radiusclientdict = {}
 	#####Ask for IP address blocks and append each entry to a list. User can accept the example though#####
 	while keepchanging != "no":
 		addipexample = "10.0.0.0/8"
@@ -377,9 +365,13 @@ def freeradius_create_changes():
 			'\n>>>>> Enter the IP subnet to use for recognition of RADIUS accounting sources: [' + addipexample + ']:')
 		if goround == "":
 			goround = addipexample
-		addips.append(goround)
-		print "~~~ Added " + goround + " to list\n"
-		keepchanging = yesorno("Do you want to add another IP block to the list of trusted sources?")
+		ipcheck = cidr_checker(goround)
+		if ipcheck == 'no':
+			print "~~~ Nope. Give me a legit CIDR block..."
+		elif ipcheck == 'yes':
+			addips.append(goround)
+			print "~~~ Added " + goround + " to list\n"
+			keepchanging = yesorno("Do you want to add another IP block to the list of trusted sources?")
 	#####List out entries#####
 	print "\n\n"
 	print "List of IP blocks for accounting sources:"
@@ -387,12 +379,12 @@ def freeradius_create_changes():
 		print each
 	print "\n\n"
 	#####Have user enter shared secret to pair with all IP blocks in output dictionary#####
-	radiussecret = "password123"
-	enteredsecret = raw_input('>>>>> Enter a shared RADIUS secret to use with the accounting sources: [' + radiussecret + ']:')
-	if enteredsecret == "":
-		enteredsecret = radiussecret
-	else:
-		radiussecret = enteredsecret
+	radiussecret = ""
+	radiussecret = raw_input(
+		'>>>>> Enter a shared RADIUS secret to use with the accounting sources: [password123]:')
+	if radiussecret == "":
+		radiussecret = "password123"
+	print "~~~ Using '" + radiussecret + "' for shared secret\n"
 	#####Pair each IP entry with the shared secret and put in dictionary for output#####
 	radiusclientdict = {}
 	for each in addips:
@@ -434,10 +426,43 @@ def freeradius_editor(dict_edits):
 		print "***** If you need to manually edit the FreeRADIUS config file, it is located at " + clientconfpath
 		raw_input("\nHit ENTER to continue...\n\n>>>>>")
 
-
-
-
-
+def header():
+	print  "\n                        ###############################################      \n\
+		      #                                                 #    \n\
+		    #                                                     #  \n\
+		   #                                                       # \n\
+		  #                                                         #\n\
+		  #                            #                            #\n\
+		  #                          # # #                          #\n\
+		  #                         #  #  #                         #\n\
+		  #                            #                            #\n\
+		  # @@@@  @@  @@@@ @  @ @@@@ @@@@@  @@@@  @@  @@@@          #\n\
+		  # @  @ @  @ @    @ @  @      @   @     @  @ @  @          #\n\
+		  # @@@@ @@@@ @    @@   @@@    @   @ @ @ @@@@ @@@@          #\n\
+		  # @    @  @ @    @ @  @      @       @ @  @ @ @           #\n\
+		  # @    @  @ @@@@ @  @ @@@@   @   @@@@  @  @ @  @          #\n\
+		  #                            #                            #\n\
+		  #                                                         #\n\
+		  #                      #           #                      #\n\
+		  #                       #   ###   #                       #\n\
+		  #    #####################  ###  #####################    #\n\
+		  #                       #   ###   #                       #\n\
+		  #                      #           #                      #\n\
+		  #                                                         #\n\
+		  #                            #                            #\n\
+		  #                            #                            #\n\
+		  #                            #                            #\n\
+		  #                            #                            #\n\
+		  #                            #                            #\n\
+		  #                            #                            #\n\
+		  #                            #                            #\n\
+		  #                         #  #  #                         #\n\
+	  	  #                          # # #                          #\n\
+		  #                            #                            #\n\
+		   #                                                       # \n\
+		    #                                                     #  \n\
+		      #                                                 #    \n\
+		        ###############################################      \n"
 
 
 #######################Installer Running Function########################
@@ -450,35 +475,34 @@ def freeradius_editor(dict_edits):
 def installer():
 	print "\n\n\n\n\n\n\n\n"
 	print '                       ##################################################' \
-	      '\n' + '                       ########Install Utility for RadiUID Server########' \
-	             '\n' + '                       ##########    Please Use Carefully!    ###########' \
-	                    '\n' + '                       ##################################################' \
-	                           '\n' + '                       ##################################################' \
-	                                  '\n' + '                       ##################################################' \
-	                                         '\n' + '                       ######       Written by John W Kerns        ######' \
-	                                                '\n' + '                       ######      http://blog.packetsar.com       ######' \
-	                                                       '\n' + '                       ###### https://github.com/PackeTsar/radiuid ######' \
-	                                                              '\n' + '                       ##################################################' \
-	                                                                     '\n' + '                       ##################################################' \
-	                                                                            '\n' + '                       ##################################################' \
-	 \
-	
-	
+			'\n' + '                       ########Install Utility for RadiUID Server########' \
+			'\n' + '                       ##########    Please Use Carefully!    ###########' \
+			'\n' + '                       ##################################################' \
+			'\n' + '                       ##################################################' \
+			'\n' + '                       ##################################################' \
+			'\n' + '                       ######       Written by John W Kerns        ######' \
+			'\n' + '                       ######      http://blog.packetsar.com       ######' \
+			'\n' + '                       ###### https://github.com/PackeTsar/radiuid ######' \
+			'\n' + '                       ##################################################' \
+			'\n' + '                       ##################################################' \
+			'\n' + '                       ##################################################' \
+ \
+
 	print "\n\n\n"
 	print "****************First, we will configure the settings for the radiuid.conf file...****************\n"
 	print "*****************The current values for each setting are [displayed in the prompt]****************\n"
 	print "****************Leave the prompt empty and hit ENTER to accept the current value****************\n"
 	raw_input("\n\n>>>>> Hit ENTER to continue...\n\n>>>>>")
 	print "\n\n\n\n\n\n\n"
-	
+
 	#########################################################################
 	###Read current .conf settings into interpreter
 	#########################################################################
 	print "****************Reading in current settings from radiuid.conf file in current directory...****************\n"
-	
+
 	parser = ConfigParser.SafeConfigParser()
 	parser.read('radiuid.conf')
-	
+
 	logfile = parser.get('Paths_and_Files', 'logfile')
 	radiuslogpath = parser.get('Paths_and_Files', 'radiuslogpath')
 	hostname = parser.get('Palo_Alto_Target', 'hostname')
@@ -491,9 +515,9 @@ def installer():
 	delineatorterm = parser.get('Search_Terms', 'delineatorterm')
 	userdomain = parser.get('UID_Settings', 'userdomain')
 	timeout = parser.get('UID_Settings', 'timeout')
-	
+
 	installpath = "/etc/radiuid/"
-	
+
 	progress('Reading:', 1)
 	#########################################################################
 	###Ask questions to the console for editing the .conf file settings
@@ -516,7 +540,7 @@ def installer():
 	newuserdomain = change_setting(userdomain, 'Enter the user domain to be prefixed to User-IDs')
 	print "\n"
 	newtimeout = change_setting(timeout, 'Enter timeout period for pushed UIDs (in minutes)')
-	
+
 	#########################################################################
 	###Pushing settings to .conf file with the code below
 	#########################################################################
@@ -529,19 +553,19 @@ def installer():
 	apply_setting('password', password, newpassword)
 	apply_setting('userdomain', userdomain, newuserdomain)
 	apply_setting('timeout', timeout, newtimeout)
-	
+
 	progress('Applying:', 1)
-	
+
 	#########################################################################
 	###Check if FreeRADIUS is installed and running already
 	#########################################################################
 	print "\n\n\n\n\n\n****************Checking if FreeRADIUS is installed...****************\n"
 	freeradiusinstalled = check_service_installed('radiusd')
 	freeradiusrunning = check_service_running('radiusd')
-	
+
 	if freeradiusinstalled == 'yes' and freeradiusrunning == 'yes':
 		print "***** Looks like the FreeRADIUS service is already installed and running...skipping the install of FreeRADIUS"
-	
+
 	if freeradiusinstalled == 'yes' and freeradiusrunning == 'no':
 		freeradiusrestart = yesorno("----- Looks like FreeRADIUS is installed, but not running....want to start it up?")
 		if freeradiusrestart == 'yes':
@@ -553,7 +577,7 @@ def installer():
 				print "***** Very nice....Great Success!!!"
 		if freeradiusrestart == 'no':
 			print "~~~ OK, leaving it off..."
-	
+
 	if freeradiusinstalled == 'no' and freeradiusrunning == 'no':
 		freeradiusinstall = yesorno(
 			"Looks like FreeRADIUS is not installed. It is required by RadiUID. Is it ok to install FreeRADIUS?")
@@ -573,19 +597,20 @@ def installer():
 		if freeradiusinstall == 'no':
 			print "***** FreeRADIUS is required by RadiUID. Quitting the installer"
 			quit()
-	
+
 	#########################################################################
 	###Check if RadiUID is installed and running already
 	#########################################################################
 	print "\n\n\n\n\n\n****************Checking if RadiUID is already installed...****************\n"
 	radiuidinstalled = check_service_installed('radiuid')
 	radiuidrunning = check_service_running('radiuid')
-	
+
 	if radiuidinstalled == 'yes' and radiuidrunning == 'yes':
 		print "***** Looks like the RadiUID service is already installed and running...skipping the install of RadiUID\n"
 		radiuidreinstall = yesorno("Do you want to re-install the RadiUID service?")
 		if radiuidreinstall == 'yes':
 			installpath = change_setting(installpath, "Enter a path where we should install RadiUID:")
+			installpath  = directory_slash_add(installpath)
 			print "\n\n****************Re-installing the RadiUID service...****************\n"
 			copy_radiuid(installpath)
 			install_radiuid(installpath)
@@ -603,10 +628,11 @@ def installer():
 				raw_input("Hit ENTER to continue...\n\n>>>>>")
 		if radiuidreinstall == 'no':
 			print "~~~ OK, leaving it alone..."
-	
+
 	if radiuidinstalled == 'yes' and radiuidrunning == 'yes' and radiuidreinstall == 'no':
 		print "\n"
-		radiuidrestart = yesorno("Do you want to restart the RadiUID service to effect the changes made to the .conf file?")
+		radiuidrestart = yesorno(
+			"Do you want to restart the RadiUID service to effect the changes made to the .conf file?")
 		if radiuidrestart == 'yes':
 			print "\n\n****************Restarting the RadiUID service to effect changes...****************\n"
 			restart_service('radiuid')
@@ -621,7 +647,7 @@ def installer():
 				raw_input("Hit ENTER to continue...\n\n>>>>>")
 		if radiuidrestart == 'no':
 			print "~~~ OK, leaving it alone..."
-	
+
 	if radiuidinstalled == 'yes' and radiuidrunning == 'no':
 		print "\n"
 		radiuidrestart = yesorno("Looks like RadiUID is installed, but not running....want to start it up?")
@@ -635,6 +661,7 @@ def installer():
 				radiuidreinstall = yesorno("Do you want to re-install the RadiUID service?")
 				if radiuidreinstall == 'yes':
 					installpath = change_setting(installpath, "Enter a path where we should install RadiUID:")
+					installpath = directory_slash_add(installpath)
 					print "\n\n****************Re-installing the RadiUID service...****************\n"
 					copy_radiuid(installpath)
 					install_radiuid(installpath)
@@ -642,12 +669,13 @@ def installer():
 					restart_service('radiuid')
 		if radiuidrestart == 'no':
 			print "~~~ OK, leaving it off..."
-	
+
 	if radiuidinstalled == 'no' and radiuidrunning == 'no':
 		print "\n"
 		radiuidinstall = yesorno("Looks like RadiUID is not installed. Is it ok to install RadiUID?")
 		if radiuidinstall == 'yes':
 			installpath = change_setting(installpath, "Enter a path where we shoud install RadiUID:")
+			installpath = directory_slash_add(installpath)
 			print "\n\n****************Installing the RadiUID service...****************\n"
 			copy_radiuid(installpath)
 			install_radiuid(installpath)
@@ -662,22 +690,22 @@ def installer():
 				print "***** Please make sure you are installing RadiUID on a support platform"
 				raw_input("Hit ENTER to quit the program...\n\n>>>>>")
 				quit()
-	
+
 		if radiuidinstall == 'no':
 			print "***** The install of RadiUID is required. Quitting the installer"
 			quit()
-	
+
 	#########################################################################
 	###Make changes to FreeRADIUS config file
 	#########################################################################
 	print "\n\n\n\n\n\n****************Let's make some changes to the FreeRADIUS client config file****************\n"
 	editfreeradius = yesorno(
 		"Do you want to make changes to FreeRADIUS by adding some IP blocks for accepted accounting clients?")
-	
+
 	if editfreeradius == "yes":
 		freeradiusedits = freeradius_create_changes()
 		freeradius_editor(freeradiusedits)
-	
+
 	#########################################################################
 	###Trailer/Goodbye
 	#########################################################################
@@ -708,11 +736,10 @@ args = parser.parse_args()
 
 if args.install:
 	print "\n\n\n"
+	header()
 	progress("Running RadiUID in Install/Maintenance Mode:", 3)
 	installer()
 	quit()
-
-
 
 
 #######################Primary Running Function##########################
@@ -725,21 +752,18 @@ if args.install:
 
 
 def main():
-        filelist = listfiles(radiuslogpath)
-        if len(filelist) > 0:
-                usernames = search_to_dict(filelist, delineatorterm, usernameterm)
-                ipaddresses = search_to_dict(filelist, delineatorterm, ipaddressterm)
-                usernames = clean_names(usernames)
-                ipaddresses = clean_ips(ipaddresses)
-                ipanduserdict = merge_dicts(ipaddresses, usernames)
-                push_uids(ipanduserdict, filelist)
-                del filelist
-                del usernames
-                del ipaddresses
-                del ipanduserdict
-
-
-
+	filelist = listfiles(radiuslogpath)
+	if len(filelist) > 0:
+		usernames = search_to_dict(filelist, delineatorterm, usernameterm)
+		ipaddresses = search_to_dict(filelist, delineatorterm, ipaddressterm)
+		usernames = clean_names(usernames)
+		ipaddresses = clean_ips(ipaddresses)
+		ipanduserdict = merge_dicts(ipaddresses, usernames)
+		push_uids(ipanduserdict, filelist)
+		del filelist
+		del usernames
+		del ipaddresses
+		del ipanduserdict
 
 
 #####################Start of Main RadiUID Program#######################
@@ -758,71 +782,64 @@ logfile = parser.get('Paths_and_Files', 'logfile')
 
 ##### Initial log entry and help for anybody starting the .py program without first installing it #####
 
-log_writer("***********RADIUID INITIALIZING... IF PROGRAM FAULTS NOW, MAKE SURE TO RUN IT IN INSTALL MODE ('python radiuid.py -i')***********")
+log_writer(
+	"***********RADIUID INITIALIZING... IF PROGRAM FAULTS NOW, MAKE SURE SUCCESSFULLY YOU RAN THE INSTALLER ('python radiuid.py -i')***********")
 
 ##### Suck in all variables from config file (only run when program is initially started, not during while loop) #####
 
-log_writer("*******************************************CONFIG FILE SETTINGS INITIALIZING...*******************************************")
+log_writer(
+	"*******************************************CONFIG FILE SETTINGS INITIALIZING...*******************************************")
 
-log_writer("Initialized variable:" "\t" + "logfile"  + "\t\t\t\t" + "with value:" + "\t" + logfile)
+log_writer("Initialized variable:" "\t" + "logfile" + "\t\t\t\t" + "with value:" + "\t" + logfile)
 
 radiuslogpath = parser.get('Paths_and_Files', 'radiuslogpath')
-log_writer("Initialized variable:" "\t" + "radiuslogpath"  + "\t\t\t" + "with value:" + "\t" + radiuslogpath)
+log_writer("Initialized variable:" "\t" + "radiuslogpath" + "\t\t\t" + "with value:" + "\t" + radiuslogpath)
 
 hostname = parser.get('Palo_Alto_Target', 'hostname')
-log_writer("Initialized variable:" "\t" + "hostname"  + "\t\t\t" + "with value:" + "\t" + hostname)
+log_writer("Initialized variable:" "\t" + "hostname" + "\t\t\t" + "with value:" + "\t" + hostname)
 
 panosversion = parser.get('Palo_Alto_Target', 'OS_Version')
-log_writer("Initialized variable:" "\t" + "panosversion"  + "\t\t\t" + "with value:" + "\t" + panosversion)
+log_writer("Initialized variable:" "\t" + "panosversion" + "\t\t\t" + "with value:" + "\t" + panosversion)
 
 panuser = parser.get('Palo_Alto_Target', 'username')
-log_writer("Initialized variable:" "\t" + "panuser"  + "\t\t\t\t" + "with value:" + "\t" + panuser)
+log_writer("Initialized variable:" "\t" + "panuser" + "\t\t\t\t" + "with value:" + "\t" + panuser)
 
 panpassword = parser.get('Palo_Alto_Target', 'password')
-log_writer("Initialized variable:" "\t" + "panpassword"  + "\t\t\t" + "with value:" + "\t" + panpassword)
+log_writer("Initialized variable:" "\t" + "panpassword" + "\t\t\t" + "with value:" + "\t" + panpassword)
 
 extrastuff = parser.get('URL_Stuff', 'extrastuff')
-log_writer("Initialized variable:" "\t" + "extrastuff"  + "\t\t\t" + "with value:" + "\t" + extrastuff)
+log_writer("Initialized variable:" "\t" + "extrastuff" + "\t\t\t" + "with value:" + "\t" + extrastuff)
 
 ipaddressterm = parser.get('Search_Terms', 'ipaddressterm')
-log_writer("Initialized variable:" "\t" + "ipaddressterm"  + "\t\t\t" + "with value:" + "\t" + ipaddressterm)
+log_writer("Initialized variable:" "\t" + "ipaddressterm" + "\t\t\t" + "with value:" + "\t" + ipaddressterm)
 
 usernameterm = parser.get('Search_Terms', 'usernameterm')
-log_writer("Initialized variable:" "\t" + "usernameterm"  + "\t\t\t" + "with value:" + "\t" + usernameterm)
+log_writer("Initialized variable:" "\t" + "usernameterm" + "\t\t\t" + "with value:" + "\t" + usernameterm)
 
 delineatorterm = parser.get('Search_Terms', 'delineatorterm')
-log_writer("Initialized variable:" "\t" + "delineatorterm"  + "\t\t\t" + "with value:" + "\t" + delineatorterm)
+log_writer("Initialized variable:" "\t" + "delineatorterm" + "\t\t\t" + "with value:" + "\t" + delineatorterm)
 
 userdomain = parser.get('UID_Settings', 'userdomain')
-log_writer("Initialized variable:" "\t" + "userdomain"  + "\t\t\t" + "with value:" + "\t" + userdomain)
+log_writer("Initialized variable:" "\t" + "userdomain" + "\t\t\t" + "with value:" + "\t" + userdomain)
 
 timeout = parser.get('UID_Settings', 'timeout')
-log_writer("Initialized variable:" "\t" + "timeout"  + "\t\t\t\t" + "with value:" + "\t" + timeout)
+log_writer("Initialized variable:" "\t" + "timeout" + "\t\t\t\t" + "with value:" + "\t" + timeout)
 
 ##### Explicitly pull PAN key now and store API key in the main namespace #####
 
-log_writer("***********************************CONNECTING TO PALO ALTO FIREWALL TO EXTRACT THE API KEY NOW...***********************************")
-log_writer("********************IF PROGRAM FREEZES RIGHT NOW, THEN THERE IS LIKELY A COMMUNICATION PROBLEM WITH THE FIREWALL********************")
-
+log_writer(
+	"***********************************CONNECTING TO PALO ALTO FIREWALL TO EXTRACT THE API KEY NOW...***********************************")
+log_writer(
+	"********************IF PROGRAM FREEZES RIGHT NOW, THEN THERE IS LIKELY A COMMUNICATION PROBLEM WITH THE FIREWALL********************")
 
 pankey = pull_api_key(panuser, panpassword)
-log_writer("Initialized variable:" "\t" + "pankey"  + "\t\t\t\t" + "with value:" + "\t" + pankey)
+log_writer("Initialized variable:" "\t" + "pankey" + "\t\t\t\t" + "with value:" + "\t" + pankey)
 
+log_writer(
+	"*******************************************CONFIG FILE SETTINGS INITIALIZED*******************************************")
 
-
-log_writer("*******************************************CONFIG FILE SETTINGS INITIALIZED*******************************************")
-
-
-
-
-
-log_writer("***********************************RADIUID SERVER STARTING WITH INITIALIZED VARIABLES...******************************")
-
-
-
-
-
-
+log_writer(
+	"***********************************RADIUID SERVER STARTING WITH INITIALIZED VARIABLES...******************************")
 
 #######################Loop Through Main()###############################
 #########################################################################
@@ -834,6 +851,7 @@ log_writer("***********************************RADIUID SERVER STARTING WITH INIT
 
 
 while __name__ == "__main__":
-        main()
-        time.sleep(10)
+	main()
+	time.sleep(10)
 
+	#######################END OF PROGRAM###############################
