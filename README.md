@@ -30,11 +30,11 @@ RadiUID uses FreeRADIUS as a backend service to listen on RADIUS accounting port
 
 Currently, RadiUID has only been written and tested on a very specific setup as it was purpose-built for a specific environment, but open-sourced for use by others in different environments. Below is current the list of requirements for RadiUID. Hopefully this list of requirements will expand as development for RadiUID continues; relaxing the specific requirements for the operating system, interpreter version, and PAN-OS software version.
 
-OS:			CentOS 7 Minimal Install (updated to latest patches)
+OS:			**CentOS 7 Minimal Install (updated to latest patches)**
 
-Interpreter:		Python 2.7 (Included in current release of CentOS 7)
+Interpreter:		**Python 2.7 (Included in current release of CentOS 7)**
 
-PAN-OS Version:		7.X
+PAN-OS Version:		**7.X**
 
 
 ##########   INSTALL INSTRUCTIONS   ##########
