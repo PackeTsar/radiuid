@@ -72,6 +72,7 @@ The install of RadiUID is very quick and straightforward if using the built-in i
 		-Changing settings in the RadiUID .conf file
 		-Changing client settings in FreeRADIUS
 		-Checking health of FreeRADIUS and RadiUID services
+		-NOTE: Make sure that you have the .conf file in the same directory as the .py directory for the initial install
 
 
 ##########   CONTRIBUTING   ##########
