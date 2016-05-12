@@ -924,31 +924,37 @@ def main(arg):
 		quit()
 	######################### SHOW #############################
 	elif cat_list(sys.argv[1:]) == "show" or cat_list(sys.argv[1:]) == "show ?":
-		print "\n - log\n - run\n - status\n"
+		print "\n - show log       |     Show the RadiUID log file"
+		print " - show run         |     Show the RadiUID config file"
+		print " - show config      |     Show the RadiUID config file"
+		print " - show status      |     Show the RadiUID service status\n"
 	elif cat_list(sys.argv[1:]) == "show log":
 		os.system("more /etc/radiuid/radiuid.log")
 	elif cat_list(sys.argv[1:]) == "show run":
 		os.system("more /etc/radiuid/radiuid.conf")
+	elif cat_list(sys.argv[1:]) == "show config":
+		os.system("more /etc/radiuid/radiuid.conf")
 	elif cat_list(sys.argv[1:]) == "show status":
 		os.system("systemctl status radiuid")
+	######################### TAIL #############################
+	elif cat_list(sys.argv[1:]) == "tail" or cat_list(sys.argv[1:]) == "tail ?":
+		print "\n - tail log         |     Watch the RadiUID log file in real time\n"
+	elif cat_list(sys.argv[1:]) == "tail log":
+		os.system("tail -f /etc/radiuid/radiuid.log")
+	######################### CLEAR #############################
+	elif cat_list(sys.argv[1:]) == "clear" or cat_list(sys.argv[1:]) == "clear ?":
+		print "\n - clear log         |     Delete the content in the log file\n"
+	elif cat_list(sys.argv[1:]) == "clear log":
+		os.system("rm -f /etc/radiuid/radiuid.log")
+		write_file("/etc/radiuid/radiuid.log", "***********Log cleared by RadiUID command***********\n")
 	######################### EDIT #############################
 	elif cat_list(sys.argv[1:]) == "edit" or cat_list(sys.argv[1:]) == "edit ?":
-		print "\n - config\n"
+		print "\n - edit config      |     Edit the RadiUID config file\n"
 	elif cat_list(sys.argv[1:]) == "edit config":
 		print "****************** You are about to edit the RadiUID config file in VI ******************"
 		print "********************* Confirm that you know how to use the VI editor ********************"
 		raw_input("Hit CTRL-C to quit. Hit ENTER to continue\n>>>>>")
 		os.system("vi /etc/radiuid/radiuid.conf")
-	######################### TAIL #############################
-	elif cat_list(sys.argv[1:]) == "tail" or cat_list(sys.argv[1:]) == "tail ?":
-		print "\n - log\n"
-	elif cat_list(sys.argv[1:]) == "tail log":
-		os.system("tail -f /etc/radiuid/radiuid.log")
-	######################### WATCH #############################
-	elif cat_list(sys.argv[1:]) == "watch" or cat_list(sys.argv[1:]) == "watch ?":
-		print "\n - log\n"
-	elif cat_list(sys.argv[1:]) == "watch log":
-		os.system("tail -f /etc/radiuid/radiuid.log")
 	######################### OTHERS #############################
 	elif cat_list(sys.argv[1:]) == "restart":
 		os.system("systemctl status radiuid | grep Active:; systemctl stop radiuid; systemctl status radiuid | grep Active; systemctl start radiuid; systemctl status radiuid | grep Active")
@@ -957,16 +963,18 @@ def main(arg):
 		print "\n\n\n****************** Below are supported RadiUID Commands: ******************\n"
 		print " - run              |     Run the RadiUID main program to begin pushing User-ID information"
 		print "------------------------------------------------------------------------------------------\n"
-		print " - install              |     Run the RadiUID Install/Maintenance Utility"
+		print " - install          |     Run the RadiUID Install/Maintenance Utility"
 		print "------------------------------------------------------------------------------------------\n"
 		print " - show log         |     Show the RadiUID log file"
 		print " - show run         |     Show the RadiUID config file"
+		print " - show config      |     Show the RadiUID config file"
 		print " - show status      |     Show the RadiUID service status"
 		print "------------------------------------------------------------------------------------------\n"
-		print " - edit config      |     Edit the RadiUID config file"
-		print "------------------------------------------------------------------------------------------\n"
 		print " - tail log         |     Watch the RadiUID log file in real time"
-		print " - watch log        |     Watch the RadiUID log file in real time"
+		print "------------------------------------------------------------------------------------------\n"
+		print " - clear log        |     Delete the content in the log file"
+		print "------------------------------------------------------------------------------------------\n"
+		print " - edit config      |     Edit the RadiUID config file"
 		print "------------------------------------------------------------------------------------------\n"
 		print " - restart          |     Restart/Start the RadiUID system service"
 		print "------------------------------------------------------------------------------------------\n\n\n"
