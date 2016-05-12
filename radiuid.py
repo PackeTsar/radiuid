@@ -956,9 +956,16 @@ def main(arg):
 		raw_input("Hit CTRL-C to quit. Hit ENTER to continue\n>>>>>")
 		os.system("vi /etc/radiuid/radiuid.conf")
 	######################### OTHERS #############################
+	elif cat_list(sys.argv[1:]) == "start":
+		os.system("systemctl start radiuid; systemctl status radiuid")
+		print "\n\n**********RADIUID STARTED**********\n\n"
+	elif cat_list(sys.argv[1:]) == "stop":
+		os.system("systemctl stop radiuid; systemctl status radiuid")
+		print "\n\n**********RADIUID STOPPED**********\n\n"
 	elif cat_list(sys.argv[1:]) == "restart":
 		os.system("systemctl status radiuid | grep Active:; systemctl stop radiuid; systemctl status radiuid | grep Active; systemctl start radiuid; systemctl status radiuid | grep Active")
 		print "\n\n**********RADIUID RESTARTED**********\n\n"
+	######################### GUIDE #############################
 	else:
 		print "\n\n\n****************** Below are supported RadiUID Commands: ******************\n"
 		print " - run              |     Run the RadiUID main program to begin pushing User-ID information"
@@ -976,7 +983,9 @@ def main(arg):
 		print "------------------------------------------------------------------------------------------\n"
 		print " - edit config      |     Edit the RadiUID config file"
 		print "------------------------------------------------------------------------------------------\n"
-		print " - restart          |     Restart/Start the RadiUID system service"
+		print " - start            |     Start the RadiUID system service"
+		print " - stop             |     Stop the RadiUID system service"
+		print " - restart          |     Restart the RadiUID system service"
 		print "------------------------------------------------------------------------------------------\n\n\n"
 
 
