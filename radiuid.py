@@ -608,17 +608,7 @@ def installer():
 			print "\n\n****************Installing the RadiUID service...****************\n"
 			copy_radiuid()
 			install_radiuid()
-			print "\n\n****************Starting the RadiUID service...****************\n"
-			restart_service('radiuid')
-			radiuidrunning = check_service_running('radiuid')
-			if radiuidrunning == "yes":
-				print "***** RadiUID successfully installed and started up!!!"
-			raw_input("Hit ENTER to continue...\n\n>>>>>")
-			if radiuidrunning == "no":
-				print "***** Something went wrong. Looks like the installation or startup failed... "
-				print "***** Please make sure you are installing RadiUID on a support platform"
-				raw_input("Hit ENTER to quit the program...\n\n>>>>>")
-				quit()
+			print "\n\n****************We will start up the RadiUID service once we configure the .conf file****************\n"
 
 		if radiuidinstall == 'no':
 			print "***** The install of RadiUID is required. Quitting the installer"
@@ -699,24 +689,19 @@ def installer():
 
 	write_file(configfile, new_config_file_data)
 	
-	print "\n"
-	radiuidrestart = yesorno(
-		"Do you want to restart the RadiUID service to effect the changes made to the .conf file?")
-	if radiuidrestart == 'yes':
-		print "\n\n****************Restarting the RadiUID service to effect changes...****************\n"
-		restart_service('radiuid')
-		checkservice = check_service_running('radiuid')
-		if checkservice == 'no':
-			print "\n\n***** Uh Oh... Looks like the RadiUID service failed to restart."
-			print "***** It is possible that something is wrong in the SystemD startup file"
-			print "***** Open up and check the RadiUID startup file at /etc/systemd/system/radiuid.service"
-			raw_input("Hit ENTER to continue...\n\n>>>>>")
-		elif checkservice == 'yes':
-			print "\n\n***** Looks like a successful restart..."
-			raw_input("Hit ENTER to continue...\n\n>>>>>")
-	if radiuidrestart == 'no':
-		print "~~~ OK, leaving it alone..."
 	
+	
+	print "\n\n****************Starting/Restarting the RadiUID service...****************\n"
+	restart_service('radiuid')
+	radiuidrunning = check_service_running('radiuid')
+	if radiuidrunning == "yes":
+		print "***** RadiUID successfully started up!!!"
+	raw_input("Hit ENTER to continue...\n\n>>>>>")
+	if radiuidrunning == "no":
+		print "***** Something went wrong. Looks like the installation or startup failed... "
+		print "***** Please make sure you are installing RadiUID on a support platform"
+		raw_input("Hit ENTER to quit the program...\n\n>>>>>")
+		quit()
 	
 
 	#########################################################################
