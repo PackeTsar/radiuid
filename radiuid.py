@@ -261,7 +261,7 @@ def apply_setting(file_data, settingname, oldsetting, newsetting):
 
 ######################Find/Replace entries in config file##########################
 def write_file(filepath, filedata):
-	f = open(configfile, 'w')
+	f = open(filepath, 'w')
 	f.write(filedata)
 	f.close()
 
