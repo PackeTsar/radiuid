@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/bin/python
 
 #####       Written by John W Kerns        #####
 #####      http://blog.packetsar.com       #####
@@ -23,6 +23,19 @@ import ConfigParser
 #########################################################################
 #########################################################################
 #########################################################################
+
+
+##### Check if specific file exists #####
+def file_exists(filepath):
+	checkdata = commands.getstatusoutput("ls " + filepath)
+	exists = ""
+	for line in checkdata:
+		line = str(line)
+		if "No such" in line:
+			exists = "no"
+		else:
+			exists = "yes"
+	return exists
 
 
 ##### Writes lines to the log file and prints them to the terminal #####
@@ -181,19 +194,6 @@ def directory_slash_add(directorypath):
 	else:
 		result = directorypath
 		return result
-
-
-##### Check if specific file exists #####
-def file_exists(filepath):
-	checkdata = commands.getstatusoutput("ls " + filepath)
-	exists = ""
-	for line in checkdata:
-		line = str(line)
-		if "No such" in line:
-			exists = "no"
-		else:
-			exists = "yes"
-	return exists
 
 
 ##### Check if specific directory exists #####
@@ -773,6 +773,19 @@ def main():
 #########################################################################
 #########################################################################
 
+print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + "***********RADIUID PROGRAM INITIAL START. CHECKING FOR CONFIG FILE...***********" + "\n"
+
+##### Check if config file exists. Fail program if it doesn't #####
+checkfile = file_exists("radiuid.conf")
+if checkfile == 'no':
+	print time.strftime(
+		"%Y-%m-%d %H:%M:%S") + ":   " + "ERROR: CANNOT FIND RADIUID IN SPECIFIED PATH. QUITTING PROGRAM. RE-RUN INSTALLER" + "\n"
+if checkfile == 'yes':
+	print time.strftime(
+		"%Y-%m-%d %H:%M:%S") + ":   " + "***********FOUND CONFIG FILE. CONTINUING STARTUP PROCEDURE...***********" + "\n"
+	print time.strftime(
+		"%Y-%m-%d %H:%M:%S") + ":   " + "***********READING IN RADIUID LOGFILE INFORMATION. ALL SUBSEQUENT OUTPUT WILL BE LOGGED TO THE LOGFILE***********" + "\n"
+
 ##### Open the config file and read in the logfile location information #####
 
 parser = ConfigParser.SafeConfigParser()
@@ -828,7 +841,7 @@ log_writer("Initialized variable:" "\t" + "timeout" + "\t\t\t\t" + "with value:"
 ##### Explicitly pull PAN key now and store API key in the main namespace #####
 
 log_writer(
-	"***********************************CONNECTING TO PALO ALTO FIREWALL TO EXTRACT THE API KEY NOW...***********************************")
+	"***********************************CONNECTING TO PALO ALTO FIREWALL TO EXTRACT THE API KEY...***********************************")
 log_writer(
 	"********************IF PROGRAM FREEZES/FAILS RIGHT NOW, THEN THERE IS LIKELY A COMMUNICATION PROBLEM WITH THE FIREWALL********************")
 
