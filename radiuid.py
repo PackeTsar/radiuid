@@ -319,6 +319,7 @@ def copy_radiuid():
 	os.system('mkdir -p ' + configfilepath)
 	os.system('cp radiuid.conf ' + configfilepath + 'radiuid.conf')
 	os.system('cp radiuid.py ' + binpath + 'radiuid')
+	os.system('chmod 777 ' + binpath + 'radiuid')
 	progress("Copying Files: ", 2)
 
 
@@ -955,6 +956,8 @@ def main(arg):
 	else:
 		print "\n\n\n****************** Below are supported RadiUID Commands: ******************\n"
 		print " - run              |     Run the RadiUID main program to begin pushing User-ID information"
+		print "------------------------------------------------------------------------------------------\n"
+		print " - install              |     Run the RadiUID Install/Maintenance Utility"
 		print "------------------------------------------------------------------------------------------\n"
 		print " - show log         |     Show the RadiUID log file"
 		print " - show run         |     Show the RadiUID config file"
