@@ -4,10 +4,6 @@
 #####      http://blog.packetsar.com       #####
 ##### https://github.com/PackeTsar/radiuid #####
 
-etcconfigfile = "/etc/radiuid/radiuid.conf"
-localconfigfile = "radiuid.conf"
-
-
 
 import os
 import re
@@ -731,6 +727,30 @@ def installer():
 	quit()
 
 
+
+
+
+
+#############Find the config file from two alternative paths#############
+#########################################################################
+#########################################################################
+#########################################################################
+#########################################################################
+#########################################################################
+
+etcconfigfile = "/etc/radiuid/radiuid.conf"
+localconfigfile = "radiuid.conf"
+
+print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + "***********RADIUID PROGRAM INITIAL START. CHECKING FOR CONFIG FILE...***********" + "\n"
+print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + "***********CHECKING LOCATION: PREFERRED LOCATION - " + etcconfigfile + "***********" + "\n"
+print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + "***********CHECKING LOCATION: ALTERNATE LOCATION IN LOCAL DIRECTORY - " + localconfigfile + "***********" + "\n"
+
+configfile = file_chooser(etcconfigfile, localconfigfile)
+
+print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + "***********FOUND CONFIG FILE IN LOCATION: " + configfile + "***********" + "\n"
+
+
+
 ####################Installer Runs Here If Switched######################
 #########################################################################
 #########################################################################
@@ -747,7 +767,6 @@ args = parser.parse_args()
 if args.install:
 	print "\n\n\n"
 	header()
-	configfile = file_chooser(etcconfigfile, localconfigfile)
 	checkfile = file_exists(configfile)
 	if checkfile == 'no':
 		print "ERROR: Config file (radiuid.conf) not found. Make sure the radiuid.conf file exists in same directory as radiuid.py"
@@ -789,7 +808,7 @@ def main():
 #########################################################################
 #########################################################################
 
-print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + "***********RADIUID PROGRAM INITIAL START. CHECKING FOR CONFIG FILE...***********" + "\n"
+print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + "***********MAIN PROGRAM STARTING; NO SWITCHES USED***********" + "\n"
 
 ##### Check if config file exists. Fail program if it doesn't #####
 checkfile = file_exists(configfile)
