@@ -830,7 +830,7 @@ log_writer("Initialized variable:" "\t" + "timeout" + "\t\t\t\t" + "with value:"
 log_writer(
 	"***********************************CONNECTING TO PALO ALTO FIREWALL TO EXTRACT THE API KEY NOW...***********************************")
 log_writer(
-	"********************IF PROGRAM FREEZES RIGHT NOW, THEN THERE IS LIKELY A COMMUNICATION PROBLEM WITH THE FIREWALL********************")
+	"********************IF PROGRAM FREEZES/FAILS RIGHT NOW, THEN THERE IS LIKELY A COMMUNICATION PROBLEM WITH THE FIREWALL********************")
 
 pankey = pull_api_key(panuser, panpassword)
 log_writer("Initialized variable:" "\t" + "pankey" + "\t\t\t\t" + "with value:" + "\t" + pankey)
