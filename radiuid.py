@@ -23,6 +23,17 @@ import ConfigParser
 #########################################################################
 #########################################################################
 
+##### Create str sentence out of list seperated by spaces and lowercase everything #####
+def cat_list(listname):
+	result = ""
+	counter = 0
+	#listlen = len(listname)
+	for word in listname:
+		result = result + listname[counter].lower() + " "
+		counter = counter + 1
+	result = result[:len(result) - 1:]
+	return result
+
 
 ##### Check if specific file exists #####
 def file_exists(filepath):
@@ -38,8 +49,8 @@ def file_exists(filepath):
 
 
 ##### Writes lines to the log file and prints them to the terminal #####
-def log_writer(input):
-	target = open(logfile, 'a')
+def log_writer(filepath, input):
+	target = open(filepath, 'a')
 	target.write(time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + input + "\n")
 	print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + input + "\n"
 	target.close()
@@ -49,8 +60,8 @@ def log_writer(input):
 def pull_api_key(username, password):
 	url = 'https://' + hostname + '/api/?type=keygen&user=' + username + '&password=' + password
 	response = urllib2.urlopen(url).read()
-	log_writer("Pulling API key using PAN credentials: " + username + "\\" + password + "\n")
-	log_writer(response + "\n")
+	log_writer(logfile, "Pulling API key using PAN credentials: " + username + "\\" + password + "\n")
+	log_writer(logfile, response + "\n")
 	if 'success' in response:
 		stripped1 = response.replace("<response status = 'success'><result><key>", "")
 		stripped2 = stripped1.replace("</key></result></response>", "")
@@ -67,9 +78,9 @@ def listfiles(path):
 		for filename in filenames:
 			entry = os.path.join(root, filename)
 			filelist.append(entry)
-			log_writer("Found File: " + entry + "...   Adding to file list")
+			log_writer(logfile, "Found File: " + entry + "...   Adding to file list")
 	if len(filelist) == 0:
-		log_writer("No Log Files Found. Nothing to Do.")
+		log_writer(logfile, "No Log Files Found. Nothing to Do.")
 		return filelist
 	else:
 		return filelist
@@ -80,7 +91,7 @@ def search_to_dict(filelist, delineator, searchterm):
 	dict = {}
 	entry = 0
 	for filename in filelist:
-		log_writer('Searching File: ' + filename + ' for ' + searchterm)
+		log_writer(logfile, 'Searching File: ' + filename + ' for ' + searchterm)
 		with open(filename, 'r') as filetext:
 			for line in filetext:
 				if delineator in line:
@@ -97,7 +108,7 @@ def clean_ips(dictionary):
 		clean1 = value.replace("\t" + ipaddressterm + " = ", "")
 		cleaned = clean1.replace("\n", "")
 		newdict[key] = cleaned
-	log_writer("IP Address List Cleaned Up!")
+	log_writer(logfile, "IP Address List Cleaned Up!")
 	return newdict
 
 
@@ -108,7 +119,7 @@ def clean_names(dictionary):
 		clean1 = value.replace("\t" + usernameterm + " = '", "")
 		cleaned = clean1.replace("'\n", "")
 		newdict[key] = cleaned
-	log_writer("Username List Cleaned Up!")
+	log_writer(logfile, "Username List Cleaned Up!")
 	return newdict
 
 
@@ -120,7 +131,7 @@ def merge_dicts(keydict, valuedict):
 		v = valuedict[each]
 		k = keydict[each]
 		newdict[k] = v
-	log_writer("Dictionary values merged into one dictionary")
+	log_writer(logfile, "Dictionary values merged into one dictionary")
 	return newdict
 
 
@@ -128,7 +139,7 @@ def merge_dicts(keydict, valuedict):
 def remove_files(filelist):
 	for filename in filelist:
 		os.remove(filename)
-		log_writer("Removed file: " + filename)
+		log_writer(logfile, "Removed file: " + filename)
 
 
 ##### Encode username and IP address in to URL REST format for PAN #####
@@ -148,7 +159,7 @@ def url_converter_v7(username, ip):
 		finishedurl = 'https://' + hostname + '/api/?key=' + pankey + extrastuff + urljunk
 		return finishedurl
 	else:
-		log_writer("PAN-OS version not supported for XML push!")
+		log_writer(logfile, "PAN-OS version not supported for XML push!")
 		quit()
 
 
@@ -158,9 +169,9 @@ def push_uids(ipanduserdict, filelist):
 	ipaddresses = ipanduserdict.keys()
 	for ip in ipaddresses:
 		url = url_converter_v7(ipanduserdict[ip], ip)
-		log_writer("Pushing    |    " + userdomain + "\\" + ipanduserdict[ip] + ":" + ip)
+		log_writer(logfile, "Pushing    |    " + userdomain + "\\" + ipanduserdict[ip] + ":" + ip)
 		response = urllib2.urlopen(url).read()
-		log_writer(response + "\n")
+		log_writer(logfile, response + "\n")
 		iteration = iteration + 1
 	remove_files(filelist)
 
@@ -321,7 +332,7 @@ def install_radiuid():
 	                          "\n" + "[Service]" \
 	                                 "\n" + "Type=simple" \
 	                                        "\n" + "User=root" \
-	                                               "\n" + "ExecStart=/bin/bash -c 'cd /bin; python radiuid'" \
+	                                               "\n" + "ExecStart=/bin/bash -c 'cd /bin; python radiuid run'" \
 	                                                                                                         "\n" + "Restart=on-abort" \
 	                                                                                                                "\n" \
 	                                                                                                                "\n" \
@@ -738,55 +749,124 @@ def installer():
 #########################################################################
 #########################################################################
 
-etcconfigfile = "/etc/radiuid/radiuid.conf"
-localconfigfile = "radiuid.conf"
-
-print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + "***********RADIUID PROGRAM INITIAL START. CHECKING FOR CONFIG FILE...***********" + "\n"
-print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + "***********CHECKING LOCATION: PREFERRED LOCATION - " + etcconfigfile + "***********" + "\n"
-print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + "***********CHECKING LOCATION: ALTERNATE LOCATION IN LOCAL DIRECTORY - " + localconfigfile + "***********" + "\n"
-
-configfile = file_chooser(etcconfigfile, localconfigfile)
-
-print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + "***********FOUND CONFIG FILE IN LOCATION: " + configfile + "***********" + "\n"
+def find_config():
+	global configfile
+	print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + "***********RADIUID PROGRAM INITIAL START. CHECKING FOR CONFIG FILE...***********" + "\n"
+	print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + "***********CHECKING LOCATION: PREFERRED LOCATION - " + etcconfigfile + "***********" + "\n"
+	print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + "***********CHECKING LOCATION: ALTERNATE LOCATION IN LOCAL DIRECTORY - " + localconfigfile + "***********" + "\n"
+	configfile = file_chooser(etcconfigfile, localconfigfile)
+	print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + "***********FOUND CONFIG FILE IN LOCATION: " + configfile + "***********" + "\n"
+	return configfile
 
 
 
-####################Installer Runs Here If Switched######################
+
+#################Primary Running Function and Looper#####################
 #########################################################################
 #########################################################################
 #########################################################################
 #########################################################################
 #########################################################################
 
-#####If Install Mode is not switched on, this part is skipped and program moves on to the primary while loop
 
-parser = argparse.ArgumentParser()
-parser.add_argument("-i", "--install", help="Run RadiUID in Installer/Management Mode", action="store_true")
-args = parser.parse_args()
-
-if args.install:
-	print "\n\n\n"
-	header()
+def initialize():
+	print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + "***********MAIN PROGRAM STARTING; NO SWITCHES USED***********" + "\n"
+	
+	global logfile
+	global radiuslogpath
+	global hostname
+	global panosversion
+	global panuser
+	global panpassword
+	global extrastuff
+	global ipaddressterm
+	global usernameterm
+	global delineatorterm
+	global userdomain
+	global timeout
+	
+	##### Check if config file exists. Fail program if it doesn't #####
 	checkfile = file_exists(configfile)
 	if checkfile == 'no':
-		print "ERROR: Config file (radiuid.conf) not found. Make sure the radiuid.conf file exists in same directory as radiuid.py"
+		print time.strftime(
+			"%Y-%m-%d %H:%M:%S") + ":   " + "ERROR: CANNOT FIND RADIUID CONFIG FILE IN TYPICAL PATHS. QUITTING PROGRAM. RE-RUN INSTALLER ('python radiuid.py -i')" + "\n"
 		quit()
-	print "Configuring File: " + configfile
-	progress("Running RadiUID in Install/Maintenance Mode:", 3)
-	installer()
-	quit()
+	if checkfile == 'yes':
+		print time.strftime(
+			"%Y-%m-%d %H:%M:%S") + ":   " + "***********FOUND CONFIG FILE. CONTINUING STARTUP PROCEDURE...***********" + "\n"
+		print time.strftime(
+			"%Y-%m-%d %H:%M:%S") + ":   " + "***********READING IN RADIUID LOGFILE INFORMATION. ALL SUBSEQUENT OUTPUT WILL BE LOGGED TO THE LOGFILE***********" + "\n"
+	
+	##### Open the config file and read in the logfile location information #####
+	
+	parser = ConfigParser.SafeConfigParser()
+	parser.read(configfile)
+	
+	logfile = parser.get('Paths_and_Files', 'logfile')
+	
+	##### Initial log entry and help for anybody starting the .py program without first installing it #####
+	
+	log_writer(logfile, 
+		"***********RADIUID INITIALIZING... IF PROGRAM FAULTS NOW, MAKE SURE SUCCESSFULLY YOU RAN THE INSTALLER ('python radiuid.py -i')***********")
+	
+	##### Suck in all variables from config file (only run when program is initially started, not during while loop) #####
+	
+	log_writer(logfile, 
+		"*******************************************CONFIG FILE SETTINGS INITIALIZING...*******************************************")
+	
+	log_writer(logfile, "Initialized variable:" "\t" + "logfile" + "\t\t\t\t" + "with value:" + "\t" + logfile)
+	
+	radiuslogpath = parser.get('Paths_and_Files', 'radiuslogpath')
+	log_writer(logfile, "Initialized variable:" "\t" + "radiuslogpath" + "\t\t\t" + "with value:" + "\t" + radiuslogpath)
+	
+	hostname = parser.get('Palo_Alto_Target', 'hostname')
+	log_writer(logfile, "Initialized variable:" "\t" + "hostname" + "\t\t\t" + "with value:" + "\t" + hostname)
+	
+	panosversion = parser.get('Palo_Alto_Target', 'OS_Version')
+	log_writer(logfile, "Initialized variable:" "\t" + "panosversion" + "\t\t\t" + "with value:" + "\t" + panosversion)
+	
+	panuser = parser.get('Palo_Alto_Target', 'username')
+	log_writer(logfile, "Initialized variable:" "\t" + "panuser" + "\t\t\t\t" + "with value:" + "\t" + panuser)
+	
+	panpassword = parser.get('Palo_Alto_Target', 'password')
+	log_writer(logfile, "Initialized variable:" "\t" + "panpassword" + "\t\t\t" + "with value:" + "\t" + panpassword)
+	
+	extrastuff = parser.get('URL_Stuff', 'extrastuff')
+	log_writer(logfile, "Initialized variable:" "\t" + "extrastuff" + "\t\t\t" + "with value:" + "\t" + extrastuff)
+	
+	ipaddressterm = parser.get('Search_Terms', 'ipaddressterm')
+	log_writer(logfile, "Initialized variable:" "\t" + "ipaddressterm" + "\t\t\t" + "with value:" + "\t" + ipaddressterm)
+	
+	usernameterm = parser.get('Search_Terms', 'usernameterm')
+	log_writer(logfile, "Initialized variable:" "\t" + "usernameterm" + "\t\t\t" + "with value:" + "\t" + usernameterm)
+	
+	delineatorterm = parser.get('Search_Terms', 'delineatorterm')
+	log_writer(logfile, "Initialized variable:" "\t" + "delineatorterm" + "\t\t\t" + "with value:" + "\t" + delineatorterm)
+	
+	userdomain = parser.get('UID_Settings', 'userdomain')
+	log_writer(logfile, "Initialized variable:" "\t" + "userdomain" + "\t\t\t" + "with value:" + "\t" + userdomain)
+	
+	timeout = parser.get('UID_Settings', 'timeout')
+	log_writer(logfile, "Initialized variable:" "\t" + "timeout" + "\t\t\t\t" + "with value:" + "\t" + timeout)
+	
+	##### Explicitly pull PAN key now and store API key in the main namespace #####
+	
+	log_writer(logfile, 
+		"***********************************CONNECTING TO PALO ALTO FIREWALL TO EXTRACT THE API KEY...***********************************")
+	log_writer(logfile, 
+		"********************IF PROGRAM FREEZES/FAILS RIGHT NOW, THEN THERE IS LIKELY A COMMUNICATION PROBLEM WITH THE FIREWALL********************")
+	
+	pankey = pull_api_key(panuser, panpassword)
+	log_writer(logfile, "Initialized variable:" "\t" + "pankey" + "\t\t\t\t" + "with value:" + "\t" + pankey)
+	
+	log_writer(logfile, 
+		"*******************************************CONFIG FILE SETTINGS INITIALIZED*******************************************")
+	
+	log_writer(logfile, 
+		"***********************************RADIUID SERVER STARTING WITH INITIALIZED VARIABLES...******************************")
 
 
-#######################Primary Running Function##########################
-#########################################################################
-#########################################################################
-#########################################################################
-#########################################################################
-#########################################################################
-
-
-
-def main():
+def radiuid():
 	filelist = listfiles(radiuslogpath)
 	if len(filelist) > 0:
 		usernames = search_to_dict(filelist, delineatorterm, usernameterm)
@@ -801,6 +881,16 @@ def main():
 		del ipanduserdict
 
 
+def radiuid_looper():
+	configfile = find_config()
+	initialize()
+	while __name__ == "__main__":
+		radiuid()
+		time.sleep(10)
+
+
+
+
 #####################Start of Main RadiUID Program#######################
 #########################################################################
 #########################################################################
@@ -808,100 +898,79 @@ def main():
 #########################################################################
 #########################################################################
 
-print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + "***********MAIN PROGRAM STARTING; NO SWITCHES USED***********" + "\n"
 
-##### Check if config file exists. Fail program if it doesn't #####
-checkfile = file_exists(configfile)
-if checkfile == 'no':
-	print time.strftime(
-		"%Y-%m-%d %H:%M:%S") + ":   " + "ERROR: CANNOT FIND RADIUID CONFIG FILE IN TYPICAL PATHS. QUITTING PROGRAM. RE-RUN INSTALLER ('python radiuid.py -i')" + "\n"
-	quit()
-if checkfile == 'yes':
-	print time.strftime(
-		"%Y-%m-%d %H:%M:%S") + ":   " + "***********FOUND CONFIG FILE. CONTINUING STARTUP PROCEDURE...***********" + "\n"
-	print time.strftime(
-		"%Y-%m-%d %H:%M:%S") + ":   " + "***********READING IN RADIUID LOGFILE INFORMATION. ALL SUBSEQUENT OUTPUT WILL BE LOGGED TO THE LOGFILE***********" + "\n"
-
-##### Open the config file and read in the logfile location information #####
-
-parser = ConfigParser.SafeConfigParser()
-parser.read(configfile)
-
-logfile = parser.get('Paths_and_Files', 'logfile')
-
-##### Initial log entry and help for anybody starting the .py program without first installing it #####
-
-log_writer(
-	"***********RADIUID INITIALIZING... IF PROGRAM FAULTS NOW, MAKE SURE SUCCESSFULLY YOU RAN THE INSTALLER ('python radiuid.py -i')***********")
-
-##### Suck in all variables from config file (only run when program is initially started, not during while loop) #####
-
-log_writer(
-	"*******************************************CONFIG FILE SETTINGS INITIALIZING...*******************************************")
-
-log_writer("Initialized variable:" "\t" + "logfile" + "\t\t\t\t" + "with value:" + "\t" + logfile)
-
-radiuslogpath = parser.get('Paths_and_Files', 'radiuslogpath')
-log_writer("Initialized variable:" "\t" + "radiuslogpath" + "\t\t\t" + "with value:" + "\t" + radiuslogpath)
-
-hostname = parser.get('Palo_Alto_Target', 'hostname')
-log_writer("Initialized variable:" "\t" + "hostname" + "\t\t\t" + "with value:" + "\t" + hostname)
-
-panosversion = parser.get('Palo_Alto_Target', 'OS_Version')
-log_writer("Initialized variable:" "\t" + "panosversion" + "\t\t\t" + "with value:" + "\t" + panosversion)
-
-panuser = parser.get('Palo_Alto_Target', 'username')
-log_writer("Initialized variable:" "\t" + "panuser" + "\t\t\t\t" + "with value:" + "\t" + panuser)
-
-panpassword = parser.get('Palo_Alto_Target', 'password')
-log_writer("Initialized variable:" "\t" + "panpassword" + "\t\t\t" + "with value:" + "\t" + panpassword)
-
-extrastuff = parser.get('URL_Stuff', 'extrastuff')
-log_writer("Initialized variable:" "\t" + "extrastuff" + "\t\t\t" + "with value:" + "\t" + extrastuff)
-
-ipaddressterm = parser.get('Search_Terms', 'ipaddressterm')
-log_writer("Initialized variable:" "\t" + "ipaddressterm" + "\t\t\t" + "with value:" + "\t" + ipaddressterm)
-
-usernameterm = parser.get('Search_Terms', 'usernameterm')
-log_writer("Initialized variable:" "\t" + "usernameterm" + "\t\t\t" + "with value:" + "\t" + usernameterm)
-
-delineatorterm = parser.get('Search_Terms', 'delineatorterm')
-log_writer("Initialized variable:" "\t" + "delineatorterm" + "\t\t\t" + "with value:" + "\t" + delineatorterm)
-
-userdomain = parser.get('UID_Settings', 'userdomain')
-log_writer("Initialized variable:" "\t" + "userdomain" + "\t\t\t" + "with value:" + "\t" + userdomain)
-
-timeout = parser.get('UID_Settings', 'timeout')
-log_writer("Initialized variable:" "\t" + "timeout" + "\t\t\t\t" + "with value:" + "\t" + timeout)
-
-##### Explicitly pull PAN key now and store API key in the main namespace #####
-
-log_writer(
-	"***********************************CONNECTING TO PALO ALTO FIREWALL TO EXTRACT THE API KEY...***********************************")
-log_writer(
-	"********************IF PROGRAM FREEZES/FAILS RIGHT NOW, THEN THERE IS LIKELY A COMMUNICATION PROBLEM WITH THE FIREWALL********************")
-
-pankey = pull_api_key(panuser, panpassword)
-log_writer("Initialized variable:" "\t" + "pankey" + "\t\t\t\t" + "with value:" + "\t" + pankey)
-
-log_writer(
-	"*******************************************CONFIG FILE SETTINGS INITIALIZED*******************************************")
-
-log_writer(
-	"***********************************RADIUID SERVER STARTING WITH INITIALIZED VARIABLES...******************************")
-
-#######################Loop Through Main()###############################
-#########################################################################
-#########################################################################
-#########################################################################
-#########################################################################
-#########################################################################
+etcconfigfile = "/etc/radiuid/radiuid.conf"
+localconfigfile = "radiuid.conf"
 
 
 
-while __name__ == "__main__":
-	main()
-	time.sleep(10)
+def main(arg):
+	######################### RUN #############################
+	if cat_list(sys.argv[1:]) == "run":
+		radiuid_looper()
+	######################### INSTALL #############################
+	elif cat_list(sys.argv[1:]) == "install":
+		print "\n\n\n"
+		header()
+		find_config()
+		checkfile = file_exists(configfile)
+		if checkfile == 'no':
+			print "ERROR: Config file (radiuid.conf) not found. Make sure the radiuid.conf file exists in same directory as radiuid.py"
+			quit()
+		print "Configuring File: " + configfile
+		progress("Running RadiUID in Install/Maintenance Mode:", 3)
+		installer()
+		quit()
+	######################### SHOW #############################
+	elif cat_list(sys.argv[1:]) == "show" or cat_list(sys.argv[1:]) == "show ?":
+		print "\n - log\n - run\n - status\n"
+	elif cat_list(sys.argv[1:]) == "show log":
+		os.system("more /etc/radiuid/radiuid.log")
+	elif cat_list(sys.argv[1:]) == "show run":
+		os.system("more /etc/radiuid/radiuid.conf")
+	elif cat_list(sys.argv[1:]) == "show status":
+		os.system("systemctl status radiuid")
+	######################### EDIT #############################
+	elif cat_list(sys.argv[1:]) == "edit" or cat_list(sys.argv[1:]) == "edit ?":
+		print "\n - config\n"
+	elif cat_list(sys.argv[1:]) == "edit config":
+		print "****************** You are about to edit the RadiUID config file in VI ******************"
+		print "********************* Confirm that you know how to use the VI editor ********************"
+		raw_input("Hit CTRL-C to quit. Hit ENTER to continue\n>>>>>")
+		os.system("vi /etc/radiuid/radiuid.conf")
+	######################### TAIL #############################
+	elif cat_list(sys.argv[1:]) == "tail" or cat_list(sys.argv[1:]) == "tail ?":
+		print "\n - log\n"
+	elif cat_list(sys.argv[1:]) == "tail log":
+		os.system("tail -f /etc/radiuid/radiuid.log")
+	######################### WATCH #############################
+	elif cat_list(sys.argv[1:]) == "watch" or cat_list(sys.argv[1:]) == "watch ?":
+		print "\n - log\n"
+	elif cat_list(sys.argv[1:]) == "watch log":
+		os.system("tail -f /etc/radiuid/radiuid.log")
+	######################### OTHERS #############################
+	elif cat_list(sys.argv[1:]) == "restart":
+		os.system("systemctl status radiuid | grep Active:; systemctl stop radiuid; systemctl status radiuid | grep Active; systemctl start radiuid; systemctl status radiuid | grep Active")
+		print "\n\n**********RADIUID RESTARTED**********\n\n"
+	else:
+		print "\n\n\n****************** Below are supported RadiUID Commands: ******************\n"
+		print " - run              |     Run the RadiUID main program to begin pushing User-ID information"
+		print "------------------------------------------------------------------------------------------\n"
+		print " - show log         |     Show the RadiUID log file"
+		print " - show run         |     Show the RadiUID config file"
+		print " - show status      |     Show the RadiUID service status"
+		print "------------------------------------------------------------------------------------------\n"
+		print " - edit config      |     Edit the RadiUID config file"
+		print "------------------------------------------------------------------------------------------\n"
+		print " - tail log         |     Watch the RadiUID log file in real time"
+		print " - watch log        |     Watch the RadiUID log file in real time"
+		print "------------------------------------------------------------------------------------------\n"
+		print " - restart          |     Restart/Start the RadiUID system service"
+		print "------------------------------------------------------------------------------------------\n\n\n"
 
+
+
+if __name__ == "__main__":
+	main(sys.argv)
 
 #######################END OF PROGRAM###############################
