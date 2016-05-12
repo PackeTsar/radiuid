@@ -4,7 +4,8 @@
 #####      http://blog.packetsar.com       #####
 ##### https://github.com/PackeTsar/radiuid #####
 
-configfile = "/etc/radiuid/radiuid.conf"
+etcconfigfile = "/etc/radiuid/radiuid.conf"
+localconfigfile = "radiuid.conf"
 
 
 
@@ -687,7 +688,7 @@ def installer():
 	new_config_file_data = apply_setting(new_config_file_data, 'userdomain', userdomain, newuserdomain)
 	new_config_file_data = apply_setting(new_config_file_data, 'timeout', timeout, newtimeout)
 
-	write_file(configfile, new_config_file_data)
+	write_file(etcconfigfile, new_config_file_data)
 	
 	
 	
@@ -746,7 +747,7 @@ args = parser.parse_args()
 if args.install:
 	print "\n\n\n"
 	header()
-	configfile = file_chooser("/etc/radiuid/radiuid.conf", "radiuid.conf")
+	configfile = file_chooser(etcconfigfile, localconfigfile)
 	checkfile = file_exists(configfile)
 	if checkfile == 'no':
 		print "ERROR: Config file (radiuid.conf) not found. Make sure the radiuid.conf file exists in same directory as radiuid.py"
@@ -794,7 +795,7 @@ print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + "***********RADIUID PROGRAM 
 checkfile = file_exists(configfile)
 if checkfile == 'no':
 	print time.strftime(
-		"%Y-%m-%d %H:%M:%S") + ":   " + "ERROR: CANNOT FIND RADIUID IN SPECIFIED PATH. QUITTING PROGRAM. RE-RUN INSTALLER" + "\n"
+		"%Y-%m-%d %H:%M:%S") + ":   " + "ERROR: CANNOT FIND RADIUID CONFIG FILE IN TYPICAL PATHS. QUITTING PROGRAM. RE-RUN INSTALLER ('python radiuid.py -i')" + "\n"
 	quit()
 if checkfile == 'yes':
 	print time.strftime(
