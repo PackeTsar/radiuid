@@ -503,77 +503,11 @@ def installer():
  \
 
 	print "\n\n\n"
-	print "****************First, we will configure the settings for the radiuid.conf file...****************\n"
-	print "*****************The current values for each setting are [displayed in the prompt]****************\n"
-	print "****************Leave the prompt empty and hit ENTER to accept the current value****************\n"
+	print "****************First, we will check if FreeRADIUS and RadiUID are installed yet...****************\n"
 	raw_input("\n\n>>>>> Hit ENTER to continue...\n\n>>>>>")
 	print "\n\n\n\n\n\n\n"
 
-	#########################################################################
-	###Read current .conf settings into interpreter
-	#########################################################################
-	print "****************Reading in current settings from radiuid.conf file in current directory...****************\n"
 
-	parser = ConfigParser.SafeConfigParser()
-	parser.read(configfile)
-	
-	f = open(configfile, 'r')
-	config_file_data = f.read()
-	f.close()
-
-	logfile = parser.get('Paths_and_Files', 'logfile')
-	radiuslogpath = parser.get('Paths_and_Files', 'radiuslogpath')
-	hostname = parser.get('Palo_Alto_Target', 'hostname')
-	panosversion = parser.get('Palo_Alto_Target', 'OS_Version')
-	username = parser.get('Palo_Alto_Target', 'username')
-	password = parser.get('Palo_Alto_Target', 'password')
-	extrastuff = parser.get('URL_Stuff', 'extrastuff')
-	ipaddressterm = parser.get('Search_Terms', 'ipaddressterm')
-	usernameterm = parser.get('Search_Terms', 'usernameterm')
-	delineatorterm = parser.get('Search_Terms', 'delineatorterm')
-	userdomain = parser.get('UID_Settings', 'userdomain')
-	timeout = parser.get('UID_Settings', 'timeout')
-
-
-	progress('Reading:', 1)
-	#########################################################################
-	###Ask questions to the console for editing the .conf file settings
-	#########################################################################
-	print "\n\n\n\n\n\n****************Please enter values for the different settings in the radiuid.conf file****************\n"
-	newlogfile = change_setting(logfile, 'Enter full path to the new RadiUID Log File')
-	print "\n"
-	newradiuslogpath = change_setting(radiuslogpath, 'Enter path to the FreeRADIUS Accounting Logs')
-	print "\n"
-	newhostname = change_setting(hostname, 'Enter IP address or hostname for target Palo Alto firewall')
-	print "\n"
-	newpanosversion = change_setting(panosversion,
-	                                 'Enter PAN-OS software version on target firewall (only PAN-OS 7 is currently supported)')
-	print "\n"
-	newusername = change_setting(username, 'Enter administrative username for Palo Alto firewall')
-	print "\n"
-	newpassword = change_setting(password,
-	                             'Enter administrative password for Palo Alto firewall (entered text will be shown in the clear)')
-	print "\n"
-	newuserdomain = change_setting(userdomain, 'Enter the user domain to be prefixed to User-IDs')
-	print "\n"
-	newtimeout = change_setting(timeout, 'Enter timeout period for pushed UIDs (in minutes)')
-
-	#########################################################################
-	###Pushing settings to .conf file with the code below
-	#########################################################################
-	print "\n\n\n\n\n\n****************Applying entered settings into the radiuid.conf file...****************\n"
-	new_config_file_data = config_file_data
-	progress('Applying:', 1)
-	new_config_file_data = apply_setting(new_config_file_data, 'logfile', logfile, newlogfile)
-	new_config_file_data = apply_setting(new_config_file_data, 'radiuslogpath', radiuslogpath, newradiuslogpath)
-	new_config_file_data = apply_setting(new_config_file_data, 'hostname', hostname, newhostname)
-	new_config_file_data = apply_setting(new_config_file_data, 'panosversion', panosversion, newpanosversion)
-	new_config_file_data = apply_setting(new_config_file_data, 'username', username, newusername)
-	new_config_file_data = apply_setting(new_config_file_data, 'password', password, newpassword)
-	new_config_file_data = apply_setting(new_config_file_data, 'userdomain', userdomain, newuserdomain)
-	new_config_file_data = apply_setting(new_config_file_data, 'timeout', timeout, newtimeout)
-
-	write_file(configfile, new_config_file_data)
 
 	#########################################################################
 	###Check if FreeRADIUS is installed and running already
@@ -646,24 +580,6 @@ def installer():
 		if radiuidreinstall == 'no':
 			print "~~~ OK, leaving it alone..."
 
-	if radiuidinstalled == 'yes' and radiuidrunning == 'yes' and radiuidreinstall == 'no':
-		print "\n"
-		radiuidrestart = yesorno(
-			"Do you want to restart the RadiUID service to effect the changes made to the .conf file?")
-		if radiuidrestart == 'yes':
-			print "\n\n****************Restarting the RadiUID service to effect changes...****************\n"
-			restart_service('radiuid')
-			checkservice = check_service_running('radiuid')
-			if checkservice == 'no':
-				print "\n\n***** Uh Oh... Looks like the RadiUID service failed to restart."
-				print "***** It is possible that something is wrong in the SystemD startup file"
-				print "***** Open up and check the RadiUID startup file at /etc/systemd/system/radiuid.service"
-				raw_input("Hit ENTER to continue...\n\n>>>>>")
-			elif checkservice == 'yes':
-				print "\n\n***** Looks like a successful restart..."
-				raw_input("Hit ENTER to continue...\n\n>>>>>")
-		if radiuidrestart == 'no':
-			print "~~~ OK, leaving it alone..."
 
 	if radiuidinstalled == 'yes' and radiuidrunning == 'no':
 		print "\n"
@@ -707,6 +623,101 @@ def installer():
 		if radiuidinstall == 'no':
 			print "***** The install of RadiUID is required. Quitting the installer"
 			quit()
+
+
+
+
+	#########################################################################
+	###Read current .conf settings into interpreter
+	#########################################################################
+	print "\n\n\n\n"
+	print "****************Now, we will configure the settings for the radiuid.conf file...****************\n"
+	print "*****************The current values for each setting are [displayed in the prompt]****************\n"
+	print "****************Leave the prompt empty and hit ENTER to accept the current value****************\n"
+	raw_input("\n\n>>>>> Hit ENTER to continue...\n\n>>>>>")
+	print "\n\n\n\n\n\n\n"
+	print "****************Reading in current settings from radiuid.conf file in current directory...****************\n"
+	progress('Reading:', 1)
+
+	parser = ConfigParser.SafeConfigParser()
+	parser.read(configfile)
+	
+	f = open(configfile, 'r')
+	config_file_data = f.read()
+	f.close()
+
+	logfile = parser.get('Paths_and_Files', 'logfile')
+	radiuslogpath = parser.get('Paths_and_Files', 'radiuslogpath')
+	hostname = parser.get('Palo_Alto_Target', 'hostname')
+	panosversion = parser.get('Palo_Alto_Target', 'OS_Version')
+	username = parser.get('Palo_Alto_Target', 'username')
+	password = parser.get('Palo_Alto_Target', 'password')
+	extrastuff = parser.get('URL_Stuff', 'extrastuff')
+	ipaddressterm = parser.get('Search_Terms', 'ipaddressterm')
+	usernameterm = parser.get('Search_Terms', 'usernameterm')
+	delineatorterm = parser.get('Search_Terms', 'delineatorterm')
+	userdomain = parser.get('UID_Settings', 'userdomain')
+	timeout = parser.get('UID_Settings', 'timeout')
+
+
+	#########################################################################
+	###Ask questions to the console for editing the .conf file settings
+	#########################################################################
+	print "\n\n\n\n\n\n****************Please enter values for the different settings in the radiuid.conf file****************\n"
+	newlogfile = change_setting(logfile, 'Enter full path to the new RadiUID Log File')
+	print "\n"
+	newradiuslogpath = change_setting(radiuslogpath, 'Enter path to the FreeRADIUS Accounting Logs')
+	print "\n"
+	newhostname = change_setting(hostname, 'Enter IP address or hostname for target Palo Alto firewall')
+	print "\n"
+	newpanosversion = change_setting(panosversion,
+	                                 'Enter PAN-OS software version on target firewall (only PAN-OS 7 is currently supported)')
+	print "\n"
+	newusername = change_setting(username, 'Enter administrative username for Palo Alto firewall')
+	print "\n"
+	newpassword = change_setting(password,
+	                             'Enter administrative password for Palo Alto firewall (entered text will be shown in the clear)')
+	print "\n"
+	newuserdomain = change_setting(userdomain, 'Enter the user domain to be prefixed to User-IDs')
+	print "\n"
+	newtimeout = change_setting(timeout, 'Enter timeout period for pushed UIDs (in minutes)')
+
+	#########################################################################
+	###Pushing settings to .conf file with the code below
+	#########################################################################
+	print "\n\n\n\n\n\n****************Applying entered settings into the radiuid.conf file...****************\n"
+	new_config_file_data = config_file_data
+	progress('Applying:', 1)
+	new_config_file_data = apply_setting(new_config_file_data, 'logfile', logfile, newlogfile)
+	new_config_file_data = apply_setting(new_config_file_data, 'radiuslogpath', radiuslogpath, newradiuslogpath)
+	new_config_file_data = apply_setting(new_config_file_data, 'hostname', hostname, newhostname)
+	new_config_file_data = apply_setting(new_config_file_data, 'panosversion', panosversion, newpanosversion)
+	new_config_file_data = apply_setting(new_config_file_data, 'username', username, newusername)
+	new_config_file_data = apply_setting(new_config_file_data, 'password', password, newpassword)
+	new_config_file_data = apply_setting(new_config_file_data, 'userdomain', userdomain, newuserdomain)
+	new_config_file_data = apply_setting(new_config_file_data, 'timeout', timeout, newtimeout)
+
+	write_file(configfile, new_config_file_data)
+	
+	print "\n"
+	radiuidrestart = yesorno(
+		"Do you want to restart the RadiUID service to effect the changes made to the .conf file?")
+	if radiuidrestart == 'yes':
+		print "\n\n****************Restarting the RadiUID service to effect changes...****************\n"
+		restart_service('radiuid')
+		checkservice = check_service_running('radiuid')
+		if checkservice == 'no':
+			print "\n\n***** Uh Oh... Looks like the RadiUID service failed to restart."
+			print "***** It is possible that something is wrong in the SystemD startup file"
+			print "***** Open up and check the RadiUID startup file at /etc/systemd/system/radiuid.service"
+			raw_input("Hit ENTER to continue...\n\n>>>>>")
+		elif checkservice == 'yes':
+			print "\n\n***** Looks like a successful restart..."
+			raw_input("Hit ENTER to continue...\n\n>>>>>")
+	if radiuidrestart == 'no':
+		print "~~~ OK, leaving it alone..."
+	
+	
 
 	#########################################################################
 	###Make changes to FreeRADIUS config file
