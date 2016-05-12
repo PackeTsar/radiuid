@@ -1,8 +1,10 @@
-#!/bin/python
+#!/usr/bin/python
 
 #####       Written by John W Kerns        #####
 #####      http://blog.packetsar.com       #####
 ##### https://github.com/PackeTsar/radiuid #####
+
+configfile = "/etc/radiuid/radiuid.conf"
 
 
 
@@ -173,6 +175,18 @@ def push_uids(ipanduserdict, filelist):
 #########################################################################
 #########################################################################
 
+def file_chooser(firstchoice, secondchoice):
+	firstexists = file_exists(firstchoice)
+	secondexists = file_exists(secondchoice)
+	if firstexists == "yes" and secondexists == "yes":
+		return firstchoice
+	if firstexists == "yes" and secondexists == "no":
+		return firstchoice
+	if firstexists == "no" and secondexists == "yes":
+		return secondchoice
+	if firstexists == "no" and secondexists == "no":
+		return "NON-EXISTANT FILE"
+
 
 ##### Add '/' to directory path if not included #####
 def cidr_checker(cidr_ip_block):
@@ -209,17 +223,6 @@ def check_directory(directory):
 	return exists
 
 
-######################Find/Replace entries in config file##########################
-def config_replace(searchfor, replacewith):
-	f = open('radiuid.conf', 'r')
-	filedata = f.read()
-	f.close()
-	newdata = filedata.replace(searchfor, replacewith)
-	f = open('radiuid.conf', 'w')
-	f.write(newdata)
-	f.close()
-
-
 ######################Show progress bar##########################
 def progress(message, seconds):
 	timer = float(seconds) / 50
@@ -249,12 +252,21 @@ def change_setting(setting, question):
 
 
 ######################Apply new setting to the .conf file##########################
-def apply_setting(settingname, oldsetting, newsetting):
+def apply_setting(file_data, settingname, oldsetting, newsetting):
 	if oldsetting == newsetting:
 		print "***** No changes to  : " + settingname
+		return file_data
 	else:
-		config_replace(settingname + " = " + oldsetting, settingname + " = " + newsetting)
+		new_file_data = file_data.replace(settingname + " = " + oldsetting, settingname + " = " + newsetting)
 		print "***** Changed setting: " + settingname + "\t\t|\tfrom: " + oldsetting + "\tto: " + newsetting
+		return new_file_data
+
+
+######################Find/Replace entries in config file##########################
+def write_file(filepath, filedata):
+	f = open(configfile, 'w')
+	f.write(filedata)
+	f.close()
 
 
 ######################Check if a particular systemd service is installed##########################
@@ -293,15 +305,17 @@ def install_freeradius():
 
 
 ######################Copy RadiUID files##########################
-def copy_radiuid(installationpath):
-	os.system('mkdir -p ' + installationpath)
-	os.system('cp radiuid.conf ' + installationpath + 'radiuid.conf')
-	os.system('cp radiuid.py ' + installationpath + 'radiuid.py')
+def copy_radiuid():
+	configfilepath = "/etc/radiuid/"
+	binpath = "/bin/"
+	os.system('mkdir -p ' + configfilepath)
+	os.system('cp radiuid.conf ' + configfilepath + 'radiuid.conf')
+	os.system('cp radiuid.py ' + binpath + 'radiuid')
 	progress("Copying Files: ", 2)
 
 
 ######################Install RadiUID SystemD service##########################
-def install_radiuid(installationpath):
+def install_radiuid():
 	##############STARTFILE DATA START##############
 	startfile = "[Unit]" \
 	            "\n" + "Description=RadiUID User-ID Service" \
@@ -310,7 +324,7 @@ def install_radiuid(installationpath):
 	                          "\n" + "[Service]" \
 	                                 "\n" + "Type=simple" \
 	                                        "\n" + "User=root" \
-	                                               "\n" + "ExecStart=/bin/bash -c 'cd " + installationpath + "; python radiuid.py'" \
+	                                               "\n" + "ExecStart=/bin/bash -c 'cd /bin; python radiuid'" \
 	                                                                                                         "\n" + "Restart=on-abort" \
 	                                                                                                                "\n" \
 	                                                                                                                "\n" \
@@ -501,7 +515,11 @@ def installer():
 	print "****************Reading in current settings from radiuid.conf file in current directory...****************\n"
 
 	parser = ConfigParser.SafeConfigParser()
-	parser.read('radiuid.conf')
+	parser.read(configfile)
+	
+	f = open(configfile, 'r')
+	config_file_data = f.read()
+	f.close()
 
 	logfile = parser.get('Paths_and_Files', 'logfile')
 	radiuslogpath = parser.get('Paths_and_Files', 'radiuslogpath')
@@ -516,7 +534,6 @@ def installer():
 	userdomain = parser.get('UID_Settings', 'userdomain')
 	timeout = parser.get('UID_Settings', 'timeout')
 
-	installpath = "/etc/radiuid/"
 
 	progress('Reading:', 1)
 	#########################################################################
@@ -545,16 +562,18 @@ def installer():
 	###Pushing settings to .conf file with the code below
 	#########################################################################
 	print "\n\n\n\n\n\n****************Applying entered settings into the radiuid.conf file...****************\n"
-	apply_setting('logfile', logfile, newlogfile)
-	apply_setting('radiuslogpath', radiuslogpath, newradiuslogpath)
-	apply_setting('hostname', hostname, newhostname)
-	apply_setting('panosversion', panosversion, newpanosversion)
-	apply_setting('username', username, newusername)
-	apply_setting('password', password, newpassword)
-	apply_setting('userdomain', userdomain, newuserdomain)
-	apply_setting('timeout', timeout, newtimeout)
-
+	new_config_file_data = config_file_data
 	progress('Applying:', 1)
+	new_config_file_data = apply_setting(new_config_file_data, 'logfile', logfile, newlogfile)
+	new_config_file_data = apply_setting(new_config_file_data, 'radiuslogpath', radiuslogpath, newradiuslogpath)
+	new_config_file_data = apply_setting(new_config_file_data, 'hostname', hostname, newhostname)
+	new_config_file_data = apply_setting(new_config_file_data, 'panosversion', panosversion, newpanosversion)
+	new_config_file_data = apply_setting(new_config_file_data, 'username', username, newusername)
+	new_config_file_data = apply_setting(new_config_file_data, 'password', password, newpassword)
+	new_config_file_data = apply_setting(new_config_file_data, 'userdomain', userdomain, newuserdomain)
+	new_config_file_data = apply_setting(new_config_file_data, 'timeout', timeout, newtimeout)
+
+	write_file(configfile, new_config_file_data)
 
 	#########################################################################
 	###Check if FreeRADIUS is installed and running already
@@ -609,11 +628,9 @@ def installer():
 		print "***** Looks like the RadiUID service is already installed and running...skipping the install of RadiUID\n"
 		radiuidreinstall = yesorno("Do you want to re-install the RadiUID service?")
 		if radiuidreinstall == 'yes':
-			installpath = change_setting(installpath, "Enter a path where we should install RadiUID:")
-			installpath  = directory_slash_add(installpath)
 			print "\n\n****************Re-installing the RadiUID service...****************\n"
-			copy_radiuid(installpath)
-			install_radiuid(installpath)
+			copy_radiuid()
+			install_radiuid()
 			print "\n\n****************Starting the RadiUID service...****************\n"
 			restart_service('radiuid')
 			checkservice = check_service_running('radiuid')
@@ -660,11 +677,9 @@ def installer():
 				print "***** Looks like the startup failed..."
 				radiuidreinstall = yesorno("Do you want to re-install the RadiUID service?")
 				if radiuidreinstall == 'yes':
-					installpath = change_setting(installpath, "Enter a path where we should install RadiUID:")
-					installpath = directory_slash_add(installpath)
 					print "\n\n****************Re-installing the RadiUID service...****************\n"
-					copy_radiuid(installpath)
-					install_radiuid(installpath)
+					copy_radiuid()
+					install_radiuid()
 					print "\n\n****************Starting the RadiUID service...****************\n"
 					restart_service('radiuid')
 		if radiuidrestart == 'no':
@@ -674,11 +689,9 @@ def installer():
 		print "\n"
 		radiuidinstall = yesorno("Looks like RadiUID is not installed. Is it ok to install RadiUID?")
 		if radiuidinstall == 'yes':
-			installpath = change_setting(installpath, "Enter a path where we shoud install RadiUID:")
-			installpath = directory_slash_add(installpath)
 			print "\n\n****************Installing the RadiUID service...****************\n"
-			copy_radiuid(installpath)
-			install_radiuid(installpath)
+			copy_radiuid()
+			install_radiuid()
 			print "\n\n****************Starting the RadiUID service...****************\n"
 			restart_service('radiuid')
 			radiuidrunning = check_service_running('radiuid')
@@ -737,10 +750,12 @@ args = parser.parse_args()
 if args.install:
 	print "\n\n\n"
 	header()
-	checkfile = file_exists("radiuid.conf")
+	configfile = file_chooser("/etc/radiuid/radiuid.conf", "radiuid.conf")
+	checkfile = file_exists(configfile)
 	if checkfile == 'no':
 		print "ERROR: Config file (radiuid.conf) not found. Make sure the radiuid.conf file exists in same directory as radiuid.py"
 		quit()
+	print "Configuring File: " + configfile
 	progress("Running RadiUID in Install/Maintenance Mode:", 3)
 	installer()
 	quit()
@@ -780,7 +795,7 @@ def main():
 print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + "***********RADIUID PROGRAM INITIAL START. CHECKING FOR CONFIG FILE...***********" + "\n"
 
 ##### Check if config file exists. Fail program if it doesn't #####
-checkfile = file_exists("radiuid.conf")
+checkfile = file_exists(configfile)
 if checkfile == 'no':
 	print time.strftime(
 		"%Y-%m-%d %H:%M:%S") + ":   " + "ERROR: CANNOT FIND RADIUID IN SPECIFIED PATH. QUITTING PROGRAM. RE-RUN INSTALLER" + "\n"
@@ -794,7 +809,7 @@ if checkfile == 'yes':
 ##### Open the config file and read in the logfile location information #####
 
 parser = ConfigParser.SafeConfigParser()
-parser.read('radiuid.conf')
+parser.read(configfile)
 
 logfile = parser.get('Paths_and_Files', 'logfile')
 
