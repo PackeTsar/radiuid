@@ -737,6 +737,10 @@ args = parser.parse_args()
 if args.install:
 	print "\n\n\n"
 	header()
+	checkfile = file_exists("radiuid.conf")
+	if checkfile == 'no':
+		print "ERROR: Config file (radiuid.conf) not found. Make sure the radiuid.conf file exists in same directory as radiuid.py"
+		quit()
 	progress("Running RadiUID in Install/Maintenance Mode:", 3)
 	installer()
 	quit()
@@ -780,6 +784,7 @@ checkfile = file_exists("radiuid.conf")
 if checkfile == 'no':
 	print time.strftime(
 		"%Y-%m-%d %H:%M:%S") + ":   " + "ERROR: CANNOT FIND RADIUID IN SPECIFIED PATH. QUITTING PROGRAM. RE-RUN INSTALLER" + "\n"
+	quit()
 if checkfile == 'yes':
 	print time.strftime(
 		"%Y-%m-%d %H:%M:%S") + ":   " + "***********FOUND CONFIG FILE. CONTINUING STARTUP PROCEDURE...***********" + "\n"
