@@ -998,11 +998,11 @@ def main():
 	elif cat_list(sys.argv[1:]) == "install":
 		print "\n\n\n"
 		packetsar()
-		configfile = find_config("noisy")
-		checkfile = file_exists(configfile)
-		if checkfile == 'no':
-			print color("ERROR: Config file (radiuid.conf) not found. Make sure the radiuid.conf file exists in same directory as radiuid.py", red)
-			quit()
+#		configfile = find_config("noisy")
+#		checkfile = file_exists(configfile)
+#		if checkfile == 'no':
+#			print color("ERROR: Config file (radiuid.conf) not found. Make sure the radiuid.conf file exists in same directory as radiuid.py", red)
+#			quit()
 		print "Configuring File: " + color(configfile, green) + "\n"
 		progress("Running RadiUID in Install/Maintenance Mode:", 3)
 		installer()
