@@ -831,7 +831,8 @@ def get_working_directory():
 def find_config(mode):
 	global configfile
 	if mode == "noisy":
-		print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + "***********RADIUID PROGRAM INITIAL START. CHECKING FOR CONFIG FILE...***********" + "\n"
+		print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + "***********LOOKING FOR RADIUID CONFIG FILE...***********" + "\n"
+		print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + "***********DETECTED WORKING DIRECTORY: " + get_working_directory() + "***********" + "\n"
 		print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + "***********CHECKING LOCATION: PREFERRED LOCATION - " + etcconfigfile + "***********" + "\n"
 		print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + "***********CHECKING LOCATION: ALTERNATE LOCATION IN LOCAL DIRECTORY - " + localconfigfile + "***********" + "\n"
 		configfile = file_chooser(etcconfigfile, localconfigfile)
@@ -852,11 +853,11 @@ def find_config(mode):
 #########################################################################
 #########################################################################
 #########################################################################
-#########################################################################
+######################################################################### 
 
 
 def initialize():
-	print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + "***********MAIN PROGRAM STARTING; NO SWITCHES USED***********" + "\n"
+	print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + "***********MAIN PROGRAM INITIALIZATION KICKED OFF...***********" + "\n"
 	
 	global logfile
 	global radiuslogpath
@@ -879,7 +880,7 @@ def initialize():
 		quit()
 	if checkfile == 'yes':
 		print time.strftime(
-			"%Y-%m-%d %H:%M:%S") + ":   " + "***********FOUND CONFIG FILE. CONTINUING STARTUP PROCEDURE...***********" + "\n"
+			"%Y-%m-%d %H:%M:%S") + ":   " + "***********USING CONFIG FILE " + configfile + " TO START RADIUID APPLICATION***********" + "\n"
 		print time.strftime(
 			"%Y-%m-%d %H:%M:%S") + ":   " + "***********READING IN RADIUID LOGFILE INFORMATION. ALL SUBSEQUENT OUTPUT WILL BE LOGGED TO THE LOGFILE***********" + "\n"
 	
@@ -893,12 +894,15 @@ def initialize():
 	##### Initial log entry and help for anybody starting the .py program without first installing it #####
 	
 	log_writer(logfile, 
-		"***********RADIUID INITIALIZING... IF PROGRAM FAULTS NOW, MAKE SURE SUCCESSFULLY YOU RAN THE INSTALLER ('python radiuid.py install')***********")
+		"***********RADIUID INITIALIZING... IF PROGRAM FAULTS NOW, MAKE SURE YOU SUCCESSFULLY RAN THE INSTALLER ('python radiuid.py install')***********")
 	
 	##### Suck in all variables from config file (only run when program is initially started, not during while loop) #####
 	
 	log_writer(logfile, 
-		"*******************************************CONFIG FILE SETTINGS INITIALIZING...*******************************************")
+		"***********INITIAL WRITE TO THE LOG FILE: " + logfile + "...***********")
+
+	log_writer(logfile, 
+		"***********INITIALIZING VARIABLES FROM CONFIG FILE: " + configfile + "...***********")
 	
 	log_writer(logfile, "Initialized variable:" "\t" + "logfile" + "\t\t\t\t" + "with value:" + "\t" + color(logfile, green))
 	
@@ -984,7 +988,7 @@ def radiuid_looper():
 #########################################################################
 #########################################################################
 
-
+######################### SET COMMON PATHS FOR CONFIG FILE IN GLOBAL NAMESPACE #############################
 etcconfigfile = "/etc/radiuid/radiuid.conf"
 localconfigfile = get_working_directory() + "radiuid.conf"
 
