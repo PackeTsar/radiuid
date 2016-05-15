@@ -67,6 +67,19 @@ def file_exists(filepath):
 	return exists
 
 
+##### Check if specific directory exists #####
+def check_directory(directory):
+	checkdata = commands.getstatusoutput("ls " + directory)
+	exists = ''
+	for line in checkdata:
+		line = str(line)
+		if 'cannot access' in line:
+			exists = 'no'
+		else:
+			exists = 'yes'
+	return exists
+
+
 ##### Writes lines to the log file and prints them to the terminal #####
 def log_writer(filepath, input):
 	target = open(filepath, 'a')
@@ -224,6 +237,12 @@ def file_chooser(firstchoice, secondchoice):
 		quit()
 
 
+##### Take filepath and give back directory path and filename in list where list[0] is directory path, list[1] is filename #####
+def strip_filepath(filepath):
+	list = re.findall("^(.+)/([^/]+)$", filepath)
+	return list
+
+
 ##### Check that legit CIDR block was entered #####
 ##### Used to check IP blocks entered into the wizard for configuration of FreeRADIUS #####
 def cidr_checker(cidr_ip_block):
@@ -244,20 +263,6 @@ def directory_slash_add(directorypath):
 	else:
 		result = directorypath
 		return result
-
-
-##### Check if specific directory exists #####
-##### Legacy? Still need this? #####!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-def check_directory(directory):
-	checkdata = commands.getstatusoutput("ls " + directory)
-	exists = ''
-	for line in checkdata:
-		line = str(line)
-		if 'cannot access' in line:
-			exists = 'no'
-		else:
-			exists = 'yes'
-	return exists
 
 
 ##### Show progress bar #####
@@ -396,16 +401,16 @@ def restart_service(service):
 ##### Accept 'yes', 'no', 'y', or 'n' #####
 def yesorno(question):
 	answer = 'temp'
-	while answer != 'yes' and answer != 'no' and answer != 'y' and answer != 'n':
+	while answer.lower() != 'yes' and answer.lower() != 'no' and answer.lower() != 'y' and answer.lower() != 'n':
 		answer = raw_input(color("----- " + question + " [yes or no]:", cyan))
-		if answer == "no":
-			return answer
-		elif answer == "yes":
-			return answer
-		elif answer == "n":
+		if answer.lower() == "no":
+			return answer.lower()
+		elif answer.lower() == "yes":
+			return answer.lower()
+		elif answer.lower() == "n":
 			answer = "no"
 			return answer
-		elif answer == "y":
+		elif answer.lower() == "y":
 			answer = "yes"
 			return answer
 		else:
@@ -743,6 +748,9 @@ def installer():
 		
 		write_file(etcconfigfile, new_config_file_data)
 		
+		newlogfiledir = strip_filepath(newlogfile)[0][0]
+		os.system('mkdir -p ' + newlogfiledir)
+		
 		print "\n\n****************Starting/Restarting the RadiUID service...****************\n"
 		restart_service('radiuid')
 		radiuidrunning = check_service_running('radiuid')
@@ -813,14 +821,21 @@ def get_working_directory():
 	return result
 
 
-def find_config():
+def find_config(mode):
 	global configfile
-	print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + "***********RADIUID PROGRAM INITIAL START. CHECKING FOR CONFIG FILE...***********" + "\n"
-	print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + "***********CHECKING LOCATION: PREFERRED LOCATION - " + etcconfigfile + "***********" + "\n"
-	print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + "***********CHECKING LOCATION: ALTERNATE LOCATION IN LOCAL DIRECTORY - " + localconfigfile + "***********" + "\n"
-	configfile = file_chooser(etcconfigfile, localconfigfile)
-	print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + "***********FOUND CONFIG FILE IN LOCATION: " + configfile + "***********" + "\n"
-	return configfile
+	if mode == "noisy":
+		print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + "***********RADIUID PROGRAM INITIAL START. CHECKING FOR CONFIG FILE...***********" + "\n"
+		print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + "***********CHECKING LOCATION: PREFERRED LOCATION - " + etcconfigfile + "***********" + "\n"
+		print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + "***********CHECKING LOCATION: ALTERNATE LOCATION IN LOCAL DIRECTORY - " + localconfigfile + "***********" + "\n"
+		configfile = file_chooser(etcconfigfile, localconfigfile)
+		print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + "***********FOUND CONFIG FILE IN LOCATION: " + configfile + "***********" + "\n"
+		return configfile
+	if mode == "quiet":
+		configfile = file_chooser(etcconfigfile, localconfigfile)
+		return configfile
+	else:
+		print "Need to set mode for find_config"
+		quit()
 
 
 
@@ -878,40 +893,40 @@ def initialize():
 	log_writer(logfile, 
 		"*******************************************CONFIG FILE SETTINGS INITIALIZING...*******************************************")
 	
-	log_writer(logfile, "Initialized variable:" "\t" + "logfile" + "\t\t\t\t" + "with value:" + "\t" + logfile)
+	log_writer(logfile, "Initialized variable:" "\t" + "logfile" + "\t\t\t\t" + "with value:" + "\t" + color(logfile, green))
 	
 	radiuslogpath = parser.get('Paths_and_Files', 'radiuslogpath')
-	log_writer(logfile, "Initialized variable:" "\t" + "radiuslogpath" + "\t\t\t" + "with value:" + "\t" + radiuslogpath)
+	log_writer(logfile, "Initialized variable:" "\t" + "radiuslogpath" + "\t\t\t" + "with value:" + "\t" + color(radiuslogpath, green))
 	
 	hostname = parser.get('Palo_Alto_Target', 'hostname')
-	log_writer(logfile, "Initialized variable:" "\t" + "hostname" + "\t\t\t" + "with value:" + "\t" + hostname)
+	log_writer(logfile, "Initialized variable:" "\t" + "hostname" + "\t\t\t" + "with value:" + "\t" + color(hostname, green))
 	
 	panosversion = parser.get('Palo_Alto_Target', 'OS_Version')
-	log_writer(logfile, "Initialized variable:" "\t" + "panosversion" + "\t\t\t" + "with value:" + "\t" + panosversion)
+	log_writer(logfile, "Initialized variable:" "\t" + "panosversion" + "\t\t\t" + "with value:" + "\t" + color(panosversion, green))
 	
 	panuser = parser.get('Palo_Alto_Target', 'username')
-	log_writer(logfile, "Initialized variable:" "\t" + "panuser" + "\t\t\t\t" + "with value:" + "\t" + panuser)
+	log_writer(logfile, "Initialized variable:" "\t" + "panuser" + "\t\t\t\t" + "with value:" + "\t" + color(panuser, green))
 	
 	panpassword = parser.get('Palo_Alto_Target', 'password')
-	log_writer(logfile, "Initialized variable:" "\t" + "panpassword" + "\t\t\t" + "with value:" + "\t" + panpassword)
+	log_writer(logfile, "Initialized variable:" "\t" + "panpassword" + "\t\t\t" + "with value:" + "\t" + color(panpassword, green))
 	
 	extrastuff = parser.get('URL_Stuff', 'extrastuff')
-	log_writer(logfile, "Initialized variable:" "\t" + "extrastuff" + "\t\t\t" + "with value:" + "\t" + extrastuff)
+	log_writer(logfile, "Initialized variable:" "\t" + "extrastuff" + "\t\t\t" + "with value:" + "\t" + color(extrastuff, green))
 	
 	ipaddressterm = parser.get('Search_Terms', 'ipaddressterm')
-	log_writer(logfile, "Initialized variable:" "\t" + "ipaddressterm" + "\t\t\t" + "with value:" + "\t" + ipaddressterm)
+	log_writer(logfile, "Initialized variable:" "\t" + "ipaddressterm" + "\t\t\t" + "with value:" + "\t" + color(ipaddressterm, green))
 	
 	usernameterm = parser.get('Search_Terms', 'usernameterm')
-	log_writer(logfile, "Initialized variable:" "\t" + "usernameterm" + "\t\t\t" + "with value:" + "\t" + usernameterm)
+	log_writer(logfile, "Initialized variable:" "\t" + "usernameterm" + "\t\t\t" + "with value:" + "\t" + color(usernameterm, green))
 	
 	delineatorterm = parser.get('Search_Terms', 'delineatorterm')
-	log_writer(logfile, "Initialized variable:" "\t" + "delineatorterm" + "\t\t\t" + "with value:" + "\t" + delineatorterm)
+	log_writer(logfile, "Initialized variable:" "\t" + "delineatorterm" + "\t\t\t" + "with value:" + "\t" + color(delineatorterm, green))
 	
 	userdomain = parser.get('UID_Settings', 'userdomain')
-	log_writer(logfile, "Initialized variable:" "\t" + "userdomain" + "\t\t\t" + "with value:" + "\t" + userdomain)
+	log_writer(logfile, "Initialized variable:" "\t" + "userdomain" + "\t\t\t" + "with value:" + "\t" + color(userdomain, green))
 	
 	timeout = parser.get('UID_Settings', 'timeout')
-	log_writer(logfile, "Initialized variable:" "\t" + "timeout" + "\t\t\t\t" + "with value:" + "\t" + timeout)
+	log_writer(logfile, "Initialized variable:" "\t" + "timeout" + "\t\t\t\t" + "with value:" + "\t" + color(timeout, green))
 	
 	##### Explicitly pull PAN key now and store API key in the main namespace #####
 	
@@ -946,7 +961,7 @@ def radiuid():
 
 
 def radiuid_looper():
-	configfile = find_config()
+	configfile = find_config("noisy")
 	initialize()
 	while __name__ == "__main__":
 		radiuid()
@@ -976,7 +991,7 @@ def main():
 	elif cat_list(sys.argv[1:]) == "install":
 		print "\n\n\n"
 		header()
-		find_config()
+		find_config("noisy")
 		checkfile = file_exists(configfile)
 		if checkfile == 'no':
 			print color("ERROR: Config file (radiuid.conf) not found. Make sure the radiuid.conf file exists in same directory as radiuid.py", red)
@@ -992,24 +1007,84 @@ def main():
 		print " - show config      |     Show the RadiUID config file"
 		print " - show status      |     Show the RadiUID service status\n"
 	elif cat_list(sys.argv[1:]) == "show log":
-		os.system("more /etc/radiuid/radiuid.log")
+		configfile = find_config("quiet")
+		parser = ConfigParser.SafeConfigParser()
+		parser.read(configfile)
+		f = open(configfile, 'r')
+		config_file_data = f.read()
+		f.close()
+		logfile = parser.get('Paths_and_Files', 'logfile')
+		header = "########################## OUTPUT FROM FILE " + logfile + " ##########################"
+		print color(header, magenta)
+		print color("#" * len(header), magenta)
+		os.system("more " + logfile)
+		print color("#" * len(header), magenta)
+		print color("#" * len(header), magenta)
 	elif cat_list(sys.argv[1:]) == "show run":
-		os.system("more /etc/radiuid/radiuid.conf")
+		configfile = find_config("quiet")
+		header = "########################## OUTPUT FROM FILE " + configfile + " ##########################"
+		print color(header, magenta)
+		print color("#" * len(header), magenta)
+		os.system("more " + configfile)
+		print color("#" * len(header), magenta)
+		print color("#" * len(header), magenta)
 	elif cat_list(sys.argv[1:]) == "show config":
-		os.system("more /etc/radiuid/radiuid.conf")
+		configfile = find_config("quiet")
+		header = "########################## OUTPUT FROM FILE " + configfile + " ##########################"
+		print color(header, magenta)
+		print color("#" * len(header), magenta)
+		os.system("more " + configfile)
+		print color("#" * len(header), magenta)
+		print color("#" * len(header), magenta)
 	elif cat_list(sys.argv[1:]) == "show status":
+		header = "########################## OUTPUT FROM COMMAND: 'systemctl status radiuid' ##########################"
+		print color(header, magenta)
+		print color("#" * len(header), magenta)
 		os.system("systemctl status radiuid")
+		print color("#" * len(header), magenta)
+		print color("#" * len(header), magenta)
+		serviceinstalled = check_service_installed("radiuid")
+		if serviceinstalled == "no":
+			print color("\n\n********** RADIUID IS NOT INSTALLED YET **********\n\n", yellow)
+		elif serviceinstalled == "yes":
+			checkservice = check_service_running("radiuid")
+			if checkservice == "yes":
+				print color("\n\n********** RADIUID IS CURRENTLY RUNNING **********\n\n", green)
+			elif checkservice == "no":
+				print color("\n\n********** RADIUID IS CURRENTLY NOT RUNNING **********\n\n", yellow)
 	######################### TAIL #############################
 	elif cat_list(sys.argv[1:]) == "tail" or cat_list(sys.argv[1:]) == "tail ?":
 		print "\n - tail log         |     Watch the RadiUID log file in real time\n"
 	elif cat_list(sys.argv[1:]) == "tail log":
-		os.system("tail -f /etc/radiuid/radiuid.log")
+		configfile = find_config("quiet")
+		parser = ConfigParser.SafeConfigParser()
+		parser.read(configfile)
+		f = open(configfile, 'r')
+		config_file_data = f.read()
+		f.close()
+		logfile = parser.get('Paths_and_Files', 'logfile')
+		header = "########################## OUTPUT FROM FILE " + logfile + " ##########################"
+		print color(header, magenta)
+		print color("#" * len(header), magenta)
+		os.system("tail -f " + logfile)
+		print color("#" * len(header), magenta)
+		print color("#" * len(header), magenta)
 	######################### CLEAR #############################
 	elif cat_list(sys.argv[1:]) == "clear" or cat_list(sys.argv[1:]) == "clear ?":
 		print "\n - clear log         |     Delete the content in the log file\n"
 	elif cat_list(sys.argv[1:]) == "clear log":
-		os.system("rm -f /etc/radiuid/radiuid.log")
-		write_file("/etc/radiuid/radiuid.log", "***********Log cleared by RadiUID command***********\n")
+		configfile = find_config("quiet")
+		parser = ConfigParser.SafeConfigParser()
+		parser.read(configfile)
+		f = open(configfile, 'r')
+		config_file_data = f.read()
+		f.close()
+		logfile = parser.get('Paths_and_Files', 'logfile')
+		print color("********************* You are about to clear out the RadiUID log file... (" + logfile + ") ********************", yellow)
+		raw_input("Hit CTRL-C to quit. Hit ENTER to continue\n>>>>>")
+		os.system("rm -f "+ logfile)
+		write_file(logfile, "***********Log cleared by RadiUID command***********\n")
+		print color("********************* Cleared logfile: " + logfile + " ********************", yellow)
 	######################### EDIT #############################
 	elif cat_list(sys.argv[1:]) == "edit" or cat_list(sys.argv[1:]) == "edit ?":
 		print "\n - edit config      |     Edit the RadiUID config file"
@@ -1026,37 +1101,65 @@ def main():
 		os.system("vi /etc/raddb/clients.conf")
 	######################### OTHERS #############################
 	elif cat_list(sys.argv[1:]) == "start":
-		os.system("systemctl start radiuid; systemctl status radiuid")
-		print "\n\n**********RADIUID STARTED**********\n\n"
+		os.system("systemctl start radiuid")
+		os.system("systemctl status radiuid")
+		checkservice = check_service_running("radiuid")
+		if checkservice == "yes":
+			print color("\n\n********** RADIUID SUCCESSFULLY STARTED UP! **********\n\n", green)
+		elif checkservice == "no":
+			print color("\n\n********** RADIUID STARTUP UNSUCCESSFUL. SOMETHING MUST BE WRONG... **********\n\n", red)
 	elif cat_list(sys.argv[1:]) == "stop":
-		os.system("systemctl stop radiuid; systemctl status radiuid")
-		print "\n\n**********RADIUID STOPPED**********\n\n"
+		header = "########################## CURRENT RADIUID SERVICE STATUS ##########################"
+		print color(header, magenta)
+		print color("#" * len(header), magenta)
+		os.system("systemctl status radiuid")
+		print color("\n\n***** ARE YOU SURE YOU WANT TO STOP IT?", yellow)
+		raw_input(color("\n\nHit CTRL-C to quit. Hit ENTER to continue\n>>>>>", cyan))
+		os.system("systemctl stop radiuid")
+		os.system("systemctl status radiuid")
+		print color("\n\n********** RADIUID STOPPED **********\n\n", yellow)
 	elif cat_list(sys.argv[1:]) == "restart":
-		os.system("systemctl status radiuid | grep Active:; systemctl stop radiuid; systemctl status radiuid | grep Active; systemctl start radiuid; systemctl status radiuid | grep Active")
-		print "\n\n**********RADIUID RESTARTED**********\n\n"
+		header = "########################## CURRENT RADIUID SERVICE STATUS ##########################"
+		print color(header, magenta)
+		print color("#" * len(header), magenta)
+		os.system("systemctl status radiuid")
+		print color("\n\n***** ARE YOU SURE YOU WANT TO RESTART IT?", yellow)
+		raw_input(color("\n\nHit CTRL-C to quit. Hit ENTER to continue\n>>>>>", cyan))
+		os.system("systemctl stop radiuid")
+		os.system("systemctl status radiuid")
+		print color("\n\n********** RADIUID STOPPED **********\n\n", yellow)
+		progress("Preparing to Start Up:", 2)
+		print "\n\n\n"
+		os.system("systemctl start radiuid")
+		os.system("systemctl status radiuid")
+		checkservice = check_service_running("radiuid")
+		if checkservice == "yes":
+			print color("\n\n********** RADIUID SUCCESSFULLY RESTARTED! **********\n\n", green)
+		elif checkservice == "no":
+			print color("\n\n********** RADIUID STARTUP UNSUCCESSFUL. SOMETHING MUST BE WRONG... **********\n\n", red)
 	######################### GUIDE #############################
 	else:
-		print "\n\n\n****************** Below are supported RadiUID Commands: ******************\n"
+		print color("\n\n\n************************** Below are the supported RadiUID Commands: **************************\n\n", magenta)
 		print " - run              |     Run the RadiUID main program to begin pushing User-ID information"
-		print "------------------------------------------------------------------------------------------\n"
+		print "----------------------------------------------------------------------------------------------\n"
 		print " - install          |     Run the RadiUID Install/Maintenance Utility"
-		print "------------------------------------------------------------------------------------------\n"
+		print "----------------------------------------------------------------------------------------------\n"
 		print " - show log         |     Show the RadiUID log file"
 		print " - show run         |     Show the RadiUID config file"
 		print " - show config      |     Show the RadiUID config file"
 		print " - show status      |     Show the RadiUID service status"
-		print "------------------------------------------------------------------------------------------\n"
+		print "----------------------------------------------------------------------------------------------\n"
 		print " - tail log         |     Watch the RadiUID log file in real time"
-		print "------------------------------------------------------------------------------------------\n"
+		print "----------------------------------------------------------------------------------------------\n"
 		print " - clear log        |     Delete the content in the log file"
-		print "------------------------------------------------------------------------------------------\n"
+		print "----------------------------------------------------------------------------------------------\n"
 		print " - edit config      |     Edit the RadiUID config file"
 		print " - edit clients     |     Edit list of client IPs for FreeRADIUS"
-		print "------------------------------------------------------------------------------------------\n"
+		print "----------------------------------------------------------------------------------------------\n"
 		print " - start            |     Start the RadiUID system service"
 		print " - stop             |     Stop the RadiUID system service"
 		print " - restart          |     Restart the RadiUID system service"
-		print "------------------------------------------------------------------------------------------\n\n\n"
+		print "----------------------------------------------------------------------------------------------\n\n\n"
 
 
 
