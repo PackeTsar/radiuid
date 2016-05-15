@@ -21,9 +21,27 @@ import ConfigParser
 #########################################################################
 #########################################################################
 #########################################################################
-#########################################################################
+######################################################################### 
+
+
+##### Color codes used in the program for easier CLI viewing #####
+##### To be used like "print 'this is ' + color('green', green) + ' is it not?'" #####
+black = '\033[0m'
+red = '\033[91m'
+green = '\033[92m'
+yellow = '\033[93m'
+blue = '\033[94m'
+magenta = '\033[95m'
+cyan = '\033[96m'
+white = '\033[97m'
+
+def color(input, inputcolor):
+	result = inputcolor + input + black
+	return result
+
 
 ##### Create str sentence out of list seperated by spaces and lowercase everything #####
+##### Used for recognizing iarguments when running RadiUID from the CLI #####
 def cat_list(listname):
 	result = ""
 	counter = 0
@@ -36,6 +54,7 @@ def cat_list(listname):
 
 
 ##### Check if specific file exists #####
+##### Used??? #####!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 def file_exists(filepath):
 	checkdata = commands.getstatusoutput("ls " + filepath)
 	exists = ""
@@ -57,21 +76,23 @@ def log_writer(filepath, input):
 
 
 ##### Function to pull API key from firewall to be used for REST HTTP calls #####
+##### Used during initialization of the RadiUID main process to generate the API key #####
 def pull_api_key(username, password):
 	url = 'https://' + hostname + '/api/?type=keygen&user=' + username + '&password=' + password
 	response = urllib2.urlopen(url).read()
 	log_writer(logfile, "Pulling API key using PAN credentials: " + username + "\\" + password + "\n")
-	log_writer(logfile, response + "\n")
 	if 'success' in response:
+		log_writer(logfile, color(response, green) + "\n")
 		stripped1 = response.replace("<response status = 'success'><result><key>", "")
 		stripped2 = stripped1.replace("</key></result></response>", "")
 		return stripped2
 	else:
-		print 'ERROR: Username\\password failed. Please re-enter in config file...' + '\n'
+		log_writer(logfile, color('ERROR: Username\\password failed. Please re-enter in config file...' + '\n', red))
 		quit()
 
 
 ##### List all files in a directory path and subdirs #####
+##### Used to enumerate files in the FreeRADIUS log path #####
 def listfiles(path):
 	filelist = []
 	for root, directories, filenames in os.walk(path):
@@ -87,6 +108,7 @@ def listfiles(path):
 
 
 ##### Search list of files for a searchterm and use deliniator term to count instances file, then return a dictionary where key=instance and value=line where term was found #####
+##### Used to search through FreeRADIUS log files for usernames and IP addresses, then turn them into dictionaries to be sent to the "push" function #####
 def search_to_dict(filelist, delineator, searchterm):
 	dict = {}
 	entry = 0
@@ -102,6 +124,7 @@ def search_to_dict(filelist, delineator, searchterm):
 
 
 ##### Clean up IP addresses in dictionary #####
+##### Removes unwanted data from the lines with useful IP addresses in them #####
 def clean_ips(dictionary):
 	newdict = {}
 	for key, value in dictionary.iteritems():
@@ -113,6 +136,7 @@ def clean_ips(dictionary):
 
 
 ##### Clean up user names in dictionary #####
+##### Removes unwanted data from the lines with useful usernames in them #####
 def clean_names(dictionary):
 	newdict = {}
 	for key, value in dictionary.iteritems():
@@ -124,6 +148,8 @@ def clean_names(dictionary):
 
 
 ##### Merge dictionary values from two dictionaries into one dictionary and remove duplicates #####
+##### Used to compile the list of users into a dictionary for use in the push function #####
+##### Deduplication is not explicitly written but is just a result of pushing the same data over and over to a dictionary #####
 def merge_dicts(keydict, valuedict):
 	newdict = {}
 	keydictkeylist = keydict.keys()
@@ -136,6 +162,7 @@ def merge_dicts(keydict, valuedict):
 
 
 ##### Delete all files in provided list #####
+##### Used to remove the FreeRADIUS log files so the next iteration of RadiUID doesn't pick up redundant information #####
 def remove_files(filelist):
 	for filename in filelist:
 		os.remove(filename)
@@ -159,11 +186,11 @@ def url_converter_v7(username, ip):
 		finishedurl = 'https://' + hostname + '/api/?key=' + pankey + extrastuff + urljunk
 		return finishedurl
 	else:
-		log_writer(logfile, "PAN-OS version not supported for XML push!")
+		log_writer(logfile, color("PAN-OS version not supported for XML push!", red))
 		quit()
 
 
-##### Use urlconverter (above) to encode the URL to acceptable format and use REST call to push UID info to PAN #####
+##### Use urlconverter to encode the URL to acceptable format and use REST call to push UID info to PAN #####
 def push_uids(ipanduserdict, filelist):
 	iteration = 0
 	ipaddresses = ipanduserdict.keys()
@@ -181,7 +208,7 @@ def push_uids(ipanduserdict, filelist):
 #########################################################################
 #########################################################################
 #########################################################################
-#########################################################################
+######################################################################### 
 
 def file_chooser(firstchoice, secondchoice):
 	firstexists = file_exists(firstchoice)
@@ -194,9 +221,11 @@ def file_chooser(firstchoice, secondchoice):
 		return secondchoice
 	if firstexists == "no" and secondexists == "no":
 		return "NON-EXISTANT FILE"
+		quit()
 
 
-##### Add '/' to directory path if not included #####
+##### Check that legit CIDR block was entered #####
+##### Used to check IP blocks entered into the wizard for configuration of FreeRADIUS #####
 def cidr_checker(cidr_ip_block):
 	check = re.search("^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\/(?:[0-9]|1[0-9]|2[0-9]|3[0-2]?)$", cidr_ip_block)
 	if check is None:
@@ -211,7 +240,6 @@ def directory_slash_add(directorypath):
 	check = re.search("^.*\/$", directorypath)
 	if check is None:
 		result = directorypath + "/"
-		print "~~~ Added a '/' to the end of the path. Make sure to include it next time"
 		return result
 	else:
 		result = directorypath
@@ -219,6 +247,7 @@ def directory_slash_add(directorypath):
 
 
 ##### Check if specific directory exists #####
+##### Legacy? Still need this? #####!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 def check_directory(directory):
 	checkdata = commands.getstatusoutput("ls " + directory)
 	exists = ''
@@ -231,7 +260,8 @@ def check_directory(directory):
 	return exists
 
 
-######################Show progress bar##########################
+##### Show progress bar #####
+##### The most awesome method in here. Also the most useless #####
 def progress(message, seconds):
 	timer = float(seconds) / 50
 	currentwhitespace = 50
@@ -248,36 +278,40 @@ def progress(message, seconds):
 	print "\n"
 
 
-######################Change variables to change settings##########################
+##### Change variables to change settings #####
+##### Used to ask questions in the installation wizard #####
 def change_setting(setting, question):
-	newsetting = raw_input(">>>>> " + question + " [" + setting + "]: ")
+	newsetting = raw_input(color(">>>>> " + question + " [" + setting + "]: ", cyan))
 	if newsetting == '':
-		print "~~~ Keeping current setting..."
+		print color("~~~ Keeping current setting...", green)
 		newsetting = setting
 	else:
-		print "~~~ Changed setting to: " + newsetting
+		print color("~~~ Changed setting to: " + newsetting, yellow)
 	return newsetting
 
 
-######################Apply new setting to the .conf file##########################
+##### Apply new setting to the .conf file #####
+##### Applies the settings to the new or existing config file #####
 def apply_setting(file_data, settingname, oldsetting, newsetting):
 	if oldsetting == newsetting:
-		print "***** No changes to  : " + settingname
+		print color("***** No changes to  : " + settingname, green)
 		return file_data
 	else:
 		new_file_data = file_data.replace(settingname + " = " + oldsetting, settingname + " = " + newsetting)
-		print "***** Changed setting: " + settingname + "\t\t|\tfrom: " + oldsetting + "\tto: " + newsetting
+		print color("***** Changed setting: " + settingname + "\t\t|\tfrom: " + oldsetting + "\tto: " + newsetting, yellow)
 		return new_file_data
 
 
-######################Find/Replace entries in config file##########################
+##### Writes the new config data to the config file #####
+#####Used at the end of the wizard when new config values have been defined and need to be written to a config file #####
 def write_file(filepath, filedata):
 	f = open(filepath, 'w')
 	f.write(filedata)
 	f.close()
 
 
-######################Check if a particular systemd service is installed##########################
+##### Check if a particular systemd service is installed #####
+##### Used to check if FreeRADIUS and RadiUID have already been installed #####
 def check_service_installed(service):
 	checkdata = commands.getstatusoutput("systemctl status " + service)
 	installed = 'temp'
@@ -290,7 +324,8 @@ def check_service_installed(service):
 	return installed
 
 
-######################Check if a particular systemd service is running##########################
+##### Check if a particular systemd service is running #####
+##### Used to check if FreeRADIUS and RadiUID are currently running #####
 def check_service_running(service):
 	checkdata = commands.getstatusoutput("systemctl status " + service)
 	running = 'temp'
@@ -303,7 +338,7 @@ def check_service_running(service):
 	return running
 
 
-######################Install FreeRADIUS server##########################
+##### Install FreeRADIUS server #####
 def install_freeradius():
 	os.system('yum install freeradius -y')
 	print "\n\n\n\n\n\n****************Setting FreeRADIUS as a system service...****************\n"
@@ -312,7 +347,7 @@ def install_freeradius():
 	os.system('systemctl start radiusd')
 
 
-######################Copy RadiUID files##########################
+#### Copy RadiUID system and config files to appropriate paths for installation#####
 def copy_radiuid():
 	configfilepath = "/etc/radiuid/"
 	binpath = "/bin/"
@@ -323,9 +358,9 @@ def copy_radiuid():
 	progress("Copying Files: ", 2)
 
 
-######################Install RadiUID SystemD service##########################
+#### Install RadiUID SystemD service #####
 def install_radiuid():
-	##############STARTFILE DATA START##############
+	#### STARTFILE DATA START #####
 	startfile = "[Unit]" \
 	            "\n" + "Description=RadiUID User-ID Service" \
 	                   "\n" + "After=network.target" \
@@ -339,7 +374,7 @@ def install_radiuid():
 	                                                                                                                "\n" \
 	                                                                                                                "\n" + "[Install]" \
 	                                                                                                                       "\n" + "WantedBy=multi-user.target" \
-		##############STARTFILE DATA STOP##############
+		##### STARTFILE DATA STOP #####
 	f = open('/etc/systemd/system/radiuid.service', 'w')
 	f.write(startfile)
 	f.close()
@@ -347,7 +382,7 @@ def install_radiuid():
 	os.system('systemctl enable radiuid')
 
 
-######################Restart a particular SystemD service##########################
+##### Restart a particular SystemD service #####
 def restart_service(service):
 	commands.getstatusoutput("systemctl start " + service)
 	commands.getstatusoutput("systemctl restart " + service)
@@ -357,11 +392,12 @@ def restart_service(service):
 	print "#########################################################################\n\n"
 
 
-######################Ask a 'yes' or 'no' question and check answer##########################
+##### Ask a 'yes' or 'no' question and check answer #####
+##### Accept 'yes', 'no', 'y', or 'n' #####
 def yesorno(question):
 	answer = 'temp'
 	while answer != 'yes' and answer != 'no' and answer != 'y' and answer != 'n':
-		answer = raw_input("----- " + question + " [yes or no]:")
+		answer = raw_input(color("----- " + question + " [yes or no]:", cyan))
 		if answer == "no":
 			return answer
 		elif answer == "yes":
@@ -373,49 +409,50 @@ def yesorno(question):
 			answer = "yes"
 			return answer
 		else:
-			print "'Yes' or 'No' dude..."
+			print color("'Yes' or 'No' dude...", red)
 
 
-######################Create dictionary with client IP and shared password entries for FreeRADIUS server##########################
+##### Create dictionary with client IP and shared password entries for FreeRADIUS server #####
+##### Used to ask questions during install about IP blocks and shared secret to use for FreeRADIUS server #####
 def freeradius_create_changes():
-	#####Set variables for use later#####
+	##### Set variables for use later #####
 	keepchanging = "yes"
 	addips = []
-	#####Ask for IP address blocks and append each entry to a list. User can accept the example though#####
+	##### Ask for IP address blocks and append each entry to a list. User can accept the example though #####
 	while keepchanging != "no":
 		addipexample = "10.0.0.0/8"
 		goround = raw_input(
-			'\n>>>>> Enter the IP subnet to use for recognition of RADIUS accounting sources: [' + addipexample + ']:')
+			color('\n>>>>> Enter the IP subnet to use for recognition of RADIUS accounting sources: [' + addipexample + ']:', cyan))
 		if goround == "":
 			goround = addipexample
 		ipcheck = cidr_checker(goround)
 		if ipcheck == 'no':
-			print "~~~ Nope. Give me a legit CIDR block..."
+			print color("~~~ Nope. Give me a legit CIDR block...", red)
 		elif ipcheck == 'yes':
 			addips.append(goround)
-			print "~~~ Added " + goround + " to list\n"
+			print color("~~~ Added " + goround + " to list\n", yellow)
 			keepchanging = yesorno("Do you want to add another IP block to the list of trusted sources?")
-	#####List out entries#####
+	##### List out entries #####
 	print "\n\n"
 	print "List of IP blocks for accounting sources:"
 	for each in addips:
-		print each
+		print color(each, yellow)
 	print "\n\n"
-	#####Have user enter shared secret to pair with all IP blocks in output dictionary#####
+	##### Have user enter shared secret to pair with all IP blocks in output dictionary #####
 	radiussecret = ""
 	radiussecret = raw_input(
-		'>>>>> Enter a shared RADIUS secret to use with the accounting sources: [password123]:')
+		color('>>>>> Enter a shared RADIUS secret to use with the accounting sources: [password123]:', cyan))
 	if radiussecret == "":
 		radiussecret = "password123"
-	print "~~~ Using '" + radiussecret + "' for shared secret\n"
-	#####Pair each IP entry with the shared secret and put in dictionary for output#####
+	print color("~~~ Using '" + radiussecret + "' for shared secret\n", yellow)
+	##### Pair each IP entry with the shared secret and put in dictionary for output #####
 	radiusclientdict = {}
 	for each in addips:
 		radiusclientdict[each] = radiussecret
 	return radiusclientdict
 
 
-######################Use dictionary of edits for FreeRADIUS and push them to the config file##########################
+##### Use dictionary of edits for FreeRADIUS and push them to the config file #####
 def freeradius_editor(dict_edits):
 	clientconfpath = '/etc/raddb/clients.conf'
 	iplist = dict_edits.keys()
@@ -439,18 +476,21 @@ def freeradius_editor(dict_edits):
 	os.system('systemctl status radiusd')
 	checkservice = check_service_running('radiusd')
 	if checkservice == 'no':
-		print "\n\n***** Uh Oh... Looks like the FreeRADIUS service failed to start back up."
-		print "***** We may have made some adverse changes to the config file."
-		print "***** Visit the FreeRADIUS config file at " + clientconfpath + " and remove the bad changes."
-		print "***** Then try to start the FreeRADIUS service by issuing the 'systemctl start radiusd' command"
-		raw_input("Hit ENTER to continue...\n")
+		print color("\n\n***** Uh Oh... Looks like the FreeRADIUS service failed to start back up.", red)
+		print color("***** We may have made some adverse changes to the config file.", red)
+		print color("***** Visit the FreeRADIUS config file at " + clientconfpath + " and remove the bad changes.", red)
+		print color("***** Then try to start the FreeRADIUS service by issuing the 'systemctl start radiusd' command", red)
+		raw_input(color("Hit ENTER to continue...\n\n>>>>>", cyan))
 	elif checkservice == 'yes':
-		print "\n\n***** Great Success!! Looks like FreeRADIUS restarted and is back up now!"
-		print "***** If you need to manually edit the FreeRADIUS config file, it is located at " + clientconfpath
-		raw_input("\nHit ENTER to continue...\n\n>>>>>")
+		print color("\n\n***** Great Success!! Looks like FreeRADIUS restarted and is back up now!", green)
+		print color("***** If you need to manually edit the FreeRADIUS config file, it is located at " + clientconfpath, green)
+		raw_input(color("\nHit ENTER to continue...\n\n>>>>>", cyan))
 
+
+##### Print out this ridiculous text-o-graph #####
+##### It took me like an hour to draw and I couldn't stand to just not use it #####
 def header():
-	print  "\n                        ###############################################      \n\
+	print  color("\n                        ###############################################      \n\
 		      #                                                 #    \n\
 		    #                                                     #  \n\
 		   #                                                       # \n\
@@ -485,9 +525,17 @@ def header():
 		   #                                                       # \n\
 		    #                                                     #  \n\
 		      #                                                 #    \n\
-		        ###############################################      \n"
+		        ###############################################      \n", blue)
 
 
+				
+				
+				
+				
+				
+				
+				
+				
 #######################Installer Running Function########################
 #########################################################################
 #########################################################################
@@ -513,7 +561,7 @@ def installer():
 
 	print "\n\n\n"
 	print "****************First, we will check if FreeRADIUS and RadiUID are installed yet...****************\n"
-	raw_input("\n\n>>>>> Hit ENTER to continue...\n\n>>>>>")
+	raw_input(color("\n\n>>>>> Hit ENTER to continue...\n\n>>>>>", cyan))
 	print "\n\n\n\n\n\n\n"
 
 
@@ -526,19 +574,20 @@ def installer():
 	freeradiusrunning = check_service_running('radiusd')
 
 	if freeradiusinstalled == 'yes' and freeradiusrunning == 'yes':
-		print "***** Looks like the FreeRADIUS service is already installed and running...skipping the install of FreeRADIUS"
+		print color("***** Looks like the FreeRADIUS service is already installed and running...skipping the install of FreeRADIUS", green)
 
 	if freeradiusinstalled == 'yes' and freeradiusrunning == 'no':
-		freeradiusrestart = yesorno("----- Looks like FreeRADIUS is installed, but not running....want to start it up?")
+		freeradiusrestart = yesorno("Looks like FreeRADIUS is installed, but not running....want to start it up?")
 		if freeradiusrestart == 'yes':
 			restart_service('radiusd')
 			freeradiusrunning = check_service_running('radiusd')
 			if freeradiusrunning == 'no':
-				print "***** It looks like FreeRADIUS failed to start up. You may need to change its settings and restart it manually..."
+				print color("***** It looks like FreeRADIUS failed to start up. You may need to change its settings and restart it manually...", red)
+				print color("***** Use the command 'radiuid edit clients' to open and edit the FreeRADIUS client settings file manually", red)
 			if freeradiusrunning == 'yes':
-				print "***** Very nice....Great Success!!!"
+				print color("***** Very nice....Great Success!!!", green)
 		if freeradiusrestart == 'no':
-			print "~~~ OK, leaving it off..."
+			print color("~~~ OK, leaving it off...", yellow)
 
 	if freeradiusinstalled == 'no' and freeradiusrunning == 'no':
 		freeradiusinstall = yesorno(
@@ -547,17 +596,17 @@ def installer():
 			install_freeradius()
 			checkservice = check_service_running('radiusd')
 			if checkservice == 'no':
-				print "\n\n***** Uh Oh... Looks like the FreeRADIUS service failed to install or start up."
-				print "***** It is possible that the native package manager si not able to download the install files."
-				print "***** Make sure that you have internet access and your package manager is able to download the FreeRADIUS install files"
-				raw_input("Hit ENTER to quit the program...\n")
+				print color("\n\n***** Uh Oh... Looks like the FreeRADIUS service failed to install or start up.", red)
+				print color("***** It is possible that the native package manager si not able to download the install files.", red)
+				print color("***** Make sure that you have internet access and your package manager is able to download the FreeRADIUS install files", red)
+				raw_input(color("Hit ENTER to quit the program...\n", cyan))
 				quit()
 			elif checkservice == 'yes':
-				print "\n\n***** Great Success!! Looks like FreeRADIUS installed and started up successfully."
-				print "***** If you need to manually edit the FreeRADIUS config file, it is located at /etc/raddb/clients.conf"
-				raw_input("\n***** Hit ENTER to continue...\n\n>>>>>")
+				print color("\n\n***** Great Success!! Looks like FreeRADIUS installed and started up successfully.", green)
+				print color("***** If you need to manually edit the FreeRADIUS config file, it is located at /etc/raddb/clients.conf", green)
+				raw_input(color("\n***** Hit ENTER to continue...\n\n>>>>>", cyan))
 		if freeradiusinstall == 'no':
-			print "***** FreeRADIUS is required by RadiUID. Quitting the installer"
+			print color("***** FreeRADIUS is required by RadiUID. Quitting the installer", red)
 			quit()
 
 	#########################################################################
@@ -568,47 +617,39 @@ def installer():
 	radiuidrunning = check_service_running('radiuid')
 
 	if radiuidinstalled == 'yes' and radiuidrunning == 'yes':
-		print "***** Looks like the RadiUID service is already installed and running...skipping the install of RadiUID\n"
+		print color("***** Looks like the RadiUID service is already installed and running...skipping the install of RadiUID\n", green)
 		radiuidreinstall = yesorno("Do you want to re-install the RadiUID service?")
 		if radiuidreinstall == 'yes':
+			print color("***** You are about to re-install the RadiUID service...", yellow)
+			print color("***** If you continue, you will have to proceed with the wizard to the next step where we configure the settings in the config file...", yellow)
+			raw_input(color(">>>>> Hit CTRL-C to quit. Hit ENTER to continue\n>>>>>", cyan))
 			print "\n\n****************Re-installing the RadiUID service...****************\n"
 			copy_radiuid()
 			install_radiuid()
-			print "\n\n****************Starting the RadiUID service...****************\n"
-			restart_service('radiuid')
-			checkservice = check_service_running('radiuid')
-			if checkservice == 'no':
-				print "\n\n***** Uh Oh... Looks like the RadiUID service failed to re-install and start back up."
-				print "***** It is possible that something is wrong in the SystemD startup file"
-				print "***** Open up and check the RadiUID startup file at /etc/systemd/system/radiuid.service"
-				raw_input("Hit ENTER to quit the program...\n")
-				quit()
-			elif checkservice == 'yes':
-				print "\n\n***** Looks like a successful restart..."
-				raw_input("Hit ENTER to continue...\n\n>>>>>")
+			print "\n\n****************We will start up the RadiUID service once we configure the .conf file****************\n"
 		if radiuidreinstall == 'no':
-			print "~~~ OK, leaving it alone..."
+			print "~~~ Yea, probably best to leave it alone..."
 
 
 	if radiuidinstalled == 'yes' and radiuidrunning == 'no':
 		print "\n"
-		radiuidrestart = yesorno("Looks like RadiUID is installed, but not running....want to start it up?")
+		print color("***** Looks like RadiUID is installed, but not running....", yellow)
+		radiuidrestart = yesorno("Do you want to start it up?")
 		if radiuidrestart == 'yes':
 			restart_service('radiuid')
 			radiuidrunning = check_service_running('radiuid')
 			if radiuidrunning == "yes":
-				print "***** Very nice....Great Success!!!"
+				print color("***** Very nice....Great Success!!!", green)
 			if radiuidrunning == "no":
-				print "***** Looks like the startup failed..."
+				print color("***** Looks like the startup failed...", red)
 				radiuidreinstall = yesorno("Do you want to re-install the RadiUID service?")
 				if radiuidreinstall == 'yes':
 					print "\n\n****************Re-installing the RadiUID service...****************\n"
 					copy_radiuid()
 					install_radiuid()
-					print "\n\n****************Starting the RadiUID service...****************\n"
-					restart_service('radiuid')
+					print "\n\n****************We will start up the RadiUID service once we configure the .conf file****************\n"
 		if radiuidrestart == 'no':
-			print "~~~ OK, leaving it off..."
+			print color("~~~ OK, leaving it off...", yellow)
 
 	if radiuidinstalled == 'no' and radiuidrunning == 'no':
 		print "\n"
@@ -620,98 +661,99 @@ def installer():
 			print "\n\n****************We will start up the RadiUID service once we configure the .conf file****************\n"
 
 		if radiuidinstall == 'no':
-			print "***** The install of RadiUID is required. Quitting the installer"
+			print color("***** The install of RadiUID is required. Quitting the installer", red)
 			quit()
 
 
-
+	print "\n\n\n\n"
 
 	#########################################################################
 	###Read current .conf settings into interpreter
 	#########################################################################
-	print "\n\n\n\n"
-	print "****************Now, we will configure the settings for the radiuid.conf file...****************\n"
-	print "*****************The current values for each setting are [displayed in the prompt]****************\n"
-	print "****************Leave the prompt empty and hit ENTER to accept the current value****************\n"
-	raw_input("\n\n>>>>> Hit ENTER to continue...\n\n>>>>>")
-	print "\n\n\n\n\n\n\n"
-	print "****************Reading in current settings from radiuid.conf file in current directory...****************\n"
-	progress('Reading:', 1)
+	editradiuidconf = yesorno("Do you want to edit the settings in the RadiUID .conf file (if you just installed RadiUID, then you need to do this)?")
+	if editradiuidconf == "yes":
+		print "\n\n\n****************Now, we will configure the settings for the " + configfile + " file...****************\n"
+		print "*****************The current values for each setting are [displayed in the prompt]****************\n"
+		print "****************Leave the prompt empty and hit ENTER to accept the current value****************\n"
+		raw_input(color("\n\n>>>>> Hit ENTER to continue...\n\n>>>>>", cyan))
+		print "\n\n\n\n\n\n\n"
+		print "**************** Reading in current settings from " + configfile + " ****************\n"
+		progress('Reading:', 1)
+		
+		parser = ConfigParser.SafeConfigParser()
+		parser.read(configfile)
+		
+		f = open(configfile, 'r')
+		config_file_data = f.read()
+		f.close()
 
-	parser = ConfigParser.SafeConfigParser()
-	parser.read(configfile)
-	
-	f = open(configfile, 'r')
-	config_file_data = f.read()
-	f.close()
-
-	logfile = parser.get('Paths_and_Files', 'logfile')
-	radiuslogpath = parser.get('Paths_and_Files', 'radiuslogpath')
-	hostname = parser.get('Palo_Alto_Target', 'hostname')
-	panosversion = parser.get('Palo_Alto_Target', 'OS_Version')
-	username = parser.get('Palo_Alto_Target', 'username')
-	password = parser.get('Palo_Alto_Target', 'password')
-	extrastuff = parser.get('URL_Stuff', 'extrastuff')
-	ipaddressterm = parser.get('Search_Terms', 'ipaddressterm')
-	usernameterm = parser.get('Search_Terms', 'usernameterm')
-	delineatorterm = parser.get('Search_Terms', 'delineatorterm')
-	userdomain = parser.get('UID_Settings', 'userdomain')
-	timeout = parser.get('UID_Settings', 'timeout')
-
-
-	#########################################################################
-	###Ask questions to the console for editing the .conf file settings
-	#########################################################################
-	print "\n\n\n\n\n\n****************Please enter values for the different settings in the radiuid.conf file****************\n"
-	newlogfile = change_setting(logfile, 'Enter full path to the new RadiUID Log File')
-	print "\n"
-	newradiuslogpath = change_setting(radiuslogpath, 'Enter path to the FreeRADIUS Accounting Logs')
-	print "\n"
-	newhostname = change_setting(hostname, 'Enter IP address or hostname for target Palo Alto firewall')
-	print "\n"
-	newpanosversion = change_setting(panosversion,
-	                                 'Enter PAN-OS software version on target firewall (only PAN-OS 7 is currently supported)')
-	print "\n"
-	newusername = change_setting(username, 'Enter administrative username for Palo Alto firewall')
-	print "\n"
-	newpassword = change_setting(password,
-	                             'Enter administrative password for Palo Alto firewall (entered text will be shown in the clear)')
-	print "\n"
-	newuserdomain = change_setting(userdomain, 'Enter the user domain to be prefixed to User-IDs')
-	print "\n"
-	newtimeout = change_setting(timeout, 'Enter timeout period for pushed UIDs (in minutes)')
-
-	#########################################################################
-	###Pushing settings to .conf file with the code below
-	#########################################################################
-	print "\n\n\n\n\n\n****************Applying entered settings into the radiuid.conf file...****************\n"
-	new_config_file_data = config_file_data
-	progress('Applying:', 1)
-	new_config_file_data = apply_setting(new_config_file_data, 'logfile', logfile, newlogfile)
-	new_config_file_data = apply_setting(new_config_file_data, 'radiuslogpath', radiuslogpath, newradiuslogpath)
-	new_config_file_data = apply_setting(new_config_file_data, 'hostname', hostname, newhostname)
-	new_config_file_data = apply_setting(new_config_file_data, 'panosversion', panosversion, newpanosversion)
-	new_config_file_data = apply_setting(new_config_file_data, 'username', username, newusername)
-	new_config_file_data = apply_setting(new_config_file_data, 'password', password, newpassword)
-	new_config_file_data = apply_setting(new_config_file_data, 'userdomain', userdomain, newuserdomain)
-	new_config_file_data = apply_setting(new_config_file_data, 'timeout', timeout, newtimeout)
-
-	write_file(etcconfigfile, new_config_file_data)
-	
-	
-	
-	print "\n\n****************Starting/Restarting the RadiUID service...****************\n"
-	restart_service('radiuid')
-	radiuidrunning = check_service_running('radiuid')
-	if radiuidrunning == "yes":
-		print "***** RadiUID successfully started up!!!"
-	raw_input("Hit ENTER to continue...\n\n>>>>>")
-	if radiuidrunning == "no":
-		print "***** Something went wrong. Looks like the installation or startup failed... "
-		print "***** Please make sure you are installing RadiUID on a support platform"
-		raw_input("Hit ENTER to quit the program...\n\n>>>>>")
-		quit()
-	
+		logfile = parser.get('Paths_and_Files', 'logfile')
+		radiuslogpath = parser.get('Paths_and_Files', 'radiuslogpath')
+		hostname = parser.get('Palo_Alto_Target', 'hostname')
+		panosversion = parser.get('Palo_Alto_Target', 'OS_Version')
+		username = parser.get('Palo_Alto_Target', 'username')
+		password = parser.get('Palo_Alto_Target', 'password')
+		extrastuff = parser.get('URL_Stuff', 'extrastuff')
+		ipaddressterm = parser.get('Search_Terms', 'ipaddressterm')
+		usernameterm = parser.get('Search_Terms', 'usernameterm')
+		delineatorterm = parser.get('Search_Terms', 'delineatorterm')
+		userdomain = parser.get('UID_Settings', 'userdomain')
+		timeout = parser.get('UID_Settings', 'timeout')
+		
+		
+		#########################################################################
+		###Ask questions to the console for editing the .conf file settings
+		#########################################################################
+		print "\n\n\n\n\n\n****************Please enter values for the different settings in the radiuid.conf file****************\n"
+		newlogfile = change_setting(logfile, 'Enter full path to the new RadiUID Log File')
+		print "\n"
+		newradiuslogpath = change_setting(radiuslogpath, 'Enter path to the FreeRADIUS Accounting Logs')
+		print "\n"
+		newhostname = change_setting(hostname, 'Enter IP address or hostname for target Palo Alto firewall')
+		print "\n"
+		newpanosversion = change_setting(panosversion,
+										'Enter PAN-OS software version on target firewall (only PAN-OS 7 is currently supported)')
+		print "\n"
+		newusername = change_setting(username, 'Enter administrative username for Palo Alto firewall')
+		print "\n"
+		newpassword = change_setting(password,
+									'Enter administrative password for Palo Alto firewall (entered text will be shown in the clear)')
+		print "\n"
+		newuserdomain = change_setting(userdomain, 'Enter the user domain to be prefixed to User-IDs')
+		print "\n"
+		newtimeout = change_setting(timeout, 'Enter timeout period for pushed UIDs (in minutes)')
+		
+		#########################################################################
+		###Pushing settings to .conf file with the code below
+		#########################################################################
+		print "\n\n\n\n\n\n****************Applying entered settings into the radiuid.conf file...****************\n"
+		new_config_file_data = config_file_data
+		progress('Applying:', 1)
+		new_config_file_data = apply_setting(new_config_file_data, 'logfile', logfile, newlogfile)
+		new_config_file_data = apply_setting(new_config_file_data, 'radiuslogpath', radiuslogpath, newradiuslogpath)
+		new_config_file_data = apply_setting(new_config_file_data, 'hostname', hostname, newhostname)
+		new_config_file_data = apply_setting(new_config_file_data, 'panosversion', panosversion, newpanosversion)
+		new_config_file_data = apply_setting(new_config_file_data, 'username', username, newusername)
+		new_config_file_data = apply_setting(new_config_file_data, 'password', password, newpassword)
+		new_config_file_data = apply_setting(new_config_file_data, 'userdomain', userdomain, newuserdomain)
+		new_config_file_data = apply_setting(new_config_file_data, 'timeout', timeout, newtimeout)
+		
+		write_file(etcconfigfile, new_config_file_data)
+		
+		print "\n\n****************Starting/Restarting the RadiUID service...****************\n"
+		restart_service('radiuid')
+		radiuidrunning = check_service_running('radiuid')
+		if radiuidrunning == "yes":
+			print color("***** RadiUID successfully started up!!!", green)
+		raw_input(color(">>>>> Hit ENTER to continue...\n\n>>>>>", cyan))
+		if radiuidrunning == "no":
+			print color("***** Something went wrong. Looks like the installation or startup failed... ", red)
+			print color("***** Please make sure you are installing RadiUID on a support platform", red)
+			print color("***** You can manually edit the RadiUID config file by entering 'radiuid edit config' in the CLI", red)
+			raw_input(color("Hit ENTER to quit the program...\n\n>>>>>", cyan))
+			quit()
+	else:
+		print "~~~ OK... Leaving the .conf file alone"
 
 	#########################################################################
 	###Make changes to FreeRADIUS config file
@@ -728,14 +770,25 @@ def installer():
 	###Trailer/Goodbye
 	#########################################################################
 	print "\n\n\n\n\n\n***** Thank you for using the RadiUID installer/management utility"
-	raw_input(">>>>> Hit ENTER to see the tail of the RadiUID log file before you exit the utility\n\n>>>>>")
-	print "\n\n############################## LAST 50 LINES FROM " + newlogfile + "##############################"
+	raw_input(color(">>>>> Hit ENTER to see the tail of the RadiUID log file before you exit the utility\n\n>>>>>", cyan))
+	
+	##### Read in logfile path from found config file #####
+	parser = ConfigParser.SafeConfigParser()
+	parser.read(configfile)
+	f = open(configfile, 'r')
+	config_file_data = f.read()
+	f.close()
+	logfile = parser.get('Paths_and_Files', 'logfile')
+	#######################################################
+	
+	print "\n\n############################## LAST 50 LINES FROM " + logfile + "##############################"
 	print "########################################################################################################"
-	os.system("tail -n 50 " + newlogfile)
+	os.system("tail -n 50 " + logfile)
 	print "########################################################################################################"
 	print "########################################################################################################"
+	print "\n\n\n\n***** Looks like we are all done here...\n"
 	raw_input(
-		"\n\n\n\n***** Looks like we are all done here...\n>>>>> Hit ENTER to exit the app\n\n>>>>>")
+		color(">>>>> Hit ENTER to exit the Install/Maintenance Utility\n\n>>>>>", cyan))
 	quit()
 
 
@@ -749,6 +802,13 @@ def installer():
 #########################################################################
 #########################################################################
 #########################################################################
+
+def get_working_directory():
+	listoutput = commands.getstatusoutput("pwd")
+	result = listoutput[1]
+	result = directory_slash_add(result)
+	return result
+
 
 def find_config():
 	global configfile
@@ -892,20 +952,20 @@ def radiuid_looper():
 
 
 
-#####################Start of Main RadiUID Program#######################
-#########################################################################
-#########################################################################
-#########################################################################
+#######################ARG DECODER MAIN PROGRAM##########################
+################ Recognizes arguments from program call #################
+############## and run the appropriate part of the program ##############
+####### if given inappropriate arg, returns list of supported args#######
 #########################################################################
 #########################################################################
 
 
 etcconfigfile = "/etc/radiuid/radiuid.conf"
-localconfigfile = "radiuid.conf"
+localconfigfile = get_working_directory() + "radiuid.conf"
 
 
 
-def main(arg):
+def main():
 	######################### RUN #############################
 	if cat_list(sys.argv[1:]) == "run":
 		radiuid_looper()
@@ -916,9 +976,9 @@ def main(arg):
 		find_config()
 		checkfile = file_exists(configfile)
 		if checkfile == 'no':
-			print "ERROR: Config file (radiuid.conf) not found. Make sure the radiuid.conf file exists in same directory as radiuid.py"
+			print color("ERROR: Config file (radiuid.conf) not found. Make sure the radiuid.conf file exists in same directory as radiuid.py", red)
 			quit()
-		print "Configuring File: " + configfile
+		print "Configuring File: " + color(configfile, green) + "\n"
 		progress("Running RadiUID in Install/Maintenance Mode:", 3)
 		installer()
 		quit()
@@ -949,12 +1009,18 @@ def main(arg):
 		write_file("/etc/radiuid/radiuid.log", "***********Log cleared by RadiUID command***********\n")
 	######################### EDIT #############################
 	elif cat_list(sys.argv[1:]) == "edit" or cat_list(sys.argv[1:]) == "edit ?":
-		print "\n - edit config      |     Edit the RadiUID config file\n"
+		print "\n - edit config      |     Edit the RadiUID config file"
+		print " - edit clients     |     Edit list of client IPs for FreeRADIUS\n"
 	elif cat_list(sys.argv[1:]) == "edit config":
-		print "****************** You are about to edit the RadiUID config file in VI ******************"
-		print "********************* Confirm that you know how to use the VI editor ********************"
+		print color("****************** You are about to edit the RadiUID config file in VI ******************", yellow)
+		print color("********************* Confirm that you know how to use the VI editor ********************", yellow)
 		raw_input("Hit CTRL-C to quit. Hit ENTER to continue\n>>>>>")
 		os.system("vi /etc/radiuid/radiuid.conf")
+	elif cat_list(sys.argv[1:]) == "edit clients":
+		print color("****************** You are about to edit the FreeRADIUS client file in VI ******************", yellow)
+		print color("*********************** Confirm that you know how to use the VI editor ********************", yellow)
+		raw_input("Hit CTRL-C to quit. Hit ENTER to continue\n>>>>>")
+		os.system("vi /etc/raddb/clients.conf")
 	######################### OTHERS #############################
 	elif cat_list(sys.argv[1:]) == "start":
 		os.system("systemctl start radiuid; systemctl status radiuid")
@@ -982,6 +1048,7 @@ def main(arg):
 		print " - clear log        |     Delete the content in the log file"
 		print "------------------------------------------------------------------------------------------\n"
 		print " - edit config      |     Edit the RadiUID config file"
+		print " - edit clients     |     Edit list of client IPs for FreeRADIUS"
 		print "------------------------------------------------------------------------------------------\n"
 		print " - start            |     Start the RadiUID system service"
 		print " - stop             |     Stop the RadiUID system service"
@@ -991,6 +1058,6 @@ def main(arg):
 
 
 if __name__ == "__main__":
-	main(sys.argv)
+	main()
 
 #######################END OF PROGRAM###############################
