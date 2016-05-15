@@ -603,7 +603,10 @@ def installer():
 				quit()
 			elif checkservice == 'yes':
 				print color("\n\n***** Great Success!! Looks like FreeRADIUS installed and started up successfully.", green)
-				print color("***** If you need to manually edit the FreeRADIUS config file, it is located at /etc/raddb/clients.conf", green)
+				print color("***** We will be adding client IP and shared secret info to FreeRADIUS later in this wizard.", green)
+				print color("***** If you need to manually edit the FreeRADIUS config file later, you can run 'radiuid edit clients' in the CLI", green)
+				print color("***** You can also manually open the file for editing. It is located at /etc/raddb/clients.conf", green)
+
 				raw_input(color("\n***** Hit ENTER to continue...\n\n>>>>>", cyan))
 		if freeradiusinstall == 'no':
 			print color("***** FreeRADIUS is required by RadiUID. Quitting the installer", red)
@@ -672,7 +675,7 @@ def installer():
 	#########################################################################
 	editradiuidconf = yesorno("Do you want to edit the settings in the RadiUID .conf file (if you just installed RadiUID, then you need to do this)?")
 	if editradiuidconf == "yes":
-		print "\n\n\n****************Now, we will configure the settings for the " + configfile + " file...****************\n"
+		print "\n\n\n****************Now, we will import the settings from the " + configfile + " file...****************\n"
 		print "*****************The current values for each setting are [displayed in the prompt]****************\n"
 		print "****************Leave the prompt empty and hit ENTER to accept the current value****************\n"
 		raw_input(color("\n\n>>>>> Hit ENTER to continue...\n\n>>>>>", cyan))
@@ -850,7 +853,7 @@ def initialize():
 	checkfile = file_exists(configfile)
 	if checkfile == 'no':
 		print time.strftime(
-			"%Y-%m-%d %H:%M:%S") + ":   " + "ERROR: CANNOT FIND RADIUID CONFIG FILE IN TYPICAL PATHS. QUITTING PROGRAM. RE-RUN INSTALLER ('python radiuid.py -i')" + "\n"
+			"%Y-%m-%d %H:%M:%S") + ":   " + "ERROR: CANNOT FIND RADIUID CONFIG FILE IN TYPICAL PATHS. QUITTING PROGRAM. RE-RUN INSTALLER ('python radiuid.py install')" + "\n"
 		quit()
 	if checkfile == 'yes':
 		print time.strftime(
@@ -868,7 +871,7 @@ def initialize():
 	##### Initial log entry and help for anybody starting the .py program without first installing it #####
 	
 	log_writer(logfile, 
-		"***********RADIUID INITIALIZING... IF PROGRAM FAULTS NOW, MAKE SURE SUCCESSFULLY YOU RAN THE INSTALLER ('python radiuid.py -i')***********")
+		"***********RADIUID INITIALIZING... IF PROGRAM FAULTS NOW, MAKE SURE SUCCESSFULLY YOU RAN THE INSTALLER ('python radiuid.py install')***********")
 	
 	##### Suck in all variables from config file (only run when program is initially started, not during while loop) #####
 	
