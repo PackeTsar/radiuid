@@ -40,6 +40,12 @@ def color(input, inputcolor):
 	return result
 
 
+##### Get currently logged in user #####
+def currentuser():
+	checkdata = commands.getstatusoutput("whoami")[1]
+	return checkdata
+
+
 ##### Create str sentence out of list seperated by spaces and lowercase everything #####
 ##### Used for recognizing iarguments when running RadiUID from the CLI #####
 def cat_list(listname):
@@ -847,6 +853,18 @@ def find_config(mode):
 
 
 
+def get_logfile():
+		global configfile
+		configfile = find_config("quiet")
+		parser = ConfigParser.SafeConfigParser()
+		parser.read(configfile)
+		f = open(configfile, 'r')
+		config_file_data = f.read()
+		f.close()
+		global logfile
+		logfile = parser.get('Paths_and_Files', 'logfile')
+		return logfile
+
 
 #################Primary Running Function and Looper#####################
 #########################################################################
@@ -1002,12 +1020,6 @@ def main():
 	elif cat_list(sys.argv[1:]) == "install":
 		print "\n\n\n"
 		packetsar()
-#		configfile = find_config("noisy")
-#		checkfile = file_exists(configfile)
-#		if checkfile == 'no':
-#			print color("ERROR: Config file (radiuid.conf) not found. Make sure the radiuid.conf file exists in same directory as radiuid.py", red)
-#			quit()
-#		print "Configuring File: " + color(configfile, green) + "\n"
 		progress("Running RadiUID in Install/Maintenance Mode:", 3)
 		installer()
 		quit()
@@ -1018,13 +1030,8 @@ def main():
 		print " - show config      |     Show the RadiUID config file"
 		print " - show status      |     Show the RadiUID and FreeRADIUS service statuses"
 	elif cat_list(sys.argv[1:]) == "show log":
+		logfile = get_logfile()
 		configfile = find_config("quiet")
-		parser = ConfigParser.SafeConfigParser()
-		parser.read(configfile)
-		f = open(configfile, 'r')
-		config_file_data = f.read()
-		f.close()
-		logfile = parser.get('Paths_and_Files', 'logfile')
 		header = "########################## OUTPUT FROM FILE " + logfile + " ##########################"
 		print color(header, magenta)
 		print color("#" * len(header), magenta)
@@ -1032,6 +1039,7 @@ def main():
 		print color("#" * len(header), magenta)
 		print color("#" * len(header), magenta)
 	elif cat_list(sys.argv[1:]) == "show run":
+		logfile = get_logfile()
 		configfile = find_config("quiet")
 		header = "########################## OUTPUT FROM FILE " + configfile + " ##########################"
 		print color(header, magenta)
@@ -1040,6 +1048,7 @@ def main():
 		print color("#" * len(header), magenta)
 		print color("#" * len(header), magenta)
 	elif cat_list(sys.argv[1:]) == "show config":
+		logfile = get_logfile()
 		configfile = find_config("quiet")
 		header = "########################## OUTPUT FROM FILE " + configfile + " ##########################"
 		print color(header, magenta)
@@ -1084,13 +1093,8 @@ def main():
 	elif cat_list(sys.argv[1:]) == "tail" or cat_list(sys.argv[1:]) == "tail ?":
 		print "\n - tail log         |     Watch the RadiUID log file in real time\n"
 	elif cat_list(sys.argv[1:]) == "tail log":
+		logfile = get_logfile()
 		configfile = find_config("quiet")
-		parser = ConfigParser.SafeConfigParser()
-		parser.read(configfile)
-		f = open(configfile, 'r')
-		config_file_data = f.read()
-		f.close()
-		logfile = parser.get('Paths_and_Files', 'logfile')
 		header = "########################## OUTPUT FROM FILE " + logfile + " ##########################"
 		print color(header, magenta)
 		print color("#" * len(header), magenta)
@@ -1101,27 +1105,24 @@ def main():
 	elif cat_list(sys.argv[1:]) == "clear" or cat_list(sys.argv[1:]) == "clear ?":
 		print "\n - clear log         |     Delete the content in the log file\n"
 	elif cat_list(sys.argv[1:]) == "clear log":
+		logfile = get_logfile()
 		configfile = find_config("quiet")
-		parser = ConfigParser.SafeConfigParser()
-		parser.read(configfile)
-		f = open(configfile, 'r')
-		config_file_data = f.read()
-		f.close()
-		logfile = parser.get('Paths_and_Files', 'logfile')
 		print color("********************* You are about to clear out the RadiUID log file... (" + logfile + ") ********************", yellow)
 		raw_input("Hit CTRL-C to quit. Hit ENTER to continue\n>>>>>")
 		os.system("rm -f "+ logfile)
-		write_file(logfile, "***********Log cleared by RadiUID command***********\n")
+		write_file(logfile, "***********Logfile cleared via RadiUID command by " + currentuser() + "***********\n")
 		print color("********************* Cleared logfile: " + logfile + " ********************", yellow)
 	######################### EDIT #############################
 	elif cat_list(sys.argv[1:]) == "edit" or cat_list(sys.argv[1:]) == "edit ?":
 		print "\n - edit config      |     Edit the RadiUID config file"
 		print " - edit clients     |     Edit list of client IPs for FreeRADIUS\n"
 	elif cat_list(sys.argv[1:]) == "edit config":
+		logfile = get_logfile()
+		configfile = find_config("quiet")
 		print color("****************** You are about to edit the RadiUID config file in VI ******************", yellow)
 		print color("********************* Confirm that you know how to use the VI editor ********************", yellow)
 		raw_input("Hit CTRL-C to quit. Hit ENTER to continue\n>>>>>")
-		os.system("vi /etc/radiuid/radiuid.conf")
+		os.system("vi " + configfile)
 	elif cat_list(sys.argv[1:]) == "edit clients":
 		print color("****************** You are about to edit the FreeRADIUS client file in VI ******************", yellow)
 		print color("*********************** Confirm that you know how to use the VI editor ********************", yellow)
