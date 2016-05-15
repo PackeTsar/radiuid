@@ -1003,7 +1003,7 @@ def main():
 #		if checkfile == 'no':
 #			print color("ERROR: Config file (radiuid.conf) not found. Make sure the radiuid.conf file exists in same directory as radiuid.py", red)
 #			quit()
-		print "Configuring File: " + color(configfile, green) + "\n"
+#		print "Configuring File: " + color(configfile, green) + "\n"
 		progress("Running RadiUID in Install/Maintenance Mode:", 3)
 		installer()
 		quit()
