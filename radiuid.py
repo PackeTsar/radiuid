@@ -680,7 +680,7 @@ def installer():
 	#########################################################################
 	editradiuidconf = yesorno("Do you want to edit the settings in the RadiUID .conf file (if you just installed RadiUID, then you need to do this)?")
 	if editradiuidconf == "yes":
-		configfile = find_config("quiet")
+		configfile = find_config("noisy")
 		checkfile = file_exists(configfile)
 		if checkfile == 'no':
 			print color("ERROR: Config file (radiuid.conf) not found. Make sure the radiuid.conf file exists in same directory as radiuid.py", red)
