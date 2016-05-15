@@ -494,7 +494,7 @@ def freeradius_editor(dict_edits):
 
 ##### Print out this ridiculous text-o-graph #####
 ##### It took me like an hour to draw and I couldn't stand to just not use it #####
-def header():
+def packetsar():
 	print  color("\n                        ###############################################      \n\
 		      #                                                 #    \n\
 		    #                                                     #  \n\
@@ -784,6 +784,7 @@ def installer():
 	raw_input(color(">>>>> Hit ENTER to see the tail of the RadiUID log file before you exit the utility\n\n>>>>>", cyan))
 	
 	##### Read in logfile path from found config file #####
+	configfile = find_config("quiet")
 	parser = ConfigParser.SafeConfigParser()
 	parser.read(configfile)
 	f = open(configfile, 'r')
@@ -791,7 +792,7 @@ def installer():
 	f.close()
 	logfile = parser.get('Paths_and_Files', 'logfile')
 	#######################################################
-	
+
 	print "\n\n############################## LAST 50 LINES FROM " + logfile + "##############################"
 	print "########################################################################################################"
 	os.system("tail -n 50 " + logfile)
@@ -990,8 +991,8 @@ def main():
 	######################### INSTALL #############################
 	elif cat_list(sys.argv[1:]) == "install":
 		print "\n\n\n"
-		header()
-		find_config("noisy")
+		packetsar()
+		configfile = find_config("noisy")
 		checkfile = file_exists(configfile)
 		if checkfile == 'no':
 			print color("ERROR: Config file (radiuid.conf) not found. Make sure the radiuid.conf file exists in same directory as radiuid.py", red)
@@ -1005,7 +1006,7 @@ def main():
 		print "\n - show log       |     Show the RadiUID log file"
 		print " - show run         |     Show the RadiUID config file"
 		print " - show config      |     Show the RadiUID config file"
-		print " - show status      |     Show the RadiUID service status\n"
+		print " - show status      |     Show the RadiUID and FreeRADIUS service statuses"
 	elif cat_list(sys.argv[1:]) == "show log":
 		configfile = find_config("quiet")
 		parser = ConfigParser.SafeConfigParser()
@@ -1052,6 +1053,23 @@ def main():
 				print color("\n\n********** RADIUID IS CURRENTLY RUNNING **********\n\n", green)
 			elif checkservice == "no":
 				print color("\n\n********** RADIUID IS CURRENTLY NOT RUNNING **********\n\n", yellow)
+
+
+		header = "########################## OUTPUT FROM COMMAND: 'systemctl status radiusd' ##########################"
+		print color(header, magenta)
+		print color("#" * len(header), magenta)
+		os.system("systemctl status radiusd")
+		print color("#" * len(header), magenta)
+		print color("#" * len(header), magenta)
+		serviceinstalled = check_service_installed("radiusd")
+		if serviceinstalled == "no":
+			print color("\n\n********** FREERADIUS IS NOT INSTALLED YET **********\n\n", yellow)
+		elif serviceinstalled == "yes":
+			checkservice = check_service_running("radiusd")
+			if checkservice == "yes":
+				print color("\n\n********** FREERADIUS IS CURRENTLY RUNNING **********\n\n", green)
+			elif checkservice == "no":
+				print color("\n\n********** FREERADIUS IS CURRENTLY NOT RUNNING **********\n\n", yellow)
 	######################### TAIL #############################
 	elif cat_list(sys.argv[1:]) == "tail" or cat_list(sys.argv[1:]) == "tail ?":
 		print "\n - tail log         |     Watch the RadiUID log file in real time\n"
@@ -1147,7 +1165,7 @@ def main():
 		print " - show log         |     Show the RadiUID log file"
 		print " - show run         |     Show the RadiUID config file"
 		print " - show config      |     Show the RadiUID config file"
-		print " - show status      |     Show the RadiUID service status"
+		print " - show status      |     Show the RadiUID and FreeRADIUS service statuses"
 		print "----------------------------------------------------------------------------------------------\n"
 		print " - tail log         |     Watch the RadiUID log file in real time"
 		print "----------------------------------------------------------------------------------------------\n"
