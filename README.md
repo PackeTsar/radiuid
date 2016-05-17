@@ -65,15 +65,16 @@ Authenticators: **Meraki Wireless Access Points, Cisco Wireless (Controller-base
 ----------------------------------------------
 
 The install of RadiUID is very quick and straightforward using the built-in installer.
+NOTE: You need to be logged in as root or have sudo privileges on the system to install RadiUID
 
 	[1]: Install CentOS 7 Minimal Install with appropriate IP and OS settings
 
 
 	[2]: Update CentOS 7 to latest patches (recommended)
-		> yum update -y
+		> sudo yum update -y
 
 	[3]: Install the Git client (unless you already have the files)
-		> yum install git -y
+		> sudo yum install git -y
 
 	[4]: Download the RadiUID repo to any location on the box
 		> git clone https://github.com/PackeTsar/radiuid.git
@@ -85,7 +86,7 @@ The install of RadiUID is very quick and straightforward using the built-in inst
 		> git checkout dev-X.X.XXX
 
 	[6]: Run the RadiUID program in install mode to perform the install
-		> python radiuid.py install
+		> sudo python radiuid.py install
 
 	[7]: Follow the on-screen prompts to install FreeRADIUS and the RadiUID app
 
