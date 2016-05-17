@@ -75,6 +75,61 @@ The install of RadiUID is very quick and straightforward if using the built-in i
 		-NOTE: Make sure that you have the .conf file in the same directory as the .py directory for the initial install
 
 
+##########   RADIUID COMMAND INTERFACE   ##########
+----------------------------------------------
+
+The RadiUID system is meant to run in the background as a system service: contantly checking for new RADIUS accounting data and pushing User-ID mapping information to the firewall, but it also has an easy to use command interface. This command interface is meant to be used for regular maintenance, troubleshooting, and operation of the system.
+
+Below is the CLI guide for the RadiUID service.
+
+Command Syntax from Bash:
+	>radiuid [arguments]
+
+------------------------------------- Accepted Arguments -------------------------------------
+----------------------------------------------------------------------------------------------
+ - run                 |     Run the RadiUID main program to begin pushing User-ID information
+----------------------------------------------------------------------------------------------
+
+ - install             |     Run the RadiUID Install/Maintenance Utility
+----------------------------------------------------------------------------------------------
+
+ - show log            |     Show the RadiUID log file
+ - show run            |     Show the RadiUID config file
+ - show config         |     Show the RadiUID config file
+ - show clients        |     Show the FreeRADIUS client config file
+ - show status         |     Show the RadiUID and FreeRADIUS service statuses
+----------------------------------------------------------------------------------------------
+
+ - tail log            |     Watch the RadiUID log file in real time
+----------------------------------------------------------------------------------------------
+
+ - clear log           |     Delete the content in the log file
+----------------------------------------------------------------------------------------------
+
+ - edit config         |     Edit the RadiUID config file
+ - edit clients        |     Edit list of client IPs for FreeRADIUS
+----------------------------------------------------------------------------------------------
+
+ - start               |     Start the RadiUID system service
+ - stop                |     Stop the RadiUID system service
+ - restart             |     Restart the RadiUID system service
+----------------------------------------------------------------------------------------------
+
+ - start freeradius    |     Start the FreeRADIUS system service
+ - stop freeradius     |     Stop the FreeRADIUS system service
+ - restart freeradius  |     Restart the FreeRADIUS system service
+----------------------------------------------------------------------------------------------
+
+ - start all           |     Start the RadiUID and FreeRADIUS system services
+ - stop all            |     Stop the RadiUID and FreeRADIUS system services
+ - restart all         |     Restart the RadiUID and FreeRADIUS system services
+----------------------------------------------------------------------------------------------
+
+
+
+
+
+
 ##########   CONTRIBUTING   ##########
 --------------------------------------
 
