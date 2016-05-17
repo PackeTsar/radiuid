@@ -108,43 +108,53 @@ The RadiUID system is meant to run in the background as a system service: contan
 
 Below is the CLI guide for the RadiUID service.
 
+```
 Command Syntax from Bash:
-	>radiuid [arguments]
+	> radiuid [arguments]
 
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Accepted Arguments ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
- - run                 |     Run the RadiUID main program in shell mode begin pushing User~ID information
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+===================================== Accepted Arguments =====================================
+==============================================================================================
+ - run                 |     Run the RadiUID main program in shell mode begin pushing User=ID information
+==============================================================================================
+
  - install             |     Run the RadiUID Install/Maintenance Utility
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+==============================================================================================
+
  - show log            |     Show the RadiUID log file
  - show run            |     Show the RadiUID config file
  - show config         |     Show the RadiUID config file
  - show clients        |     Show the FreeRADIUS client config file
  - show status         |     Show the RadiUID and FreeRADIUS service statuses
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+==============================================================================================
+
  - tail log            |     Watch the RadiUID log file in real time
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+==============================================================================================
+
  - clear log           |     Delete the content in the log file
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+==============================================================================================
+
  - edit config         |     Edit the RadiUID config file
  - edit clients        |     Edit list of client IPs for FreeRADIUS
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+==============================================================================================
+
  - start radiuid       |     Start the RadiUID system service
  - stop radiuid        |     Stop the RadiUID system service
  - restart radiuid     |     Restart the RadiUID system service
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+==============================================================================================
+
  - start freeradius    |     Start the FreeRADIUS system service
  - stop freeradius     |     Stop the FreeRADIUS system service
  - restart freeradius  |     Restart the FreeRADIUS system service
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+==============================================================================================
+
  - start all           |     Start the RadiUID and FreeRADIUS system services
  - stop all            |     Stop the RadiUID and FreeRADIUS system services
  - restart all         |     Restart the RadiUID and FreeRADIUS system services
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
- - version             |     Show the current version of RadiUID and FreeRADIUS
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+==============================================================================================
 
+ - version             |     Show the current version of RadiUID and FreeRADIUS
+==============================================================================================
+```
 
 
 
