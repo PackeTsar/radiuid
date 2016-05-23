@@ -133,7 +133,8 @@ def remove_files(filelist):
 		log_writer(logfile, "Removed file: " + filename)
 
 
-##### Accepts a list of IP addresses (keys) and usernames (vals) in a dictionary and outputs a list of XML formatted entries #####
+##### Accepts a list of IP addresses (keys) and usernames (vals) in a dictionary and outputs a list of XML formatted entries as a list #####
+##### This method outputs a list which is utilized by the xml_assembler_v67 method #####
 def xml_formatter_v67(ipanduserdict):
 	if panosversion == '7' or panosversion == '6':
 		ipaddresses = ipanduserdict.keys()
@@ -147,7 +148,9 @@ def xml_formatter_v67(ipanduserdict):
 		log_writer(logfile, color("PAN-OS version not supported for XML push!", red))
 		quit()
 
-		
+
+##### Accepts a list of XML-formatted IP-to-User mappings and produces a list of complete and encoded URLs which are used to push UID data #####
+##### Each URL will contain no more than 100 UID mappings which can all be pushed at the same time by the push_uids method #####
 def xml_assembler_v67(ipuserxmllist):
 	if panosversion == '7' or panosversion == '6':
 		finishedurllist = []
@@ -173,12 +176,15 @@ def xml_assembler_v67(ipuserxmllist):
 	else:
 		log_writer(logfile, color("PAN-OS version not supported for XML push!", red))
 		quit()
-	
 
-##### Use urlconverter to encode the URL to acceptable format and use REST call to push UID info to PAN #####
+
+##### Accepts IP-to-User mappings as a dict in, uses the xml-formatter and xml-assembler to generate a list of URLS, then opens those URLs and logs response codes  #####
 def push_uids(ipanduserdict, filelist):
 	xml_list = xml_formatter_v67(ipanduserdict)
 	urllist = xml_assembler_v67(xml_list)
+	log_writer(logfile, "Pushing the below IP : User mappings via " + str(len(urllist)) + " API calls")
+	for entry in ipanduserdict:
+		log_writer(logfile, "IP Address: " + entry + "\t\tUsername: " + ipanduserdict[entry])
 	for eachurl in urllist:
 		response = urllib2.urlopen(eachurl).read()
 		log_writer(logfile, response + "\n")
