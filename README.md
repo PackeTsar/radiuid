@@ -66,7 +66,7 @@ Authenticators: **Meraki Wireless Access Points, Cisco Wireless (Controller-base
 ##########   INSTALL INSTRUCTIONS   ##########
 ----------------------------------------------
 
-The install of RadiUID is very quick and straightforward using the built-in installer.
+The install of RadiUID is very quick and straightforward using the built-in installer\maintenance utility.
 NOTE: You need to be logged in as root or have sudo privileges on the system to install RadiUID
 
 	[1]: Install CentOS 7 Minimal Install with appropriate IP and OS settings
