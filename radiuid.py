@@ -134,36 +134,79 @@ def remove_files(filelist):
 
 
 ##### Encode username and IP address into URL REST format for PAN #####
-def url_converter_v7(username, ip):
+#def url_converter_v7(username, ip):
+#	if panosversion == '7' or panosversion == '6':
+#		urldecoded = '<uid-message>\
+#               <version>1.0</version>\
+#              <type>update</type>\
+#                <payload>\
+#                <login>\
+#                <entry name="%s\%s" ip="%s" timeout="%s">\
+#                </entry>\
+#                </login>\
+#                </payload>\
+#                </uid-message>' % (userdomain, username, ip, timeout)
+#		urljunk = urllib.quote_plus(urldecoded)
+#		finishedurl = 'https://' + hostname + '/api/?key=' + pankey + extrastuff + urljunk
+#		return finishedurl
+#	else:
+#		log_writer(logfile, color("PAN-OS version not supported for XML push!", red))
+#		quit()
+
+
+##### Accepts a list of IP addresses (keys) and usernames (vals) in a dictionary and outputs a list of XML formatted entries #####
+def xml_formatter_v67(ipanduserdict):
 	if panosversion == '7' or panosversion == '6':
+		ipaddresses = ipanduserdict.keys()
+		xmllist = []
+		for ip in ipaddresses:
+			entry = '<entry name="%s\%s" ip="%s" timeout="%s">' % (userdomain, ipanduserdict[ip], ip, timeout)
+			xmllist.append(entry)
+			entry = ''
+		return xmllist
+	else:
+		log_writer(logfile, color("PAN-OS version not supported for XML push!", red))
+		quit()
+
+
+def xml_assembler_v67(ipuserxmllist):
+	if panosversion == '7' or panosversion == '6':
+		xmluserdata = ""
+		for entry in ipuserxmllist:
+			xmluserdata = xmluserdata + "                " + entry
 		urldecoded = '<uid-message>\
                 <version>1.0</version>\
                 <type>update</type>\
                 <payload>\
                 <login>\
-                <entry name="%s\%s" ip="%s" timeout="%s">\
-                </entry>\
-                </login>\
-                </payload>\
-                </uid-message>' % (userdomain, username, ip, timeout)
+' + xmluserdata + '\
+                <\/entry>\
+                <\/login>\
+                <\/payload>\
+                <\/uid-message>'
+		print urldecoded
 		urljunk = urllib.quote_plus(urldecoded)
 		finishedurl = 'https://' + hostname + '/api/?key=' + pankey + extrastuff + urljunk
 		return finishedurl
 	else:
 		log_writer(logfile, color("PAN-OS version not supported for XML push!", red))
 		quit()
-
+	
 
 ##### Use urlconverter to encode the URL to acceptable format and use REST call to push UID info to PAN #####
 def push_uids(ipanduserdict, filelist):
-	iteration = 0
-	ipaddresses = ipanduserdict.keys()
-	for ip in ipaddresses:
-		url = url_converter_v7(ipanduserdict[ip], ip)
-		log_writer(logfile, "Pushing    |    " + userdomain + "\\" + ipanduserdict[ip] + ":" + ip)
-		response = urllib2.urlopen(url).read()
-		log_writer(logfile, response + "\n")
-		iteration = iteration + 1
+	xml_list = xml_formatter_v67(ipanduserdict)
+	url = xml_assembler_v67(xml_list)
+	response = urllib2.urlopen(url).read()
+	log_writer(logfile, response + "\n")
+#	iteration = 0
+#	ipaddresses = ipanduserdict.keys()
+#	for ip in ipaddresses:
+#		url = url_converter_v7(ipanduserdict[ip], ip)
+#		log_writer(logfile, "Pushing    |    " + userdomain + "\\" + ipanduserdict[ip] + ":" + ip)
+#		response = urllib2.urlopen(url).read()
+#		log_writer(logfile, response + "\n")
+#		iteration = iteration + 1
 	remove_files(filelist)
 
 
