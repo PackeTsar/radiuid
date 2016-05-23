@@ -173,17 +173,16 @@ def xml_assembler_v67(ipuserxmllist):
 	if panosversion == '7' or panosversion == '6':
 		xmluserdata = ""
 		for entry in ipuserxmllist:
-			xmluserdata = xmluserdata + "                " + entry
-		urldecoded = '<uid-message>\
-                <version>1.0</version>\
-                <type>update</type>\
-                <payload>\
-                <login>\
+			xmluserdata = xmluserdata + entry + "\n</entry>\n"
+		urldecoded = '<uid-message>\n\
+<version>1.0</version>\n\
+<type>update</type>\n\
+<payload>\n\
+<login>\n\
 ' + xmluserdata + '\
-                <\/entry>\
-                <\/login>\
-                <\/payload>\
-                <\/uid-message>'
+</login>\n\
+</payload>\n\
+</uid-message>'
 		print urldecoded
 		urljunk = urllib.quote_plus(urldecoded)
 		finishedurl = 'https://' + hostname + '/api/?key=' + pankey + extrastuff + urljunk
