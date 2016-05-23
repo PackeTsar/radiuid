@@ -15,6 +15,12 @@
 
 
 
+##########   VERSION   ##########
+-----------------------------------------
+The version of RadiUID documented here is:
+	dev1.0.1
+
+
 ##########   WHAT IS RADIUID   ##########
 -----------------------------------------
 
@@ -45,6 +51,14 @@ OS:			**CentOS 7 Minimal Install (recommended to update to latest patches)**
 Interpreter:		**Python 2.7.5 (Included in current release of CentOS 7)**
 
 PAN-OS Version:		**6.X and 7.X**
+
+
+
+##########   UPDATES IN THIS VERSION   ##########
+--------------------------------------
+Fixed issue #2: Rewrite push and URL converter to push multiple mappings per REST call
+	Fixed in dev1.0.1. The push mechanism will now push up to 100 IP-to-User mappings in each API call and will make as many API calls in a row as necessary to push all collected data from the logs. This greatly speeds up the push of mappings to the firewall.
+
 
 
 
@@ -174,4 +188,3 @@ RadiUID pushes ephemeral User-ID information to the firewall whenever new RADIUS
 If you would like to help out by contributing code or reporting issues, please do!
 
 Visit the GitHub page (https://github.com/PackeTsar/radiuid) and either report an issue or fork the project, commit some changes, and submit a pull request.
-
