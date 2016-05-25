@@ -25,8 +25,14 @@ The version of RadiUID documented here is:
 --------------------------------------
 
 **Fixed issue #2: Rewrite push and URL converter to push multiple mappings per REST call.**
+
 Fixed in dev1.0.1. The push mechanism will now push up to 100 IP-to-User mappings in each API call and will make as many API calls in a row as necessary to push all collected data from the logs.
 This greatly speeds up the push of mappings to the firewall.
+
+
+**Fixed issue #5: Issue with complex PAN passwords.**
+
+Fixed in dev1.0.1. The program can now accept any password with special characters with the exception of the percent sign (%).
 
 
 
