@@ -40,7 +40,9 @@ def log_writer(filepath, input):
 ##### Function to pull API key from firewall to be used for REST HTTP calls #####
 ##### Used during initialization of the RadiUID main process to generate the API key #####
 def pull_api_key(username, password):
-	url = 'https://' + hostname + '/api/?type=keygen&user=' + username + '&password=' + password
+	encodedusername = urllib.quote_plus(username)
+	encodedpassword = urllib.quote_plus(password)
+	url = 'https://' + hostname + '/api/?type=keygen&user=' + encodedusername + '&password=' + encodedpassword
 	response = urllib2.urlopen(url).read()
 	log_writer(logfile, "Pulling API key using PAN credentials: " + username + "\\" + password + "\n")
 	if 'success' in response:
@@ -693,6 +695,9 @@ def installer():
 		print "\n"
 		newpassword = change_setting(password,
 									'Enter administrative password for Palo Alto firewall (entered text will be shown in the clear)')
+		while newpassword.find("%") != -1:
+			newpassword = change_setting(password,
+									'The "%" sign is not allowed in the password. Please enter a password without it')
 		print "\n"
 		newuserdomain = change_setting(userdomain, 'Enter the user domain to be prefixed to User-IDs')
 		print "\n"
