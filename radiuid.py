@@ -26,7 +26,7 @@ import ConfigParser
 
 
 ##### Inform RadiUID version here #####
-version = "1.0.0"
+version = "dev1.0.1"
 
 
 ##### Writes lines to the log file and prints them to the terminal #####
@@ -73,7 +73,7 @@ def listfiles(path):
 		return filelist
 
 
-##### Search list of files for a searchterm and use deliniator term to count instances file, then return a dictionary where key=instance and value=line where term was found #####
+##### Search list of files for a searchterm and uses deliniator term to count instances in file, then returns a dictionary where key=instance and value=line where term was found #####
 ##### Used to search through FreeRADIUS log files for usernames and IP addresses, then turn them into dictionaries to be sent to the "push" function #####
 def search_to_dict(filelist, delineator, searchterm):
 	dict = {}
@@ -94,8 +94,8 @@ def search_to_dict(filelist, delineator, searchterm):
 def clean_ips(dictionary):
 	newdict = {}
 	for key, value in dictionary.iteritems():
-		clean1 = value.replace("\t" + ipaddressterm + " = ", "")
-		cleaned = clean1.replace("\n", "")
+		ipaddress_regex = "(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)"
+		cleaned = re.findall(ipaddress_regex, value, flags=0)[0]
 		newdict[key] = cleaned
 	log_writer(logfile, "IP Address List Cleaned Up!")
 	return newdict
