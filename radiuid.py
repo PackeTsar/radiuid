@@ -93,8 +93,8 @@ def search_to_dict(filelist, delineator, searchterm):
 ##### Removes unwanted data from the lines with useful IP addresses in them #####
 def clean_ips(dictionary):
 	newdict = {}
+	ipaddress_regex = "(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)"
 	for key, value in dictionary.iteritems():
-		ipaddress_regex = "(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)"
 		cleaned = re.findall(ipaddress_regex, value, flags=0)[0]
 		newdict[key] = cleaned
 	log_writer(logfile, "IP Address List Cleaned Up!")
@@ -105,9 +105,10 @@ def clean_ips(dictionary):
 ##### Removes unwanted data from the lines with useful usernames in them #####
 def clean_names(dictionary):
 	newdict = {}
+	username_regex = "(\'.*\')"
 	for key, value in dictionary.iteritems():
-		clean1 = value.replace("\t" + usernameterm + " = '", "")
-		cleaned = clean1.replace("'\n", "")
+		clean1 = re.findall(username_regex, value, flags=0)[0]
+		cleaned = clean1.replace("'", "")
 		newdict[key] = cleaned
 	log_writer(logfile, "Username List Cleaned Up!")
 	return newdict

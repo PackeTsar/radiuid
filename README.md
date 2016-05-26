@@ -30,6 +30,11 @@ Fixed in dev1.0.1. The push mechanism will now push up to 100 IP-to-User mapping
 This greatly speeds up the push of mappings to the firewall.
 
 
+**Fixed issue #3: Rewrite "clean_ips" and "clean_names" to use regex instead of static data removal methods.**
+
+Fixed in dev1.0.1. This has no tangible effect to an end user, but it is a cleaner method of extracting IP addresses and usernames from the FreeRADIUS logs.
+
+
 **Fixed issue #5: Issue with complex PAN passwords.**
 
 Fixed in dev1.0.1. The program can now accept any password with special characters with the exception of the percent sign (%).
