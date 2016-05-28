@@ -40,6 +40,15 @@ Fixed in dev1.0.1. This has no tangible effect to an end user, but it is a clean
 Fixed in dev1.0.1. The program can now accept any password with special characters with the exception of the percent sign (%).
 
 
+**Fixed issue #7: Rewrite log_writer to use global logfile variable.**
+
+Fixed in dev1.0.1. kog_writer now only has one input argument and it uses the global logfile var.
+
+
+
+ADDED FEATURES:
+     - Added logging of CLI commands to log file for accounting purposes using the cli_log_writer method.
+
 
 ##########   WHAT IS RADIUID   ##########
 -----------------------------------------
