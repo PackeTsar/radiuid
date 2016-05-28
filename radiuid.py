@@ -30,8 +30,9 @@ version = "dev1.0.1"
 
 
 ##### Writes lines to the log file and prints them to the terminal #####
-def log_writer(filepath, input):
-	target = open(filepath, 'a')
+##### Uses the logfile variable published to the global namespace #####
+def log_writer(input):
+	target = open(logfile, 'a')
 	target.write(time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + input + "\n")
 	print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + input + "\n"
 	target.close()
@@ -44,16 +45,16 @@ def pull_api_key(username, password):
 	encodedpassword = urllib.quote_plus(password)
 	url = 'https://' + hostname + '/api/?type=keygen&user=' + encodedusername + '&password=' + encodedpassword
 	response = urllib2.urlopen(url).read()
-	log_writer(logfile, "Pulling API key using PAN credentials: " + username + "\\" + password + "\n")
+	log_writer("Pulling API key using PAN credentials: " + username + "\\" + password + "\n")
 	if 'success' in response:
-		log_writer(logfile, color(response, green) + "\n")
+		log_writer(color(response, green) + "\n")
 		stripped1 = response.replace("<response status = 'success'><result><key>", "")
 		stripped2 = stripped1.replace("</key></result></response>", "")
 		global pankey
 		pankey = stripped2
 		return pankey
 	else:
-		log_writer(logfile, color('ERROR: Username\\password failed. Please re-enter in config file...' + '\n', red))
+		log_writer(color('ERROR: Username\\password failed. Please re-enter in config file...' + '\n', red))
 		quit()
 
 
@@ -65,9 +66,9 @@ def listfiles(path):
 		for filename in filenames:
 			entry = os.path.join(root, filename)
 			filelist.append(entry)
-			log_writer(logfile, "Found File: " + entry + "...   Adding to file list")
+			log_writer("Found File: " + entry + "...   Adding to file list")
 	if len(filelist) == 0:
-		log_writer(logfile, "No Accounting Logs Found. Nothing to Do.")
+		log_writer("No Accounting Logs Found. Nothing to Do.")
 		return filelist
 	else:
 		return filelist
@@ -79,7 +80,7 @@ def search_to_dict(filelist, delineator, searchterm):
 	dict = {}
 	entry = 0
 	for filename in filelist:
-		log_writer(logfile, 'Searching File: ' + filename + ' for ' + searchterm)
+		log_writer('Searching File: ' + filename + ' for ' + searchterm)
 		with open(filename, 'r') as filetext:
 			for line in filetext:
 				if delineator in line:
@@ -97,7 +98,7 @@ def clean_ips(dictionary):
 	for key, value in dictionary.iteritems():
 		cleaned = re.findall(ipaddress_regex, value, flags=0)[0]
 		newdict[key] = cleaned
-	log_writer(logfile, "IP Address List Cleaned Up!")
+	log_writer("IP Address List Cleaned Up!")
 	return newdict
 
 
@@ -110,7 +111,7 @@ def clean_names(dictionary):
 		clean1 = re.findall(username_regex, value, flags=0)[0]
 		cleaned = clean1.replace("'", "")
 		newdict[key] = cleaned
-	log_writer(logfile, "Username List Cleaned Up!")
+	log_writer("Username List Cleaned Up!")
 	return newdict
 
 
@@ -124,7 +125,7 @@ def merge_dicts(keydict, valuedict):
 		v = valuedict[each]
 		k = keydict[each]
 		newdict[k] = v
-	log_writer(logfile, "Dictionary values merged into one dictionary")
+	log_writer("Dictionary values merged into one dictionary")
 	return newdict
 
 
@@ -133,7 +134,7 @@ def merge_dicts(keydict, valuedict):
 def remove_files(filelist):
 	for filename in filelist:
 		os.remove(filename)
-		log_writer(logfile, "Removed file: " + filename)
+		log_writer("Removed file: " + filename)
 
 
 ##### Accepts a list of IP addresses (keys) and usernames (vals) in a dictionary and outputs a list of XML formatted entries as a list #####
@@ -148,7 +149,7 @@ def xml_formatter_v67(ipanduserdict):
 			entry = ''
 		return xmllist
 	else:
-		log_writer(logfile, color("PAN-OS version not supported for XML push!", red))
+		log_writer(color("PAN-OS version not supported for XML push!", red))
 		quit()
 
 
@@ -177,7 +178,7 @@ def xml_assembler_v67(ipuserxmllist):
 			xmluserdata = ""
 		return finishedurllist
 	else:
-		log_writer(logfile, color("PAN-OS version not supported for XML push!", red))
+		log_writer(color("PAN-OS version not supported for XML push!", red))
 		quit()
 
 
@@ -185,12 +186,12 @@ def xml_assembler_v67(ipuserxmllist):
 def push_uids(ipanduserdict, filelist):
 	xml_list = xml_formatter_v67(ipanduserdict)
 	urllist = xml_assembler_v67(xml_list)
-	log_writer(logfile, "Pushing the below IP : User mappings via " + str(len(urllist)) + " API calls")
+	log_writer("Pushing the below IP : User mappings via " + str(len(urllist)) + " API calls")
 	for entry in ipanduserdict:
-		log_writer(logfile, "IP Address: " + entry + "\t\tUsername: " + ipanduserdict[entry])
+		log_writer("IP Address: " + entry + "\t\tUsername: " + ipanduserdict[entry])
 	for eachurl in urllist:
 		response = urllib2.urlopen(eachurl).read()
-		log_writer(logfile, response + "\n")
+		log_writer(response + "\n")
 	remove_files(filelist)
 
 
@@ -899,17 +900,24 @@ def get_logfile():
 
 ##### A 'failable' abstraction of the log_writer method which tries to pull logfile location info to write logs and displays a simple warning if it fails #####
 ##### Used in the command interface interpreter to write command use to the logfile for accounting #####
-def cli_log_writer(message):
+def cli_log_writer(message, mode):
 	configfilelocal = find_config("quiet")
 	if configfilelocal == "CHOOSERFAIL":
-		print "***** WARNING: Could not write CLI accounting data to log file *****"
+		if mode == "normal":
+			print color("***** WARNING: Could not find RadiUID config file *****", yellow)
 	else:
-		logfile = get_logfile()
-		log_writer(logfile, message)
+		try:
+			logfile = get_logfile()
+			target = open(logfile, 'a')
+			target.write(time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + message + "\n")
+			target.close()
+		except IOError:
+			if mode == "normal":
+				print color("***** WARNING: Could not write CLI accounting info to log file *****", yellow)
 
 
 ##### Create str sentence out of list seperated by spaces and lowercase everything #####
-##### Used for recognizing iarguments when running RadiUID from the CLI #####
+##### Used for recognizing arguments when running RadiUID from the CLI #####
 def cat_list(listname):
 	result = ""
 	counter = 0
@@ -950,8 +958,8 @@ def initialize():
 	##### Check if config file exists. Fail program if it doesn't #####
 	checkfile = file_exists(configfile)
 	if checkfile == 'no':
-		print time.strftime(
-			"%Y-%m-%d %H:%M:%S") + ":   " + "ERROR: CANNOT FIND RADIUID CONFIG FILE IN TYPICAL PATHS. QUITTING PROGRAM. RE-RUN INSTALLER ('python radiuid.py install')" + "\n"
+		print color(time.strftime(
+			"%Y-%m-%d %H:%M:%S") + ":   " + "ERROR: CANNOT FIND RADIUID CONFIG FILE IN TYPICAL PATHS. QUITTING PROGRAM. RE-RUN INSTALLER ('python radiuid.py install')" + "\n", red)
 		quit()
 	if checkfile == 'yes':
 		print time.strftime(
@@ -966,64 +974,64 @@ def initialize():
 	logfile = parser.get('Paths_and_Files', 'logfile')
 	
 	##### Initial log entry and help for anybody starting the .py program without first installing it #####
-	log_writer(logfile, 
+	log_writer(
 		"***********INITIAL WRITE TO THE LOG FILE: " + logfile + "...***********")
 
-	log_writer(logfile, 
+	log_writer(
 		"***********RADIUID INITIALIZING... IF PROGRAM FAULTS NOW, MAKE SURE YOU SUCCESSFULLY RAN THE INSTALLER ('python radiuid.py install')***********")
 	
 	##### Suck in all variables from config file (only run when program is initially started, not during while loop) #####
-	log_writer(logfile, 
+	log_writer(
 		"***********INITIALIZING VARIABLES FROM CONFIG FILE: " + configfile + "...***********")
 	
-	log_writer(logfile, "Initialized variable:" "\t" + "logfile" + "\t\t\t\t" + "with value:" + "\t" + color(logfile, green))
+	log_writer("Initialized variable:" "\t" + "logfile" + "\t\t\t\t" + "with value:" + "\t" + color(logfile, green))
 	
 	radiuslogpath = parser.get('Paths_and_Files', 'radiuslogpath')
-	log_writer(logfile, "Initialized variable:" "\t" + "radiuslogpath" + "\t\t\t" + "with value:" + "\t" + color(radiuslogpath, green))
+	log_writer("Initialized variable:" "\t" + "radiuslogpath" + "\t\t\t" + "with value:" + "\t" + color(radiuslogpath, green))
 	
 	hostname = parser.get('Palo_Alto_Target', 'hostname')
-	log_writer(logfile, "Initialized variable:" "\t" + "hostname" + "\t\t\t" + "with value:" + "\t" + color(hostname, green))
+	log_writer("Initialized variable:" "\t" + "hostname" + "\t\t\t" + "with value:" + "\t" + color(hostname, green))
 	
 	panosversion = parser.get('Palo_Alto_Target', 'panosversion')
-	log_writer(logfile, "Initialized variable:" "\t" + "panosversion" + "\t\t\t" + "with value:" + "\t" + color(panosversion, green))
+	log_writer("Initialized variable:" "\t" + "panosversion" + "\t\t\t" + "with value:" + "\t" + color(panosversion, green))
 	
 	panuser = parser.get('Palo_Alto_Target', 'username')
-	log_writer(logfile, "Initialized variable:" "\t" + "panuser" + "\t\t\t\t" + "with value:" + "\t" + color(panuser, green))
+	log_writer("Initialized variable:" "\t" + "panuser" + "\t\t\t\t" + "with value:" + "\t" + color(panuser, green))
 	
 	panpassword = parser.get('Palo_Alto_Target', 'password')
-	log_writer(logfile, "Initialized variable:" "\t" + "panpassword" + "\t\t\t" + "with value:" + "\t" + color(panpassword, green))
+	log_writer("Initialized variable:" "\t" + "panpassword" + "\t\t\t" + "with value:" + "\t" + color(panpassword, green))
 	
 	extrastuff = parser.get('URL_Stuff', 'extrastuff')
-	log_writer(logfile, "Initialized variable:" "\t" + "extrastuff" + "\t\t\t" + "with value:" + "\t" + color(extrastuff, green))
+	log_writer("Initialized variable:" "\t" + "extrastuff" + "\t\t\t" + "with value:" + "\t" + color(extrastuff, green))
 	
 	ipaddressterm = parser.get('Search_Terms', 'ipaddressterm')
-	log_writer(logfile, "Initialized variable:" "\t" + "ipaddressterm" + "\t\t\t" + "with value:" + "\t" + color(ipaddressterm, green))
+	log_writer("Initialized variable:" "\t" + "ipaddressterm" + "\t\t\t" + "with value:" + "\t" + color(ipaddressterm, green))
 	
 	usernameterm = parser.get('Search_Terms', 'usernameterm')
-	log_writer(logfile, "Initialized variable:" "\t" + "usernameterm" + "\t\t\t" + "with value:" + "\t" + color(usernameterm, green))
+	log_writer("Initialized variable:" "\t" + "usernameterm" + "\t\t\t" + "with value:" + "\t" + color(usernameterm, green))
 	
 	delineatorterm = parser.get('Search_Terms', 'delineatorterm')
-	log_writer(logfile, "Initialized variable:" "\t" + "delineatorterm" + "\t\t\t" + "with value:" + "\t" + color(delineatorterm, green))
+	log_writer("Initialized variable:" "\t" + "delineatorterm" + "\t\t\t" + "with value:" + "\t" + color(delineatorterm, green))
 	
 	userdomain = parser.get('UID_Settings', 'userdomain')
-	log_writer(logfile, "Initialized variable:" "\t" + "userdomain" + "\t\t\t" + "with value:" + "\t" + color(userdomain, green))
+	log_writer("Initialized variable:" "\t" + "userdomain" + "\t\t\t" + "with value:" + "\t" + color(userdomain, green))
 	
 	timeout = parser.get('UID_Settings', 'timeout')
-	log_writer(logfile, "Initialized variable:" "\t" + "timeout" + "\t\t\t\t" + "with value:" + "\t" + color(timeout, green))
+	log_writer("Initialized variable:" "\t" + "timeout" + "\t\t\t\t" + "with value:" + "\t" + color(timeout, green))
 	
 	##### Explicitly pull PAN key now and store API key in the main namespace #####
-	log_writer(logfile, 
+	log_writer(
 		"***********************************CONNECTING TO PALO ALTO FIREWALL TO EXTRACT THE API KEY...***********************************")
-	log_writer(logfile, 
+	log_writer(
 		"********************IF PROGRAM FREEZES/FAILS RIGHT NOW, THEN THERE IS LIKELY A COMMUNICATION PROBLEM WITH THE FIREWALL********************")
 	
 	pankey = pull_api_key(panuser, panpassword)
-	log_writer(logfile, "Initialized variable:" "\t" + "pankey" + "\t\t\t\t" + "with value:" + "\t" + pankey)
+	log_writer("Initialized variable:" "\t" + "pankey" + "\t\t\t\t" + "with value:" + "\t" + pankey)
 	
-	log_writer(logfile, 
+	log_writer(
 		"*******************************************CONFIG FILE SETTINGS INITIALIZED*******************************************")
 	
-	log_writer(logfile, 
+	log_writer(
 		"***********************************RADIUID SERVER STARTING WITH INITIALIZED VARIABLES...******************************")
 
 
@@ -1073,6 +1081,7 @@ def main():
 		radiuid_looper()
 	######################### INSTALL #############################
 	elif cat_list(sys.argv[1:]) == "install":
+		cli_log_writer("##### COMMAND '" + cat_list(sys.argv[1:]) + "' ISSUED FROM CLI BY USER '" + currentuser()+ "' #####", "quiet")
 		print "\n\n\n"
 		packetsar()
 		progress("Running RadiUID in Install/Maintenance Mode:", 3)
@@ -1085,6 +1094,7 @@ def main():
 		print " - show clients     |     Show the FreeRADIUS client config file"
 		print " - show status      |     Show the RadiUID and FreeRADIUS service statuses"
 	elif cat_list(sys.argv[1:]) == "show log":
+		cli_log_writer("##### COMMAND '" + cat_list(sys.argv[1:]) + "' ISSUED FROM CLI BY USER '" + currentuser()+ "' #####", "normal")
 		logfile = get_logfile()
 		configfile = find_config("quiet")
 		header = "########################## OUTPUT FROM FILE " + logfile + " ##########################"
@@ -1094,6 +1104,7 @@ def main():
 		print color("#" * len(header), magenta)
 		print color("#" * len(header), magenta)
 	elif cat_list(sys.argv[1:]) == "show run":
+		cli_log_writer("##### COMMAND '" + cat_list(sys.argv[1:]) + "' ISSUED FROM CLI BY USER '" + currentuser()+ "' #####", "normal")
 		logfile = get_logfile()
 		configfile = find_config("quiet")
 		header = "########################## OUTPUT FROM FILE " + configfile + " ##########################"
@@ -1103,6 +1114,7 @@ def main():
 		print color("#" * len(header), magenta)
 		print color("#" * len(header), magenta)
 	elif cat_list(sys.argv[1:]) == "show config":
+		cli_log_writer("##### COMMAND '" + cat_list(sys.argv[1:]) + "' ISSUED FROM CLI BY USER '" + currentuser()+ "' #####", "normal")
 		logfile = get_logfile()
 		configfile = find_config("quiet")
 		header = "########################## OUTPUT FROM FILE " + configfile + " ##########################"
@@ -1112,6 +1124,7 @@ def main():
 		print color("#" * len(header), magenta)
 		print color("#" * len(header), magenta)
 	elif cat_list(sys.argv[1:]) == "show clients":
+		cli_log_writer("##### COMMAND '" + cat_list(sys.argv[1:]) + "' ISSUED FROM CLI BY USER '" + currentuser()+ "' #####", "normal")
 		logfile = get_logfile()
 		configfile = find_config("quiet")
 		header = "########################## OUTPUT FROM FILE /etc/raddb/clients.conf ##########################"
@@ -1121,6 +1134,7 @@ def main():
 		print color("#" * len(header), magenta)
 		print color("#" * len(header), magenta)
 	elif cat_list(sys.argv[1:]) == "show status":
+		cli_log_writer("##### COMMAND '" + cat_list(sys.argv[1:]) + "' ISSUED FROM CLI BY USER '" + currentuser()+ "' #####", "normal")
 		header = "########################## OUTPUT FROM COMMAND: 'systemctl status radiuid' ##########################"
 		print color(header, magenta)
 		print color("#" * len(header), magenta)
@@ -1155,6 +1169,7 @@ def main():
 	elif cat_list(sys.argv[1:]) == "tail" or cat_list(sys.argv[1:]) == "tail ?":
 		print "\n - tail log         |     Watch the RadiUID log file in real time\n"
 	elif cat_list(sys.argv[1:]) == "tail log":
+		cli_log_writer("##### COMMAND '" + cat_list(sys.argv[1:]) + "' ISSUED FROM CLI BY USER '" + currentuser()+ "' #####", "normal")
 		logfile = get_logfile()
 		configfile = find_config("quiet")
 		header = "########################## OUTPUT FROM FILE " + logfile + " ##########################"
@@ -1179,6 +1194,7 @@ def main():
 		print "\n - edit config      |     Edit the RadiUID config file"
 		print " - edit clients     |     Edit list of client IPs for FreeRADIUS\n"
 	elif cat_list(sys.argv[1:]) == "edit config":
+		cli_log_writer("##### COMMAND '" + cat_list(sys.argv[1:]) + "' ISSUED FROM CLI BY USER '" + currentuser()+ "' #####", "normal")
 		logfile = get_logfile()
 		configfile = find_config("quiet")
 		print color("****************** You are about to edit the RadiUID config file in VI ******************", yellow)
@@ -1186,6 +1202,7 @@ def main():
 		raw_input("Hit CTRL-C to quit. Hit ENTER to continue\n>>>>>")
 		os.system("vi " + configfile)
 	elif cat_list(sys.argv[1:]) == "edit clients":
+		cli_log_writer("##### COMMAND '" + cat_list(sys.argv[1:]) + "' ISSUED FROM CLI BY USER '" + currentuser()+ "' #####", "normal")
 		print color("****************** You are about to edit the FreeRADIUS client file in VI ******************", yellow)
 		print color("*********************** Confirm that you know how to use the VI editor ********************", yellow)
 		raw_input("Hit CTRL-C to quit. Hit ENTER to continue\n>>>>>")
@@ -1204,6 +1221,7 @@ def main():
 		print " - restart freeradius  |     Restart the FreeRADIUS system service"
 		print " - restart all         |     Restart the RadiUID and FreeRADIUS system services"
 	elif cat_list(sys.argv[1:]) == "start radiuid":
+		cli_log_writer("##### COMMAND '" + cat_list(sys.argv[1:]) + "' ISSUED FROM CLI BY USER '" + currentuser()+ "' #####", "normal")
 		os.system("systemctl start radiuid")
 		os.system("systemctl status radiuid")
 		checkservice = check_service_running("radiuid")
@@ -1212,6 +1230,7 @@ def main():
 		elif checkservice == "no":
 			print color("\n\n********** RADIUID STARTUP UNSUCCESSFUL. SOMETHING MUST BE WRONG... **********\n\n", red)
 	elif cat_list(sys.argv[1:]) == "stop radiuid":
+		cli_log_writer("##### COMMAND '" + cat_list(sys.argv[1:]) + "' ISSUED FROM CLI BY USER '" + currentuser()+ "' #####", "normal")
 		header = "########################## CURRENT RADIUID SERVICE STATUS ##########################"
 		print color(header, magenta)
 		print color("#" * len(header), magenta)
@@ -1222,6 +1241,7 @@ def main():
 		os.system("systemctl status radiuid")
 		print color("\n\n********** RADIUID STOPPED **********\n\n", yellow)
 	elif cat_list(sys.argv[1:]) == "restart radiuid":
+		cli_log_writer("##### COMMAND '" + cat_list(sys.argv[1:]) + "' ISSUED FROM CLI BY USER '" + currentuser()+ "' #####", "normal")
 		header = "########################## CURRENT RADIUID SERVICE STATUS ##########################"
 		print color(header, magenta)
 		print color("#" * len(header), magenta)
@@ -1242,6 +1262,7 @@ def main():
 			print color("\n\n********** RADIUID STARTUP UNSUCCESSFUL. SOMETHING MUST BE WRONG... **********\n\n", red)
 	######################### FREERADIUS SERVICE CONTROL #############################
 	elif cat_list(sys.argv[1:]) == "start freeradius":
+		cli_log_writer("##### COMMAND '" + cat_list(sys.argv[1:]) + "' ISSUED FROM CLI BY USER '" + currentuser()+ "' #####", "normal")
 		os.system("systemctl start radiusd")
 		os.system("systemctl status radiusd")
 		checkservice = check_service_running("radiusd")
@@ -1250,6 +1271,7 @@ def main():
 		elif checkservice == "no":
 			print color("\n\n********** FREERADIUS STARTUP UNSUCCESSFUL. SOMETHING MUST BE WRONG... **********\n\n", red)
 	elif cat_list(sys.argv[1:]) == "stop freeradius":
+		cli_log_writer("##### COMMAND '" + cat_list(sys.argv[1:]) + "' ISSUED FROM CLI BY USER '" + currentuser()+ "' #####", "normal")
 		header = "########################## CURRENT FREERADIUS SERVICE STATUS ##########################"
 		print color(header, magenta)
 		print color("#" * len(header), magenta)
@@ -1260,6 +1282,7 @@ def main():
 		os.system("systemctl status radiusd")
 		print color("\n\n********** FREERADIUS STOPPED **********\n\n", yellow)
 	elif cat_list(sys.argv[1:]) == "restart freeradius":
+		cli_log_writer("##### COMMAND '" + cat_list(sys.argv[1:]) + "' ISSUED FROM CLI BY USER '" + currentuser()+ "' #####", "normal")
 		header = "########################## CURRENT FREERADIUS SERVICE STATUS ##########################"
 		print color(header, magenta)
 		print color("#" * len(header), magenta)
@@ -1280,6 +1303,7 @@ def main():
 			print color("\n\n********** FREERADIUS STARTUP UNSUCCESSFUL. SOMETHING MUST BE WRONG... **********\n\n", red)
 	######################### COMBINED SERVICE CONTROL #############################
 	elif cat_list(sys.argv[1:]) == "start all":
+		cli_log_writer("##### COMMAND '" + cat_list(sys.argv[1:]) + "' ISSUED FROM CLI BY USER '" + currentuser()+ "' #####", "normal")
 		os.system("systemctl start radiusd")
 		os.system("systemctl status radiusd")
 		checkservice = check_service_running("radiusd")
@@ -1296,6 +1320,7 @@ def main():
 		elif checkservice == "no":
 			print color("\n\n********** RADIUID STARTUP UNSUCCESSFUL. SOMETHING MUST BE WRONG... **********\n\n", red)
 	elif cat_list(sys.argv[1:]) == "stop all":
+		cli_log_writer("##### COMMAND '" + cat_list(sys.argv[1:]) + "' ISSUED FROM CLI BY USER '" + currentuser()+ "' #####", "normal")
 		header = "########################## CURRENT RADIUID SERVICE STATUS ##########################"
 		print color(header, magenta)
 		print color("#" * len(header), magenta)
@@ -1314,6 +1339,7 @@ def main():
 		os.system("systemctl status radiusd")
 		print color("\n\n********** FREERADIUS STOPPED **********\n\n", yellow)
 	elif cat_list(sys.argv[1:]) == "restart all":
+		cli_log_writer("##### COMMAND '" + cat_list(sys.argv[1:]) + "' ISSUED FROM CLI BY USER '" + currentuser()+ "' #####", "normal")
 		header = "########################## CURRENT RADIUID SERVICE STATUS ##########################"
 		print color(header, magenta)
 		print color("#" * len(header), magenta)
@@ -1350,10 +1376,11 @@ def main():
 			print color("\n\n********** FREERADIUS STARTUP UNSUCCESSFUL. SOMETHING MUST BE WRONG... **********\n\n", red)
 	######################### VERSION #############################
 	elif cat_list(sys.argv[1:]) == "version":
+		cli_log_writer("##### COMMAND '" + cat_list(sys.argv[1:]) + "' ISSUED FROM CLI BY USER '" + currentuser()+ "' #####", "normal")
 		header = "########################## CURRENT RADIUID AND FREERADIUS VERSIONS ##########################"
 		print color(header, magenta)
 		print "------------------------------------------ RADIUID -------------------------------------------"
-		print "***** Currently running RadiUID "+ color("v" + version, green) + " *****"
+		print "***** Currently running RadiUID "+ color(version, green) + " *****"
 		print "----------------------------------------------------------------------------------------------\n"
 		print "----------------------------------------- FREERADIUS -----------------------------------------"
 		os.system("radiusd -v | grep ersion")
