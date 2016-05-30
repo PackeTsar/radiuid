@@ -1,6 +1,6 @@
 #!/usr/bin/python
 
-#####        RadiUID Server v1.0.0         #####
+#####        RadiUID Server v1.1.0         #####
 #####       Written by John W Kerns        #####
 #####      http://blog.packetsar.com       #####
 ##### https://github.com/PackeTsar/radiuid #####
@@ -26,7 +26,7 @@ import ConfigParser
 
 
 ##### Inform RadiUID version here #####
-version = "dev1.0.1"
+version = "v1.1.0"
 
 
 ##### Writes lines to the log file and prints them to the terminal #####
