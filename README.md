@@ -45,6 +45,11 @@ Fixed in dev1.0.1. The program can now accept any password with special characte
 Fixed in dev1.0.1. kog_writer now only has one input argument and it uses the global logfile var.
 
 
+**Fixed issue #8: Retest installer utility with all different inputs.**
+
+Fixed in dev1.0.1. Tested the utility with different inputs and in different scenarios. Added some error checking for certain situations.
+
+
 
 ADDED FEATURES:
      - Added logging of CLI commands to log file for accounting purposes using the cli_log_writer method.

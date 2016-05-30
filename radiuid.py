@@ -32,10 +32,15 @@ version = "dev1.0.1"
 ##### Writes lines to the log file and prints them to the terminal #####
 ##### Uses the logfile variable published to the global namespace #####
 def log_writer(input):
-	target = open(logfile, 'a')
-	target.write(time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + input + "\n")
-	print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + input + "\n"
-	target.close()
+	try:
+		target = open(logfile, 'a')
+		target.write(time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + input + "\n")
+		print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + input + "\n"
+		target.close()
+	except IOError:
+		print color(time.strftime("%Y-%m-%d %H:%M:%S") + ":   " +"***********CANNOT OPEN FILE: " + logfile + " ***********\n", red)
+		print color(time.strftime("%Y-%m-%d %H:%M:%S") + ":   " +"***********PLEASE MAKE SURE YOU RAN THE INSTALLER ('python radiuid.py install')***********\n", red)
+		quit()
 
 
 ##### Function to pull API key from firewall to be used for REST HTTP calls #####
@@ -267,9 +272,14 @@ def apply_setting(file_data, settingname, oldsetting, newsetting):
 ##### Writes the new config data to the config file #####
 ##### Used at the end of the wizard when new config values have been defined and need to be written to a config file #####
 def write_file(filepath, filedata):
-	f = open(filepath, 'w')
-	f.write(filedata)
-	f.close()
+	try:
+		f = open(filepath, 'w')
+		f.write(filedata)
+		f.close()
+	except IOError:
+		print color(time.strftime("%Y-%m-%d %H:%M:%S") + ":   " +"***********CANNOT OPEN FILE: " + filepath + " ***********\n", red)
+		print color(time.strftime("%Y-%m-%d %H:%M:%S") + ":   " +"***********PLEASE MAKE SURE YOU RAN THE INSTALLER ('python radiuid.py install')***********\n", red)
+		quit()
 
 
 ##### Check if a particular systemd service is installed #####
@@ -511,6 +521,16 @@ def packetsar():
 #########################################################################
 
 def installer():
+	'''
+	############# LEGEND FOR TEXUTAL CUES USED IN INSTALLER/MAINTENANCE UTILITY #############
+	#########################################################################################
+	****************Status....what program is doing..****************
+	***** Informational
+	----- Yes or No question
+	~~~~~ Acknowledgement of an answer to a question
+	>>>>> Command to enter information
+	#########################################################################################
+	'''
 	print "\n\n\n\n\n\n\n\n"
 	print '                       ##########################################################' \
 			'\n' + '                       ##### Install\Maintenance Utility for RadiUID Server #####' \
