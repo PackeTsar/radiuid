@@ -5,7 +5,6 @@
 #####      http://blog.packetsar.com       #####
 ##### https://github.com/PackeTsar/radiuid #####
 
-
 import os
 import re
 import sys
@@ -17,6 +16,9 @@ import ConfigParser
 
 ##### Inform RadiUID version here #####
 version = "dev2.0.0"
+
+##### Set default config file location #####
+etcconfigfile = '/etc/radiuid/radiuid.conf'
 
 
 
@@ -196,15 +198,7 @@ class data_processing(object):
 			newdict[k] = v
 		self.ui.log_writer("normal", "Dictionary values merged into one dictionary")
 		return newdict
-	##### Check that legit CIDR block was entered #####
-	##### Used to check IP blocks entered into the wizard for configuration of FreeRADIUS #####
-	def cidr_checker(self, cidr_ip_block):
-		check = re.search("^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\/(?:[0-9]|1[0-9]|2[0-9]|3[0-2]?)$", cidr_ip_block)
-		if check is None:
-			result = "no"
-		else:
-			result = "yes"
-		return result
+
 
 
 
@@ -437,8 +431,8 @@ class palo_alto_firewall_interaction(object):
 		self.filemgmt.remove_files(filelist)
 
 
-		
-		
+
+
 
 
 #########################################################################
@@ -525,13 +519,6 @@ class radiuid_main_process(object):
 		self.ui.log_writer("normal", "***********************************RADIUID SERVER STARTING WITH INITIALIZED VARIABLES...******************************")
 	##### RadiUID looper method which initializes the namespace with config variables and loops the main RadiUID program #####
 	def looper(self):
-		####################################################
-		####################################################
-		######### SET DEFAULT CONFIG FILE LOCATION #########
-		####################################################
-		global etcconfigfile
-		etcconfigfile = '/etc/radiuid/radiuid.conf'
-		####################################################
 		configfile = self.filemgmt.find_config("noisy")
 		self.initialize()
 		while __name__ == "__main__":
@@ -552,8 +539,484 @@ class radiuid_main_process(object):
 
 
 
-radiuid = radiuid_main_process()
-radiuid.looper()
 
+
+#########################################################################
+################### INSTALLER/MAINTENANCE METHODS CLASS #################
+#########################################################################
+#######            Contains methods which are used by the         #######
+#######                 Installer/Maintenance Utility             #######
+#########################################################################
+class imu_methods(object):
+	def __init__(self):
+		##### Instantiate external object dependencies #####
+		self.ui = user_interface()
+		####################################################
+	#######################################################
+	#######          OS Interaction Methods           #####
+	### Runs commands on the OS without file interaction ##
+	#######################################################
+	##### Get currently logged in user #####
+	def currentuser(self):
+		checkdata = commands.getstatusoutput("whoami")[1]
+		return checkdata
+	##### Check if a particular systemd service is installed #####
+	##### Used to check if FreeRADIUS and RadiUID have already been installed #####
+	def check_service_installed(self, service):
+		checkdata = commands.getstatusoutput("systemctl status " + service)
+		installed = 'temp'
+		for line in checkdata:
+			line = str(line)
+			if 'not-found' in line:
+				installed = 'no'
+			else:
+				installed = 'yes'
+		return installed
+	##### Check if a particular systemd service is running #####
+	##### Used to check if FreeRADIUS and RadiUID are currently running #####
+	def check_service_running(self, service):
+		checkdata = commands.getstatusoutput("systemctl status " + service)
+		running = 'temp'
+		for line in checkdata:
+			line = str(line)
+			if 'active (running)' in line:
+				running = 'yes'
+			else:
+				running = 'no'
+		return running
+	##### Restart a particular SystemD service #####
+	def restart_service(self, service):
+		commands.getstatusoutput("systemctl start " + service)
+		commands.getstatusoutput("systemctl restart " + service)
+		self.ui.progress("Starting/Restarting: ", 1)
+		print "\n\n#########################################################################"
+		os.system("systemctl status " + service)
+		print "#########################################################################\n\n"
+	##### Install FreeRADIUS server #####
+	def install_freeradius(self):
+		os.system('yum install freeradius -y')
+		print "\n\n\n\n\n\n****************Setting FreeRADIUS as a system service...****************\n"
+		self.ui.progress("Progress: ", 1)
+		os.system('systemctl enable radiusd')
+		os.system('systemctl start radiusd')
+	#######################################################
+	#######           UI Question Methods           #######
+	#######   Used for asking questions in the UI   #######
+	#######################################################
+	##### Change variables to change settings #####
+	##### Used to ask questions and set new config settings in the install/maintenance utility #####
+	def change_setting(self, setting, question):
+		newsetting = raw_input(self.ui.color(">>>>> " + question + " [" + setting + "]: ", self.ui.cyan))
+		if newsetting == '':
+			print self.ui.color("~~~ Keeping current setting...", self.ui.green)
+			newsetting = setting
+		else:
+			print self.ui.color("~~~ Changed setting to: " + newsetting, self.ui.yellow)
+		return newsetting
+	##### Check that legit CIDR block was entered #####
+	##### Used to check IP blocks entered into the wizard for configuration of FreeRADIUS #####
+	def cidr_checker(self, cidr_ip_block):
+		check = re.search("^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\/(?:[0-9]|1[0-9]|2[0-9]|3[0-2]?)$", cidr_ip_block)
+		if check is None:
+			result = "no"
+		else:
+			result = "yes"
+		return result
+	##### Create dictionary with client IP and shared password entries for FreeRADIUS server #####
+	##### Used to ask questions during install about IP blocks and shared secret to use for FreeRADIUS server #####
+	def freeradius_create_changes(self):
+		##### Set variables for use later #####
+		keepchanging = "yes"
+		addips = []
+		##### Ask for IP address blocks and append each entry to a list. User can accept the example though #####
+		while keepchanging != "no":
+			addipexample = "10.0.0.0/8"
+			goround = raw_input(
+				self.ui.color('\n>>>>> Enter the IP subnet to use for recognition of RADIUS accounting sources: [' + addipexample + ']:', self.ui.cyan))
+			if goround == "":
+				goround = addipexample
+			ipcheck = self.cidr_checker(goround)
+			if ipcheck == 'no':
+				print self.ui.color("~~~ Nope. Give me a legit CIDR block...", self.ui.red)
+			elif ipcheck == 'yes':
+				addips.append(goround)
+				print self.ui.color("~~~ Added " + goround + " to list\n", self.ui.yellow)
+				keepchanging = self.ui.yesorno("Do you want to add another IP block to the list of trusted sources?")
+		##### List out entries #####
+		print "\n\n"
+		print "List of IP blocks for accounting sources:"
+		for each in addips:
+			print self.ui.color(each, self.ui.yellow)
+		print "\n\n"
+		##### Have user enter shared secret to pair with all IP blocks in output dictionary #####
+		radiussecret = ""
+		radiussecret = raw_input(
+			self.ui.color('>>>>> Enter a shared RADIUS secret to use with the accounting sources: [password123]:', self.ui.cyan))
+		if radiussecret == "":
+			radiussecret = "password123"
+		print self.ui.color("~~~ Using '" + radiussecret + "' for shared secret\n", self.ui.yellow)
+		##### Pair each IP entry with the shared secret and put in dictionary for output #####
+		radiusclientdict = {}
+		for each in addips:
+			radiusclientdict[each] = radiussecret
+		return radiusclientdict
+	#######################################################
+	#######        File Interaction Methods         #######
+	#######   Used to create/change/delete files    #######
+	#######################################################
+	#### Copy RadiUID system and config files to appropriate paths for installation #####
+	def copy_radiuid(self):
+		configfilepath = "/etc/radiuid/"
+		binpath = "/bin/"
+		os.system('mkdir -p ' + configfilepath)
+		os.system('cp radiuid.conf ' + configfilepath + 'radiuid.conf')
+		os.system('cp radiuid.py ' + binpath + 'radiuid')
+		os.system('chmod 777 ' + binpath + 'radiuid')
+		self.ui.progress("Copying Files: ", 2)
+	#### Install RadiUID SystemD service #####
+	def install_radiuid(self):
+		#### STARTFILE DATA START #####
+		startfile = "[Unit]" \
+		            "\n" + "Description=RadiUID User-ID Service" \
+		                   "\n" + "After=network.target" \
+		                          "\n" \
+		                          "\n" + "[Service]" \
+		                                 "\n" + "Type=simple" \
+		                                        "\n" + "User=root" \
+		                                               "\n" + "ExecStart=/bin/bash -c 'cd /bin; python radiuid run'" \
+		                                                                                                         "\n" + "Restart=on-abort" \
+		                                                                                                                "\n" \
+		                                                                                                                "\n" \
+		                                                                                                                "\n" + "[Install]" \
+		                                                                                                                       "\n" + "WantedBy=multi-user.target" \
+		##### STARTFILE DATA STOP #####
+		f = open('/etc/systemd/system/radiuid.service', 'w')
+		f.write(startfile)
+		f.close()
+		self.ui.progress("Installing: ", 2)
+		os.system('systemctl enable radiuid')
+	##### Apply new settings as veriables in the namespace #####
+	##### Used to write new setting values to namespace to be picked up and used by the write_file method to write to the config file #####
+	def apply_setting(self, file_data, settingname, oldsetting, newsetting):
+		if oldsetting == newsetting:
+			print self.ui.color("***** No changes to  : " + settingname, self.ui.green)
+			return file_data
+		else:
+			new_file_data = file_data.replace(settingname + " = " + oldsetting, settingname + " = " + newsetting)
+			padlen = 50 - len("***** Changed setting: " + settingname)
+			pad = " " * padlen
+			print self.ui.color("***** Changed setting: " + settingname + pad + "|\tfrom: " + oldsetting + "\tto: " + newsetting, self.ui.yellow)
+			return new_file_data
+	##### Use dictionary of edits for FreeRADIUS and push them to the config file #####
+	def freeradius_editor(self, dict_edits):
+		clientconfpath = '/etc/raddb/clients.conf'
+		iplist = dict_edits.keys()
+		print "\n\n\n"
+		print "#####About to append the below client data to the FreeRADIUS client.conf file#####"
+		print "##################################################################################"
+		for ip in iplist:
+			newwrite = "\nclient " + ip + " {\n    secret      = " + dict_edits[
+				ip] + "\n    shortname   = Created_By_RadiUID\n }\n"
+			f = open(clientconfpath, 'a')
+			f.write(newwrite)
+			f.close()
+			print newwrite
+		oktowrite = self.ui.yesorno("OK to write to client.conf file?")
+		if oktowrite == "yes":
+			print "###############Writing the above to the FreeRADIUS client.conf file###############"
+			print "##################################################################################"
+			print "\n"
+			self.ui.progress("Writing: ", 1)
+			print "\n\n\n"
+			print "****************Restarting the FreeRADIUS service to effect changes...****************\n\n"
+			self.ui.progress("Starting/Restarting: ", 1)
+			os.system('systemctl restart radiusd')
+			os.system('systemctl status radiusd')
+			checkservice = self.check_service_running('radiusd')
+			if checkservice == 'no':
+				print self.ui.color("\n\n***** Uh Oh... Looks like the FreeRADIUS service failed to start back up.", self.ui.red)
+				print self.ui.color("***** We may have made some adverse changes to the config file.", self.ui.red)
+				print self.ui.color("***** Visit the FreeRADIUS config file at " + clientconfpath + " and remove the bad changes.", self.ui.red)
+				print self.ui.color("***** Then try to start the FreeRADIUS service by issuing the 'radiuid restart freeradius' command", self.ui.red)
+				raw_input(self.ui.color("Hit ENTER to continue...\n\n>>>>>", self.ui.cyan))
+			elif checkservice == 'yes':
+				print self.ui.color("\n\n***** Great Success!! Looks like FreeRADIUS restarted and is back up now!", self.ui.green)
+				print self.ui.color("***** If you need to manually edit the FreeRADIUS config file, it is located at " + clientconfpath, self.ui.green)
+				raw_input(self.ui.color("\nHit ENTER to continue...\n\n>>>>>", self.ui.cyan))
+		elif oktowrite == "no":
+			print "~~~ OK Not writing it"
+
+
+
+
+
+
+#########################################################################
+################### INSTALLER/MAINTENANCE UTILITY CLASS #################
+#########################################################################
+#######           Contains the main method which runs the         #######
+#######                 Installer/Maintenance Utility             #######
+#########################################################################
+class installer_maintenance_utility(object):
+	def __init__(self):
+		##### Instantiate external object dependencies #####
+		self.ui = user_interface()
+		self.filemgmt = file_management()
+		self.imum = imu_methods()
+		####################################################
+	def im_utility(self):
+		'''
+		############# LEGEND FOR TEXUTAL CUES USED IN INSTALLER/MAINTENANCE UTILITY #############
+		#########################################################################################
+		****************Status....what program is doing..****************
+		***** Informational
+		----- Yes or No question
+		~~~~~ Acknowledgement of an answer to a question
+		>>>>> Command to enter information
+		#########################################################################################
+		'''
+		self.ui.packetsar()
+		self.ui.progress("Running RadiUID in Install/Maintenance Mode:", 3)
+		print "\n\n\n\n\n\n\n\n"
+		print '                       ##########################################################' \
+				'\n' + '                       ##### Install\Maintenance Utility for RadiUID Server #####' \
+				'\n' + '                       #####                 Version ' + version + '                  #####' \
+				'\n' + '                       #####             Please Use Carefully!              #####' \
+				'\n' + '                       ##########################################################' \
+				'\n' + '                       ##########################################################' \
+				'\n' + '                       ##########################################################' \
+				'\n' + '                       ##########       Written by John W Kerns        ##########' \
+				'\n' + '                       ##########      http://blog.packetsar.com       ##########' \
+				'\n' + '                       ########## https://github.com/PackeTsar/radiuid ##########' \
+				'\n' + '                       ##########################################################' \
+				'\n' + '                       ##########################################################' \
+				'\n' + '                       ##########################################################' \
+	 \
+	
+		print "\n\n\n"
+		print "****************First, we will check if FreeRADIUS and RadiUID are installed yet...****************\n"
+		raw_input(self.ui.color("\n\n>>>>> Hit ENTER to continue...\n\n>>>>>", self.ui.cyan))
+		print "\n\n\n\n\n\n\n"
+		#########################################################################
+		###Check if FreeRADIUS is installed and running already
+		#########################################################################
+		print "\n\n\n\n\n\n****************Checking if FreeRADIUS is installed...****************\n"
+		freeradiusinstalled = self.imum.check_service_installed('radiusd')
+		freeradiusrunning = self.imum.check_service_running('radiusd')
+		if freeradiusinstalled == 'yes' and freeradiusrunning == 'yes':
+			print self.ui.color("***** Looks like the FreeRADIUS service is already installed and running...skipping the install of FreeRADIUS", self.ui.green)
+		if freeradiusinstalled == 'yes' and freeradiusrunning == 'no':
+			freeradiusrestart = self.ui.yesorno("Looks like FreeRADIUS is installed, but not running....want to start it up?")
+			if freeradiusrestart == 'yes':
+				self.imum.restart_service('radiusd')
+				freeradiusrunning = self.imum.check_service_running('radiusd')
+				if freeradiusrunning == 'no':
+					print self.ui.color("***** It looks like FreeRADIUS failed to start up. You may need to change its settings and restart it manually...", self.ui.red)
+					print self.ui.color("***** Use the command 'radiuid edit clients' to open and edit the FreeRADIUS client settings file manually", self.ui.red)
+				if freeradiusrunning == 'yes':
+					print self.ui.color("***** Very nice....Great Success!!!", self.ui.green)
+			if freeradiusrestart == 'no':
+				print self.ui.color("~~~ OK, leaving it off...", self.ui.yellow)
+		if freeradiusinstalled == 'no' and freeradiusrunning == 'no':
+			freeradiusinstall = self.ui.yesorno(
+				"Looks like FreeRADIUS is not installed. It is required by RadiUID. Is it ok to install FreeRADIUS?")
+			if freeradiusinstall == 'yes':
+				self.imum.install_freeradius()
+				checkservice = self.imum.check_service_running('radiusd')
+				if checkservice == 'no':
+					print self.ui.color("\n\n***** Uh Oh... Looks like the FreeRADIUS service failed to install or start up.", self.ui.red)
+					print self.ui.color("***** It is possible that the native package manager is not able to download the install files.", self.ui.red)
+					print self.ui.color("***** Make sure that you have internet access and your package manager is able to download the FreeRADIUS install files", self.ui.red)
+					raw_input(self.ui.color("Hit ENTER to quit the program...\n", self.ui.cyan))
+					quit()
+				elif checkservice == 'yes':
+					print self.ui.color("\n\n***** Great Success!! Looks like FreeRADIUS installed and started up successfully.", self.ui.green)
+					print self.ui.color("***** We will be adding client IP and shared secret info to FreeRADIUS later in this wizard.", self.ui.green)
+					print self.ui.color("***** If you need to manually edit the FreeRADIUS config file later, you can run 'radiuid edit clients' in the CLI", self.ui.green)
+					print self.ui.color("***** You can also manually open the file for editing. It is located at /etc/raddb/clients.conf", self.ui.green)
+					raw_input(self.ui.color("\n***** Hit ENTER to continue...\n\n>>>>>", self.ui.cyan))
+			if freeradiusinstall == 'no':
+				print self.ui.color("***** FreeRADIUS is required by RadiUID. Quitting the installer", self.ui.red)
+				quit()
+		#########################################################################
+		###Check if RadiUID is installed and running already
+		#########################################################################
+		print "\n\n\n\n\n\n****************Checking if RadiUID is already installed...****************\n"
+		radiuidinstalled = self.imum.check_service_installed('radiuid')
+		radiuidrunning = self.imum.check_service_running('radiuid')
+		if radiuidinstalled == 'yes' and radiuidrunning == 'yes':
+			print self.ui.color("***** Looks like the RadiUID service is already installed and running...skipping the install of RadiUID\n", self.ui.green)
+			radiuidreinstall = self.ui.yesorno("Do you want to re-install the RadiUID service?")
+			if radiuidreinstall == 'yes':
+				print self.ui.color("***** You are about to re-install the RadiUID service...", self.ui.yellow)
+				print self.ui.color("***** If you continue, you will have to proceed with the wizard to the next step where we configure the settings in the config file...", self.ui.yellow)
+				raw_input(self.ui.color(">>>>> Hit CTRL-C to quit. Hit ENTER to continue\n>>>>>", self.ui.cyan))
+				print "\n\n****************Re-installing the RadiUID service...****************\n"
+				self.imum.copy_radiuid()
+				self.imum.install_radiuid()
+				print "\n\n****************We will start up the RadiUID service once we configure the .conf file****************\n"
+			if radiuidreinstall == 'no':
+				print "~~~ Yea, probably best to leave it alone..."
+		if radiuidinstalled == 'yes' and radiuidrunning == 'no':
+			print "\n"
+			print self.ui.color("***** Looks like RadiUID is installed, but not running....", self.ui.yellow)
+			radiuidrestart = self.ui.yesorno("Do you want to start it up?")
+			if radiuidrestart == 'yes':
+				self.imum.restart_service('radiuid')
+				self.ui.progress('Checking for Successful Startup', 3)
+				os.system("systemctl status radiuid")
+				radiuidrunning = self.imum.check_service_running('radiuid')
+				if radiuidrunning == "yes":
+					print self.ui.color("***** Very nice....Great Success!!!", self.ui.green)
+				if radiuidrunning == "no":
+					print self.ui.color("***** Looks like the startup failed...", self.ui.red)
+					radiuidreinstall = self.ui.yesorno("Do you want to re-install the RadiUID service?")
+					if radiuidreinstall == 'yes':
+						print "\n\n****************Re-installing the RadiUID service...****************\n"
+						self.imum.copy_radiuid()
+						self.imum.install_radiuid()
+						print "\n\n****************We will start up the RadiUID service once we configure the .conf file****************\n"
+			if radiuidrestart == 'no':
+				print self.ui.color("~~~ OK, leaving it off...", self.ui.yellow)
+		if radiuidinstalled == 'no' and radiuidrunning == 'no':
+			print "\n"
+			radiuidinstall = self.ui.yesorno("Looks like RadiUID is not installed. Is it ok to install RadiUID?")
+			if radiuidinstall == 'yes':
+				print "\n\n****************Installing the RadiUID service...****************\n"
+				self.imum.copy_radiuid()
+				self.imum.install_radiuid()
+				print "\n\n****************We will start up the RadiUID service once we configure the .conf file****************\n"
+	
+			if radiuidinstall == 'no':
+				print self.ui.color("***** The install of RadiUID is required. Quitting the installer", self.ui.red)
+				quit()
+		print "\n\n\n\n"
+		#########################################################################
+		###Read current .conf settings into interpreter
+		#########################################################################
+		editradiuidconf = self.ui.yesorno("Do you want to edit the settings in the RadiUID .conf file (if you just installed or reinstalled RadiUID, then you need to do this)?")
+		if editradiuidconf == "yes":
+			configfile = self.filemgmt.find_config("noisy")
+			checkfile = self.filemgmt.file_exists(configfile)
+			if checkfile == 'no':
+				print self.ui.color("ERROR: Config file (radiuid.conf) not found. Make sure the radiuid.conf file exists in same directory as radiuid.py", self.ui.red)
+				quit()
+			print "Configuring File: " + self.ui.color(configfile, self.ui.green) + "\n"
+			print "\n\n\n****************Now, we will import the settings from the " + configfile + " file...****************\n"
+			print "*****************The current values for each setting are [displayed in the prompt]****************\n"
+			print "****************Leave the prompt empty and hit ENTER to accept the current value****************\n"
+			raw_input(self.ui.color("\n\n>>>>> Hit ENTER to continue...\n\n>>>>>", self.ui.cyan))
+			print "\n\n\n\n\n\n\n"
+			print "**************** Reading in current settings from " + configfile + " ****************\n"
+			self.ui.progress('Reading:', 1)
+			parser = ConfigParser.SafeConfigParser()
+			parser.read(configfile)
+			f = open(configfile, 'r')
+			config_file_data = f.read()
+			f.close()
+			logfile = parser.get('Paths_and_Files', 'logfile')
+			radiuslogpath = parser.get('Paths_and_Files', 'radiuslogpath')
+			hostname = parser.get('Palo_Alto_Target', 'hostname')
+			panosversion = parser.get('Palo_Alto_Target', 'panosversion')
+			username = parser.get('Palo_Alto_Target', 'username')
+			password = parser.get('Palo_Alto_Target', 'password')
+			extrastuff = parser.get('URL_Stuff', 'extrastuff')
+			ipaddressterm = parser.get('Search_Terms', 'ipaddressterm')
+			usernameterm = parser.get('Search_Terms', 'usernameterm')
+			delineatorterm = parser.get('Search_Terms', 'delineatorterm')
+			userdomain = parser.get('UID_Settings', 'userdomain')
+			timeout = parser.get('UID_Settings', 'timeout')			
+			#########################################################################
+			###Ask questions to the console for editing the .conf file settings
+			#########################################################################
+			print "\n\n\n\n\n\n****************Please enter values for the different settings in the radiuid.conf file****************\n"
+			newlogfile = self.imum.change_setting(logfile, 'Enter full path to the new RadiUID Log File')
+			print "\n"
+			newradiuslogpath = self.imum.change_setting(radiuslogpath, 'Enter path to the FreeRADIUS Accounting Logs')
+			print "\n"
+			newhostname = self.imum.change_setting(hostname, 'Enter IP address or hostname for target Palo Alto firewall')
+			print "\n"
+			newpanosversion = self.imum.change_setting(panosversion, 'Enter PAN-OS software version on target firewall (only PAN-OS 6 and 7 are currently supported)')
+			print "\n"
+			newusername = self.imum.change_setting(username, 'Enter administrative username for Palo Alto firewall')
+			print "\n"
+			newpassword = self.imum.change_setting(password, 'Enter administrative password for Palo Alto firewall (entered text will be shown in the clear)')
+			while newpassword.find("%") != -1:
+				newpassword = self.imum.change_setting(password, 'The "%" sign is not allowed in the password. Please enter a password without it')
+			print "\n"
+			newuserdomain = self.imum.change_setting(userdomain, 'Enter the user domain to be prefixed to User-IDs')
+			print "\n"
+			newtimeout = self.imum.change_setting(timeout, 'Enter timeout period for pushed UIDs (in minutes)')
+			#########################################################################
+			###Pushing settings to .conf file with the code below
+			#########################################################################
+			print "\n\n\n\n\n\n****************Applying entered settings into the radiuid.conf file...****************\n"
+			new_config_file_data = config_file_data
+			self.ui.progress('Applying:', 1)
+			new_config_file_data = self.imum.apply_setting(new_config_file_data, 'logfile', logfile, newlogfile)
+			new_config_file_data = self.imum.apply_setting(new_config_file_data, 'radiuslogpath', radiuslogpath, newradiuslogpath)
+			new_config_file_data = self.imum.apply_setting(new_config_file_data, 'hostname', hostname, newhostname)
+			new_config_file_data = self.imum.apply_setting(new_config_file_data, 'panosversion', panosversion, newpanosversion)
+			new_config_file_data = self.imum.apply_setting(new_config_file_data, 'username', username, newusername)
+			new_config_file_data = self.imum.apply_setting(new_config_file_data, 'password', password, newpassword)
+			new_config_file_data = self.imum.apply_setting(new_config_file_data, 'userdomain', userdomain, newuserdomain)
+			new_config_file_data = self.imum.apply_setting(new_config_file_data, 'timeout', timeout, newtimeout)
+			self.filemgmt.write_file(etcconfigfile, new_config_file_data)
+			newlogfiledir = self.filemgmt.strip_filepath(newlogfile)[0][0]
+			os.system('mkdir -p ' + newlogfiledir)
+			print "\n\n****************Starting/Restarting the RadiUID service...****************\n"
+			self.imum.restart_service('radiuid')
+			radiuidrunning = self.imum.check_service_running('radiuid')
+			if radiuidrunning == "yes":
+				print self.ui.color("***** RadiUID successfully started up!!!", self.ui.green)
+			raw_input(self.ui.color(">>>>> Hit ENTER to continue...\n\n>>>>>", self.ui.cyan))
+			if radiuidrunning == "no":
+				print self.ui.color("***** Something went wrong. Looks like the installation or startup failed... ", self.ui.red)
+				print self.ui.color("***** Please make sure you are installing RadiUID on a support platform", self.ui.red)
+				print self.ui.color("***** You can manually edit the RadiUID config file by entering 'radiuid edit config' in the CLI", self.ui.red)
+				raw_input(self.ui.color("Hit ENTER to quit the program...\n\n>>>>>", self.ui.cyan))
+				quit()
+		else:
+			print "~~~ OK... Leaving the .conf file alone"
+		#########################################################################
+		###Make changes to FreeRADIUS config file
+		#########################################################################
+		print "\n\n\n\n\n\n****************Let's make some changes to the FreeRADIUS client config file****************\n"
+		editfreeradius = self.ui.yesorno("Do you want to make changes to FreeRADIUS by adding some IP blocks for accepted accounting clients?")
+		if editfreeradius == "yes":
+			freeradiusedits = self.imum.freeradius_create_changes()
+			self.imum.freeradius_editor(freeradiusedits)
+		#########################################################################
+		###Trailer/Goodbye
+		#########################################################################
+		print "\n\n\n\n\n\n***** Thank you for using the RadiUID installer/management utility"
+		raw_input(self.ui.color(">>>>> Hit ENTER to see the tail of the RadiUID log file before you exit the utility\n\n>>>>>", self.ui.cyan))
+		##### Read in logfile path from found config file #####
+		configfile = self.filemgmt.find_config("quiet")
+		parser = ConfigParser.SafeConfigParser()
+		parser.read(configfile)
+		f = open(configfile, 'r')
+		config_file_data = f.read()
+		f.close()
+		logfile = parser.get('Paths_and_Files', 'logfile')
+		#######################################################
+		print "\n\n############################## LAST 50 LINES FROM " + logfile + "##############################"
+		print "########################################################################################################"
+		os.system("tail -n 50 " + logfile)
+		print "########################################################################################################"
+		print "########################################################################################################"
+		print "\n\n\n\n***** Looks like we are all done here...\n"
+		raw_input(
+			self.ui.color(">>>>> Hit ENTER to exit the Install/Maintenance Utility\n\n>>>>>", self.ui.cyan))
+		quit()
+
+
+
+
+imu = installer_maintenance_utility()
+imu.im_utility()
+
+#radiuid = radiuid_main_process()
+#radiuid.looper()
 
 
