@@ -1,21 +1,22 @@
 #!/usr/bin/python
 
-#####        RadiUID Server v1.1.0         #####
+#####        RadiUID Server v2.0.0         #####
 #####       Written by John W Kerns        #####
 #####      http://blog.packetsar.com       #####
 ##### https://github.com/PackeTsar/radiuid #####
 
 
 import os
-import time
 import re
-import commands
-import ConfigParser
+import sys
+import time
 import urllib
 import urllib2
+import commands
+import ConfigParser
 
 ##### Inform RadiUID version here #####
-version = "v1.1.0"
+version = "dev2.0.0"
 
 
 
@@ -436,123 +437,123 @@ class palo_alto_firewall_interaction(object):
 		self.filemgmt.remove_files(filelist)
 
 
+		
+		
+
+
+#########################################################################
+####################### RADIUID MAIN PROCESS CLASS ######################
+#########################################################################
+#######     Contains the primary elements which pulls config      #######
+#######     variables, collects log data, and pushes mappings     #######
+#########################################################################
+class radiuid_main_process(object):
+	def __init__(self):
+		##### Instantiate external object dependencies #####
+		self.ui = user_interface()
+		self.dpr = data_processing()
+		self.pafi = palo_alto_firewall_interaction()
+		self.filemgmt = file_management()
+		####################################################
+	##### Initialize method used to pull all necessary RadiUID information from the config file and dump the data into variables in the global namespace #####
+	##### This method runs once during the initial startup of the program #####
+	def initialize(self):
+		print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + "***********MAIN PROGRAM INITIALIZATION KICKED OFF...***********" + "\n"
+		global logfile
+		global radiuslogpath
+		global hostname
+		global panosversion
+		global panuser
+		global panpassword
+		global extrastuff
+		global ipaddressterm
+		global usernameterm
+		global delineatorterm
+		global userdomain
+		global timeout
+		##### Check if config file exists. Fail program if it doesn't #####
+		configfile = self.filemgmt.find_config("noisy")
+		checkfile = self.filemgmt.file_exists(configfile)
+		if checkfile == 'no':
+			print self.ui.color(time.strftime(
+				"%Y-%m-%d %H:%M:%S") + ":   " + "ERROR: CANNOT FIND RADIUID CONFIG FILE IN TYPICAL PATHS. QUITTING PROGRAM. RE-RUN INSTALLER ('python radiuid.py install')" + "\n", self.ui.red)
+			quit()
+		if checkfile == 'yes':
+			print time.strftime(
+				"%Y-%m-%d %H:%M:%S") + ":   " + "***********USING CONFIG FILE " + configfile + " TO START RADIUID APPLICATION***********" + "\n"
+			print time.strftime(
+				"%Y-%m-%d %H:%M:%S") + ":   " + "***********READING IN RADIUID LOGFILE INFORMATION. ALL SUBSEQUENT OUTPUT WILL BE LOGGED TO THE LOGFILE***********" + "\n"
+		##### Open the config file and read in the logfile location information #####
+		parser = ConfigParser.SafeConfigParser()
+		parser.read(configfile)
+		logfile = parser.get('Paths_and_Files', 'logfile')
+		##### Initial log entry and help for anybody starting the .py program without first installing it #####
+		self.ui.log_writer("normal", "***********INITIAL WRITE TO THE LOG FILE: " + logfile + "...***********")
+		self.ui.log_writer("normal", "***********RADIUID INITIALIZING... IF PROGRAM FAULTS NOW, MAKE SURE YOU SUCCESSFULLY RAN THE INSTALLER ('python radiuid.py install')***********")
+		##### Suck in all variables from config file (only run when program is initially started, not during while loop) #####
+		self.ui.log_writer("normal", "***********INITIALIZING VARIABLES FROM CONFIG FILE: " + configfile + "...***********")
+		self.ui.log_writer("normal", "Initialized variable:" "\t" + "logfile" + "\t\t\t\t" + "with value:" + "\t" + self.ui.color(logfile, self.ui.green))
+		radiuslogpath = parser.get('Paths_and_Files', 'radiuslogpath')
+		self.ui.log_writer("normal", "Initialized variable:" "\t" + "radiuslogpath" + "\t\t\t" + "with value:" + "\t" + self.ui.color(radiuslogpath, self.ui.green))
+		hostname = parser.get('Palo_Alto_Target', 'hostname')
+		self.ui.log_writer("normal", "Initialized variable:" "\t" + "hostname" + "\t\t\t" + "with value:" + "\t" + self.ui.color(hostname, self.ui.green))
+		panosversion = parser.get('Palo_Alto_Target', 'panosversion')
+		self.ui.log_writer("normal", "Initialized variable:" "\t" + "panosversion" + "\t\t\t" + "with value:" + "\t" + self.ui.color(panosversion, self.ui.green))
+		panuser = parser.get('Palo_Alto_Target', 'username')
+		self.ui.log_writer("normal", "Initialized variable:" "\t" + "panuser" + "\t\t\t\t" + "with value:" + "\t" + self.ui.color(panuser, self.ui.green))
+		panpassword = parser.get('Palo_Alto_Target', 'password')
+		self.ui.log_writer("normal", "Initialized variable:" "\t" + "panpassword" + "\t\t\t" + "with value:" + "\t" + self.ui.color(panpassword, self.ui.green))
+		extrastuff = parser.get('URL_Stuff', 'extrastuff')
+		self.ui.log_writer("normal", "Initialized variable:" "\t" + "extrastuff" + "\t\t\t" + "with value:" + "\t" + self.ui.color(extrastuff, self.ui.green))
+		ipaddressterm = parser.get('Search_Terms', 'ipaddressterm')
+		self.ui.log_writer("normal", "Initialized variable:" "\t" + "ipaddressterm" + "\t\t\t" + "with value:" + "\t" + self.ui.color(ipaddressterm, self.ui.green))
+		usernameterm = parser.get('Search_Terms', 'usernameterm')
+		self.ui.log_writer("normal", "Initialized variable:" "\t" + "usernameterm" + "\t\t\t" + "with value:" + "\t" + self.ui.color(usernameterm, self.ui.green))
+		delineatorterm = parser.get('Search_Terms', 'delineatorterm')
+		self.ui.log_writer("normal", "Initialized variable:" "\t" + "delineatorterm" + "\t\t\t" + "with value:" + "\t" + self.ui.color(delineatorterm, self.ui.green))
+		userdomain = parser.get('UID_Settings', 'userdomain')
+		self.ui.log_writer("normal", "Initialized variable:" "\t" + "userdomain" + "\t\t\t" + "with value:" + "\t" + self.ui.color(userdomain, self.ui.green))
+		timeout = parser.get('UID_Settings', 'timeout')
+		self.ui.log_writer("normal", "Initialized variable:" "\t" + "timeout" + "\t\t\t\t" + "with value:" + "\t" + self.ui.color(timeout, self.ui.green))
+		##### Explicitly pull PAN key now and store API key in the main namespace #####
+		self.ui.log_writer("normal", "***********************************CONNECTING TO PALO ALTO FIREWALL TO EXTRACT THE API KEY...***********************************")
+		self.ui.log_writer("normal", "********************IF PROGRAM FREEZES/FAILS RIGHT NOW, THEN THERE IS LIKELY A COMMUNICATION PROBLEM WITH THE FIREWALL********************")
+		global pankey
+		pankey = self.pafi.pull_api_key(panuser, panpassword)
+		self.ui.log_writer("normal", "Initialized variable:" "\t" + "pankey" + "\t\t\t\t" + "with value:" + "\t" + pankey)
+		self.ui.log_writer("normal", "*******************************************CONFIG FILE SETTINGS INITIALIZED*******************************************")
+		self.ui.log_writer("normal", "***********************************RADIUID SERVER STARTING WITH INITIALIZED VARIABLES...******************************")
+	##### RadiUID looper method which initializes the namespace with config variables and loops the main RadiUID program #####
+	def looper(self):
+		####################################################
+		####################################################
+		######### SET DEFAULT CONFIG FILE LOCATION #########
+		####################################################
+		global etcconfigfile
+		etcconfigfile = '/etc/radiuid/radiuid.conf'
+		####################################################
+		configfile = self.filemgmt.find_config("noisy")
+		self.initialize()
+		while __name__ == "__main__":
+			filelist = self.filemgmt.list_files(radiuslogpath)
+			if len(filelist) > 0:
+				usernames = self.dpr.search_to_dict(filelist, delineatorterm, usernameterm)
+				ipaddresses = self.dpr.search_to_dict(filelist, delineatorterm, ipaddressterm)
+				usernames = self.dpr.clean_names(usernames)
+				ipaddresses = self.dpr.clean_ips(ipaddresses)
+				ipanduserdict = self.dpr.merge_dicts(ipaddresses, usernames)
+				self.pafi.push_uids(ipanduserdict, filelist)
+				del filelist
+				del usernames
+				del ipaddresses
+				del ipanduserdict
+			time.sleep(10)
 
 
 
 
-##### Initialize method used to pull all necessary RadiUID information from the config file and dump the data into variables in the global namespace #####
-##### This method runs once during the initial startup of the program #####
-def initialize():
-	##### Instantiate external object dependencies #####
-	ui = user_interface()
-	filemgmt = file_management()
-	pafi = palo_alto_firewall_interaction()
-	####################################################
-	print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + "***********MAIN PROGRAM INITIALIZATION KICKED OFF...***********" + "\n"
-	global logfile
-	global radiuslogpath
-	global hostname
-	global panosversion
-	global panuser
-	global panpassword
-	global extrastuff
-	global ipaddressterm
-	global usernameterm
-	global delineatorterm
-	global userdomain
-	global timeout
-	##### Check if config file exists. Fail program if it doesn't #####
-	configfile = filemgmt.find_config("noisy")
-	checkfile = filemgmt.file_exists(configfile)
-	if checkfile == 'no':
-		print color(time.strftime(
-			"%Y-%m-%d %H:%M:%S") + ":   " + "ERROR: CANNOT FIND RADIUID CONFIG FILE IN TYPICAL PATHS. QUITTING PROGRAM. RE-RUN INSTALLER ('python radiuid.py install')" + "\n", red)
-		quit()
-	if checkfile == 'yes':
-		print time.strftime(
-			"%Y-%m-%d %H:%M:%S") + ":   " + "***********USING CONFIG FILE " + configfile + " TO START RADIUID APPLICATION***********" + "\n"
-		print time.strftime(
-			"%Y-%m-%d %H:%M:%S") + ":   " + "***********READING IN RADIUID LOGFILE INFORMATION. ALL SUBSEQUENT OUTPUT WILL BE LOGGED TO THE LOGFILE***********" + "\n"
-	##### Open the config file and read in the logfile location information #####
-	parser = ConfigParser.SafeConfigParser()
-	parser.read(configfile)
-	logfile = parser.get('Paths_and_Files', 'logfile')
-	##### Initial log entry and help for anybody starting the .py program without first installing it #####
-	ui.log_writer("normal", "***********INITIAL WRITE TO THE LOG FILE: " + logfile + "...***********")
-	ui.log_writer("normal", "***********RADIUID INITIALIZING... IF PROGRAM FAULTS NOW, MAKE SURE YOU SUCCESSFULLY RAN THE INSTALLER ('python radiuid.py install')***********")
-	##### Suck in all variables from config file (only run when program is initially started, not during while loop) #####
-	ui.log_writer("normal", "***********INITIALIZING VARIABLES FROM CONFIG FILE: " + configfile + "...***********")
-	ui.log_writer("normal", "Initialized variable:" "\t" + "logfile" + "\t\t\t\t" + "with value:" + "\t" + ui.color(logfile, ui.green))
-	radiuslogpath = parser.get('Paths_and_Files', 'radiuslogpath')
-	ui.log_writer("normal", "Initialized variable:" "\t" + "radiuslogpath" + "\t\t\t" + "with value:" + "\t" + ui.color(radiuslogpath, ui.green))
-	hostname = parser.get('Palo_Alto_Target', 'hostname')
-	ui.log_writer("normal", "Initialized variable:" "\t" + "hostname" + "\t\t\t" + "with value:" + "\t" + ui.color(hostname, ui.green))
-	panosversion = parser.get('Palo_Alto_Target', 'panosversion')
-	ui.log_writer("normal", "Initialized variable:" "\t" + "panosversion" + "\t\t\t" + "with value:" + "\t" + ui.color(panosversion, ui.green))
-	panuser = parser.get('Palo_Alto_Target', 'username')
-	ui.log_writer("normal", "Initialized variable:" "\t" + "panuser" + "\t\t\t\t" + "with value:" + "\t" + ui.color(panuser, ui.green))
-	panpassword = parser.get('Palo_Alto_Target', 'password')
-	ui.log_writer("normal", "Initialized variable:" "\t" + "panpassword" + "\t\t\t" + "with value:" + "\t" + ui.color(panpassword, ui.green))
-	extrastuff = parser.get('URL_Stuff', 'extrastuff')
-	ui.log_writer("normal", "Initialized variable:" "\t" + "extrastuff" + "\t\t\t" + "with value:" + "\t" + ui.color(extrastuff, ui.green))
-	ipaddressterm = parser.get('Search_Terms', 'ipaddressterm')
-	ui.log_writer("normal", "Initialized variable:" "\t" + "ipaddressterm" + "\t\t\t" + "with value:" + "\t" + ui.color(ipaddressterm, ui.green))
-	usernameterm = parser.get('Search_Terms', 'usernameterm')
-	ui.log_writer("normal", "Initialized variable:" "\t" + "usernameterm" + "\t\t\t" + "with value:" + "\t" + ui.color(usernameterm, ui.green))
-	delineatorterm = parser.get('Search_Terms', 'delineatorterm')
-	ui.log_writer("normal", "Initialized variable:" "\t" + "delineatorterm" + "\t\t\t" + "with value:" + "\t" + ui.color(delineatorterm, ui.green))
-	userdomain = parser.get('UID_Settings', 'userdomain')
-	ui.log_writer("normal", "Initialized variable:" "\t" + "userdomain" + "\t\t\t" + "with value:" + "\t" + ui.color(userdomain, ui.green))
-	timeout = parser.get('UID_Settings', 'timeout')
-	ui.log_writer("normal", "Initialized variable:" "\t" + "timeout" + "\t\t\t\t" + "with value:" + "\t" + ui.color(timeout, ui.green))
-	##### Explicitly pull PAN key now and store API key in the main namespace #####
-	ui.log_writer("normal", "***********************************CONNECTING TO PALO ALTO FIREWALL TO EXTRACT THE API KEY...***********************************")
-	ui.log_writer("normal", "********************IF PROGRAM FREEZES/FAILS RIGHT NOW, THEN THERE IS LIKELY A COMMUNICATION PROBLEM WITH THE FIREWALL********************")
-	global pankey
-	pankey = pafi.pull_api_key(panuser, panpassword)
-	ui.log_writer("normal", "Initialized variable:" "\t" + "pankey" + "\t\t\t\t" + "with value:" + "\t" + pankey)
-	ui.log_writer("normal", "*******************************************CONFIG FILE SETTINGS INITIALIZED*******************************************")
-	ui.log_writer("normal", "***********************************RADIUID SERVER STARTING WITH INITIALIZED VARIABLES...******************************")
-
-
-
-
-
-
-##### RadiUID looper method which initializes the namespace with config variables and loops the main RadiUID program #####
-def radiuid_looper():
-	##### Instantiate external object dependencies #####
-	filemgmt = file_management()
-	pafi = palo_alto_firewall_interaction()
-	dpr = data_processing()
-	####################################################
-	####################################################
-	######### SET DEFAULT CONFIG FILE LOCATION #########
-	####################################################
-	global etcconfigfile
-	etcconfigfile = '/etc/radiuid/radiuid.conf'
-	####################################################
-	configfile = filemgmt.find_config("noisy")
-	initialize()
-	while __name__ == "__main__":
-		filelist = filemgmt.list_files(radiuslogpath)
-		if len(filelist) > 0:
-			usernames = dpr.search_to_dict(filelist, delineatorterm, usernameterm)
-			ipaddresses = dpr.search_to_dict(filelist, delineatorterm, ipaddressterm)
-			usernames = dpr.clean_names(usernames)
-			ipaddresses = dpr.clean_ips(ipaddresses)
-			ipanduserdict = dpr.merge_dicts(ipaddresses, usernames)
-			pafi.push_uids(ipanduserdict, filelist)
-			del filelist
-			del usernames
-			del ipaddresses
-			del ipanduserdict
-		time.sleep(10)
-
-
-radiuid_looper()
-
-
+radiuid = radiuid_main_process()
+radiuid.looper()
 
 
 
