@@ -18,6 +18,16 @@ import urllib2
 version = "v1.1.0"
 
 
+
+
+
+
+#########################################################################
+########################## USER INTERFACE CLASS #########################
+#########################################################################
+#######      Used by most other classes and methods to output     #######
+#######         data to stdout and to write to the logfile        #######
+#########################################################################
 class user_interface(object):
 	def __init__(self):
 		##### ANSI Colors for use in CLI and logs #####
@@ -127,19 +137,12 @@ class user_interface(object):
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
+#########################################################################
+########################## DATA PROCESSING CLASS ########################
+#########################################################################
+#######       Used by the main RadiUID methods to munge data      #######
+#########################################################################
+#########################################################################
 class data_processing(object):
 	def __init__(self):
 		##### Instantiate external object dependencies #####
@@ -207,18 +210,12 @@ class data_processing(object):
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
+#########################################################################
+########################## FILE MANAGEMENT CLASS ########################
+#########################################################################
+#######     Used by the main RadiUID methods to for changing,     #######
+#######    checking, and maintaining files in the file system     #######
+#########################################################################
 class file_management(object):
 	def __init__(self):
 		##### Instantiate external object dependencies #####
@@ -349,12 +346,12 @@ class file_management(object):
 
 
 
-
-
-
-
-
-
+#########################################################################
+##################### PAN FIREWALL INTERACTION CLASS ####################
+#########################################################################
+#######     Used by the main RadiUID methods to for creating      #######
+#######       and making REST API calls to the PAN Firewalls      #######
+#########################################################################
 class palo_alto_firewall_interaction(object):
 	def __init__(self):
 		##### Instantiate external object dependencies #####
@@ -443,16 +440,6 @@ class palo_alto_firewall_interaction(object):
 
 
 
-
-
-
-
-
-
-
-
-
-
 ##### Initialize method used to pull all necessary RadiUID information from the config file and dump the data into variables in the global namespace #####
 ##### This method runs once during the initial startup of the program #####
 def initialize():
@@ -532,9 +519,6 @@ def initialize():
 
 
 
-
-
-
 ##### RadiUID looper method which initializes the namespace with config variables and loops the main RadiUID program #####
 def radiuid_looper():
 	##### Instantiate external object dependencies #####
@@ -566,7 +550,7 @@ def radiuid_looper():
 		time.sleep(10)
 
 
-
+radiuid_looper()
 
 
 
