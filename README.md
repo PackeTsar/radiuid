@@ -14,14 +14,16 @@
 
 
 
+
 ##########   VERSION   ##########
 -----------------------------------------
 The version of RadiUID documented here is:
-	v1.1.0
+	v2.0.0
 
 
 
-##########   UPDATES IN THIS VERSION   ##########
+
+##########   UPDATES IN V1.1.0   ##########
 --------------------------------------
 
 **Fixed issue #2: Rewrite push and URL converter to push multiple mappings per REST call.**
@@ -58,6 +60,16 @@ Fixed in v1.1.0. Tested the utility with different inputs and in different scena
 
 ADDED FEATURES:
      - Added logging of CLI commands to log file for accounting purposes using the cli_log_writer method.
+
+
+
+
+##########   UPDATES IN THIS VERSION   ##########
+--------------------------------------
+ADDED FEATURES:
+     - All code put into classes and used as objects now
+
+
 
 
 ##########   WHAT IS RADIUID   ##########
@@ -207,10 +219,13 @@ Command Syntax from Bash:
 
 
 
+
 ##########   TIMEOUT TUNING   ##########
 ----------------------------------------------
 
 RadiUID pushes ephemeral User-ID information to the firewall whenever new RADIUS accounting information is recieved and by default sets a timeout of 60 minutes. If this accounting information comes from a wireless system (where most devices re-authenticate regularly) then you may be able to tune down that timeout to make the mapping information expire more quickly. If the RADIUS authenticator is something like a VPN concentrator (where re-authentication doesn't typically happen), then you may want to turn up the timeout period. Either way, you should expect to have to play with the timeout settings to make sure your firewalls are not prematurely expiring User-ID data from their mapping tables.
+
+
 
 
 ##########   CONTRIBUTING   ##########
