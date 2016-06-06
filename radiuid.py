@@ -269,8 +269,8 @@ class file_management(object):
 				print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + input + "\n"
 				target.close()
 			except IOError:
-				print self.color(time.strftime("%Y-%m-%d %H:%M:%S") + ":   " +"***********CANNOT OPEN FILE: " + logfile + " ***********\n", self.red)
-				print self.color(time.strftime("%Y-%m-%d %H:%M:%S") + ":   " +"***********PLEASE MAKE SURE YOU RAN THE INSTALLER ('python radiuid.py install')***********\n", self.red)
+				print self.ui.color(time.strftime("%Y-%m-%d %H:%M:%S") + ":   " +"***********CANNOT OPEN FILE: " + logfile + " ***********\n", self.ui.red)
+				print self.ui.color(time.strftime("%Y-%m-%d %H:%M:%S") + ":   " +"***********PLEASE MAKE SURE YOU RAN THE INSTALLER ('python radiuid.py install')***********\n", self.ui.red)
 				quit()
 			except NameError:
 				print self.ui.color(time.strftime("%Y-%m-%d %H:%M:%S") + ":   " +"*********** LOGFILE VARIABLE NOT FOUND! ***********\n", self.ui.red)
@@ -281,22 +281,18 @@ class file_management(object):
 				print self.ui.color("***** WARNING: Could not write CLI accounting info to log file *****", self.ui.yellow)
 			else:
 				self.get_logfile()
-				self.logwriter_core(logfile, input)
-				print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + input + "\n"
-		if mode == "cli-noconsole":
-			configfile = self.find_config("quiet")
-			if configfile == "CHOOSERFAIL":
-				print self.ui.color("***** WARNING: Could not write CLI accounting info to log file *****", self.ui.yellow)
-			else:
-				self.get_logfile()
-				self.logwriter_core(logfile, input)
-				# no printing to console
+				if self.file_exists(logfile) == "no":
+					print self.ui.color("***** WARNING: Could not write CLI accounting info to log file *****", self.ui.yellow)
+				elif self.file_exists(logfile) == "yes":
+					self.logwriter_core(logfile, input)
+					print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + input + "\n"
 		if mode == "quietfail":
 			configfile = self.find_config("quiet")
 			if configfile != "CHOOSERFAIL":
 				self.get_logfile()
-				self.logwriter_core(logfile, input)
-				print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + input + "\n"
+				if self.file_exists(logfile) == "yes":
+					self.logwriter_core(logfile, input)
+					print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + input + "\n"
 
 
 
@@ -1076,7 +1072,7 @@ class command_line_interpreter(object):
 			self.radiuid.looper()
 		######################### INSTALL #############################
 		elif arguments == "install":
-			self.filemgmt.logwriter("cli-noconsole", "##### COMMAND '" + arguments + "' ISSUED FROM CLI BY USER '" + self.imum.currentuser()+ "' #####")
+			self.filemgmt.logwriter("quietfail", "##### COMMAND '" + arguments + "' ISSUED FROM CLI BY USER '" + self.imum.currentuser()+ "' #####")
 			print "\n\n\n"
 			self.imu.im_utility()
 		######################### SHOW #############################
@@ -1096,17 +1092,7 @@ class command_line_interpreter(object):
 			os.system("more " + logfile)
 			print self.ui.color("#" * len(header), self.ui.magenta)
 			print self.ui.color("#" * len(header), self.ui.magenta)
-		elif arguments == "show run":
-			self.filemgmt.logwriter("cli", "##### COMMAND '" + arguments + "' ISSUED FROM CLI BY USER '" + self.imum.currentuser()+ "' #####")
-			self.filemgmt.get_logfile()
-			configfile = self.filemgmt.find_config("quiet")
-			header = "########################## OUTPUT FROM FILE " + configfile + " ##########################"
-			print self.ui.color(header, self.ui.magenta)
-			print self.ui.color("#" * len(header), self.ui.magenta)
-			os.system("more " + configfile)
-			print self.ui.color("#" * len(header), self.ui.magenta)
-			print self.ui.color("#" * len(header), self.ui.magenta)
-		elif arguments == "show config":
+		elif arguments == "show run" or arguments == "show config":
 			self.filemgmt.logwriter("cli", "##### COMMAND '" + arguments + "' ISSUED FROM CLI BY USER '" + self.imum.currentuser()+ "' #####")
 			self.filemgmt.get_logfile()
 			configfile = self.filemgmt.find_config("quiet")
@@ -1221,7 +1207,7 @@ class command_line_interpreter(object):
 			if checkservice == "yes":
 				print self.ui.color("\n\n********** RADIUID SUCCESSFULLY STARTED UP! **********\n\n", self.ui.green)
 			elif checkservice == "no":
-				print self.ui.color("\n\n********** RADIUID STARTUP UNSUCCESSFUL. SOMETHING MUST BE WRONG... **********\n\n", red)
+				print self.ui.color("\n\n********** RADIUID STARTUP UNSUCCESSFUL. SOMETHING MUST BE WRONG... **********\n\n", self.ui.red)
 		elif arguments == "stop radiuid":
 			self.filemgmt.logwriter("cli", "##### COMMAND '" + arguments + "' ISSUED FROM CLI BY USER '" + self.imum.currentuser()+ "' #####")
 			header = "########################## CURRENT RADIUID SERVICE STATUS ##########################"
@@ -1252,7 +1238,7 @@ class command_line_interpreter(object):
 			if checkservice == "yes":
 				print self.ui.color("\n\n********** RADIUID SUCCESSFULLY RESTARTED! **********\n\n", self.ui.green)
 			elif checkservice == "no":
-				print self.ui.color("\n\n********** RADIUID STARTUP UNSUCCESSFUL. SOMETHING MUST BE WRONG... **********\n\n", red)
+				print self.ui.color("\n\n********** RADIUID STARTUP UNSUCCESSFUL. SOMETHING MUST BE WRONG... **********\n\n", self.ui.red)
 		######################### FREERADIUS SERVICE CONTROL #############################
 		elif arguments == "start freeradius":
 			self.filemgmt.logwriter("cli", "##### COMMAND '" + arguments + "' ISSUED FROM CLI BY USER '" + self.imum.currentuser()+ "' #####")
@@ -1262,7 +1248,7 @@ class command_line_interpreter(object):
 			if checkservice == "yes":
 				print self.ui.color("\n\n********** FREERADIUS SUCCESSFULLY STARTED UP! **********\n\n", self.ui.green)
 			elif checkservice == "no":
-				print self.ui.color("\n\n********** FREERADIUS STARTUP UNSUCCESSFUL. SOMETHING MUST BE WRONG... **********\n\n", red)
+				print self.ui.color("\n\n********** FREERADIUS STARTUP UNSUCCESSFUL. SOMETHING MUST BE WRONG... **********\n\n", self.ui.red)
 		elif arguments == "stop freeradius":
 			self.filemgmt.logwriter("cli", "##### COMMAND '" + arguments + "' ISSUED FROM CLI BY USER '" + self.imum.currentuser()+ "' #####")
 			header = "########################## CURRENT FREERADIUS SERVICE STATUS ##########################"
@@ -1293,7 +1279,7 @@ class command_line_interpreter(object):
 			if checkservice == "yes":
 				print self.ui.color("\n\n********** FREERADIUS SUCCESSFULLY RESTARTED! **********\n\n", self.ui.green)
 			elif checkservice == "no":
-				print self.ui.color("\n\n********** FREERADIUS STARTUP UNSUCCESSFUL. SOMETHING MUST BE WRONG... **********\n\n", red)
+				print self.ui.color("\n\n********** FREERADIUS STARTUP UNSUCCESSFUL. SOMETHING MUST BE WRONG... **********\n\n", self.ui.red)
 		######################### COMBINED SERVICE CONTROL #############################
 		elif arguments == "start all":
 			self.filemgmt.logwriter("cli", "##### COMMAND '" + arguments + "' ISSUED FROM CLI BY USER '" + self.imum.currentuser()+ "' #####")
@@ -1303,7 +1289,7 @@ class command_line_interpreter(object):
 			if checkservice == "yes":
 				print self.ui.color("\n\n********** FREERADIUS SUCCESSFULLY STARTED UP! **********\n\n", self.ui.green)
 			elif checkservice == "no":
-				print self.ui.color("\n\n********** FREERADIUS STARTUP UNSUCCESSFUL. SOMETHING MUST BE WRONG... **********\n\n", red)
+				print self.ui.color("\n\n********** FREERADIUS STARTUP UNSUCCESSFUL. SOMETHING MUST BE WRONG... **********\n\n", self.ui.red)
 			print "\n\n\n"
 			os.system("systemctl start radiuid")
 			os.system("systemctl status radiuid")
@@ -1311,7 +1297,7 @@ class command_line_interpreter(object):
 			if checkservice == "yes":
 				print self.ui.color("\n\n********** RADIUID SUCCESSFULLY STARTED UP! **********\n\n", self.ui.green)
 			elif checkservice == "no":
-				print self.ui.color("\n\n********** RADIUID STARTUP UNSUCCESSFUL. SOMETHING MUST BE WRONG... **********\n\n", red)
+				print self.ui.color("\n\n********** RADIUID STARTUP UNSUCCESSFUL. SOMETHING MUST BE WRONG... **********\n\n", self.ui.red)
 		elif arguments == "stop all":
 			self.filemgmt.logwriter("cli", "##### COMMAND '" + arguments + "' ISSUED FROM CLI BY USER '" + self.imum.currentuser()+ "' #####")
 			header = "########################## CURRENT RADIUID SERVICE STATUS ##########################"
@@ -1354,7 +1340,7 @@ class command_line_interpreter(object):
 			if checkservice == "yes":
 				print self.ui.color("\n\n********** RADIUID SUCCESSFULLY RESTARTED! **********\n\n", self.ui.green)
 			elif checkservice == "no":
-				print self.ui.color("\n\n********** RADIUID STARTUP UNSUCCESSFUL. SOMETHING MUST BE WRONG... **********\n\n", red)
+				print self.ui.color("\n\n********** RADIUID STARTUP UNSUCCESSFUL. SOMETHING MUST BE WRONG... **********\n\n", self.ui.red)
 			os.system("systemctl stop radiusd")
 			os.system("systemctl status radiusd")
 			print self.ui.color("\n\n********** FREERADIUS STOPPED **********\n\n", self.ui.yellow)
@@ -1366,7 +1352,7 @@ class command_line_interpreter(object):
 			if checkservice == "yes":
 				print self.ui.color("\n\n********** FREERADIUS SUCCESSFULLY RESTARTED! **********\n\n", self.ui.green)
 			elif checkservice == "no":
-				print self.ui.color("\n\n********** FREERADIUS STARTUP UNSUCCESSFUL. SOMETHING MUST BE WRONG... **********\n\n", red)
+				print self.ui.color("\n\n********** FREERADIUS STARTUP UNSUCCESSFUL. SOMETHING MUST BE WRONG... **********\n\n", self.ui.red)
 		######################### VERSION #############################
 		elif arguments == "version":
 			self.filemgmt.logwriter("cli", "##### COMMAND '" + arguments + "' ISSUED FROM CLI BY USER '" + self.imum.currentuser()+ "' #####")
