@@ -80,21 +80,7 @@ class user_interface(object):
 				answer = "yes"
 				return answer
 			else:
-				print self.color("'Yes' or 'No' dude...", self.red)
-	##### Writes lines to the log file and prints them to the terminal #####
-	##### Uses the logfile variable published to the global namespace #####
-	##### Modes of use change what log_writer does when it encounters certain errors. Modes are normal #####
-	def log_writer(self, mode, input):
-		if mode == "normal":
-			try:
-				target = open(logfile, 'a')
-				target.write(time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + input + "\n")
-				print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + input + "\n"
-				target.close()
-			except IOError:
-				print self.color(time.strftime("%Y-%m-%d %H:%M:%S") + ":   " +"***********CANNOT OPEN FILE: " + logfile + " ***********\n", self.red)
-				print self.color(time.strftime("%Y-%m-%d %H:%M:%S") + ":   " +"***********PLEASE MAKE SURE YOU RAN THE INSTALLER ('python radiuid.py install')***********\n", self.red)
-				quit()
+				print self.color("'Yes' or 'No' dude...", self.red)			
 	##### Print out this ridiculous text-o-graph #####
 	##### It took me like an hour to draw and I couldn't stand to just not use it #####
 	def packetsar(self):
@@ -134,71 +120,6 @@ class user_interface(object):
 			    #                                                     #  \n\
 			      #                                                 #    \n\
 			        ###############################################      \n", self.blue)
-
-
-
-
-
-
-#########################################################################
-########################## DATA PROCESSING CLASS ########################
-#########################################################################
-#######       Used by the main RadiUID methods to munge data      #######
-#########################################################################
-#########################################################################
-class data_processing(object):
-	def __init__(self):
-		##### Instantiate external object dependencies #####
-		self.ui = user_interface()
-		####################################################
-	##### Search list of files for a searchterm and uses deliniator term to count instances in file, then returns a dictionary where key=instance and value=line where term was found #####
-	##### Used to search through FreeRADIUS log files for usernames and IP addresses, then turn them into dictionaries to be sent to the "push" function #####
-	def search_to_dict(self, filelist, delineator, searchterm):
-		dict = {}
-		entry = 0
-		for filename in filelist:
-			self.ui.log_writer("normal", 'Searching File: ' + filename + ' for ' + searchterm)
-			with open(filename, 'r') as filetext:
-				for line in filetext:
-					if delineator in line:
-						entry = entry + 1
-					if searchterm in line:
-						dict[entry] = line
-		return dict
-	##### Clean up IP addresses in dictionary #####
-	##### Removes unwanted data from the lines with useful IP addresses in them #####
-	def clean_ips(self, dictionary):
-		newdict = {}
-		ipaddress_regex = "(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)"
-		for key, value in dictionary.iteritems():
-			cleaned = re.findall(ipaddress_regex, value, flags=0)[0]
-			newdict[key] = cleaned
-		self.ui.log_writer("normal", "IP Address List Cleaned Up!")
-		return newdict
-	##### Clean up user names in dictionary #####
-	##### Removes unwanted data from the lines with useful usernames in them #####
-	def clean_names(self, dictionary):
-		newdict = {}
-		username_regex = "(\'.*\')"
-		for key, value in dictionary.iteritems():
-			clean1 = re.findall(username_regex, value, flags=0)[0]
-			cleaned = clean1.replace("'", "")
-			newdict[key] = cleaned
-		self.ui.log_writer("normal", "Username List Cleaned Up!")
-		return newdict
-	##### Merge dictionary values from two dictionaries into one dictionary and remove duplicates #####
-	##### Used to compile the list of users into a dictionary for use in the push function #####
-	##### Deduplication is not explicitly written but is just a result of pushing the same data over and over to a dictionary #####
-	def merge_dicts(self, keydict, valuedict):
-		newdict = {}
-		keydictkeylist = keydict.keys()
-		for each in keydictkeylist:
-			v = valuedict[each]
-			k = keydict[each]
-			newdict[k] = v
-		self.ui.log_writer("normal", "Dictionary values merged into one dictionary")
-		return newdict
-
 
 
 
@@ -251,9 +172,9 @@ class file_management(object):
 			for filename in filenames:
 				entry = os.path.join(root, filename)
 				filelist.append(entry)
-				self.ui.log_writer("normal", "Found File: " + entry + "...   Adding to file list")
+				self.logwriter("normal", "Found File: " + entry + "...   Adding to file list")
 		if len(filelist) == 0:
-			self.ui.log_writer("normal", "No Accounting Logs Found. Nothing to Do.")
+			self.logwriter("normal", "No Accounting Logs Found. Nothing to Do.")
 			return filelist
 		else:
 			return filelist
@@ -262,7 +183,7 @@ class file_management(object):
 	def remove_files(self, filelist):
 		for filename in filelist:
 			os.remove(filename)
-			self.ui.log_writer("normal", "Removed file: " + filename)
+			self.logwriter("normal", "Removed file: " + filename)
 	##### Writes the new config data to the config file #####
 	##### Used at the end of the wizard when new config values have been defined and need to be written to a config file #####
 	def write_file(self, filepath, filedata):
@@ -330,11 +251,117 @@ class file_management(object):
 		configfile = self.find_config("quiet")
 		parser = ConfigParser.SafeConfigParser()
 		parser.read(configfile)
-		f = open(configfile, 'r')
-		config_file_data = f.read()
-		f.close()
+		global logfile
 		logfile = parser.get('Paths_and_Files', 'logfile')
-		return logfile
+	##### Core IO method for logwriter operations. Excludes mode awareness #####
+	def logwriter_core(self, file, input):
+		target = open(file, 'a')
+		target.write(time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + input + "\n")
+		target.close()
+	##### Writes lines to the log file in different modes #####
+	##### Uses the logfile variable published to the global namespace #####
+	##### Modes of use change what log_writer does when it encounters certain errors. Modes are normal #####
+	def logwriter(self, mode, input):
+		if mode == "normal": # Only use normal mode if you have already initialized the logfile to global namespace
+			try:
+				target = open(logfile, 'a')
+				target.write(time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + input + "\n")
+				print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + input + "\n"
+				target.close()
+			except IOError:
+				print self.color(time.strftime("%Y-%m-%d %H:%M:%S") + ":   " +"***********CANNOT OPEN FILE: " + logfile + " ***********\n", self.red)
+				print self.color(time.strftime("%Y-%m-%d %H:%M:%S") + ":   " +"***********PLEASE MAKE SURE YOU RAN THE INSTALLER ('python radiuid.py install')***********\n", self.red)
+				quit()
+			except NameError:
+				print self.ui.color(time.strftime("%Y-%m-%d %H:%M:%S") + ":   " +"*********** LOGFILE VARIABLE NOT FOUND! ***********\n", self.ui.red)
+				quit()
+		if mode == "cli":
+			configfile = self.find_config("quiet")
+			if configfile == "CHOOSERFAIL":
+				print self.ui.color("***** WARNING: Could not write CLI accounting info to log file *****", self.ui.yellow)
+			else:
+				self.get_logfile()
+				self.logwriter_core(logfile, input)
+				print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + input + "\n"
+		if mode == "cli-noconsole":
+			configfile = self.find_config("quiet")
+			if configfile == "CHOOSERFAIL":
+				print self.ui.color("***** WARNING: Could not write CLI accounting info to log file *****", self.ui.yellow)
+			else:
+				self.get_logfile()
+				self.logwriter_core(logfile, input)
+				# no printing to console
+		if mode == "quietfail":
+			configfile = self.find_config("quiet")
+			if configfile != "CHOOSERFAIL":
+				self.get_logfile()
+				self.logwriter_core(logfile, input)
+				print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + input + "\n"
+
+
+
+
+
+
+#########################################################################
+########################## DATA PROCESSING CLASS ########################
+#########################################################################
+#######       Used by the main RadiUID methods to munge data      #######
+#########################################################################
+#########################################################################
+class data_processing(object):
+	def __init__(self):
+		##### Instantiate external object dependencies #####
+		self.ui = user_interface()
+		self.filemgmt = file_management()
+		####################################################
+	##### Search list of files for a searchterm and uses deliniator term to count instances in file, then returns a dictionary where key=instance and value=line where term was found #####
+	##### Used to search through FreeRADIUS log files for usernames and IP addresses, then turn them into dictionaries to be sent to the "push" function #####
+	def search_to_dict(self, filelist, delineator, searchterm):
+		dict = {}
+		entry = 0
+		for filename in filelist:
+			self.filemgmt.logwriter("normal", 'Searching File: ' + filename + ' for ' + searchterm)
+			with open(filename, 'r') as filetext:
+				for line in filetext:
+					if delineator in line:
+						entry = entry + 1
+					if searchterm in line:
+						dict[entry] = line
+		return dict
+	##### Clean up IP addresses in dictionary #####
+	##### Removes unwanted data from the lines with useful IP addresses in them #####
+	def clean_ips(self, dictionary):
+		newdict = {}
+		ipaddress_regex = "(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)"
+		for key, value in dictionary.iteritems():
+			cleaned = re.findall(ipaddress_regex, value, flags=0)[0]
+			newdict[key] = cleaned
+		self.filemgmt.logwriter("normal", "IP Address List Cleaned Up!")
+		return newdict
+	##### Clean up user names in dictionary #####
+	##### Removes unwanted data from the lines with useful usernames in them #####
+	def clean_names(self, dictionary):
+		newdict = {}
+		username_regex = "(\'.*\')"
+		for key, value in dictionary.iteritems():
+			clean1 = re.findall(username_regex, value, flags=0)[0]
+			cleaned = clean1.replace("'", "")
+			newdict[key] = cleaned
+		self.filemgmt.logwriter("normal", "Username List Cleaned Up!")
+		return newdict
+	##### Merge dictionary values from two dictionaries into one dictionary and remove duplicates #####
+	##### Used to compile the list of users into a dictionary for use in the push function #####
+	##### Deduplication is not explicitly written but is just a result of pushing the same data over and over to a dictionary #####
+	def merge_dicts(self, keydict, valuedict):
+		newdict = {}
+		keydictkeylist = keydict.keys()
+		for each in keydictkeylist:
+			v = valuedict[each]
+			k = keydict[each]
+			newdict[k] = v
+		self.filemgmt.logwriter("normal", "Dictionary values merged into one dictionary")
+		return newdict
 
 
 
@@ -368,7 +395,7 @@ class palo_alto_firewall_interaction(object):
 				entry = ''
 			return xmllist
 		else:
-			self.ui.log_writer("normal", self.ui.color("PAN-OS version not supported for XML push!", self.ui.red))
+			self.filemgmt.logwriter("normal", self.ui.color("PAN-OS version not supported for XML push!", self.ui.red))
 			quit()
 	##### Accepts a list of XML-formatted IP-to-User mappings and produces a list of complete and encoded URLs which are used to push UID data #####
 	##### Each URL will contain no more than 100 UID mappings which can all be pushed at the same time by the push_uids method #####
@@ -395,7 +422,7 @@ class palo_alto_firewall_interaction(object):
 				xmluserdata = ""
 			return finishedurllist
 		else:
-			self.ui.log_writer("normal", self.ui.color("PAN-OS version not supported for XML push!", self.ui.red))
+			self.filemgmt.logwriter("normal", self.ui.color("PAN-OS version not supported for XML push!", self.ui.red))
 			quit()
 	#######################################################
 	#######         PAN Interaction Methods         #######
@@ -408,9 +435,9 @@ class palo_alto_firewall_interaction(object):
 		encodedpassword = urllib.quote_plus(password)
 		url = 'https://' + hostname + '/api/?type=keygen&user=' + encodedusername + '&password=' + encodedpassword
 		response = urllib2.urlopen(url).read()
-		self.ui.log_writer("normal", "Pulling API key using PAN credentials: " + username + "\\" + password + "\n")
+		self.filemgmt.logwriter("normal", "Pulling API key using PAN credentials: " + username + "\\" + password + "\n")
 		if 'success' in response:
-			self.ui.log_writer("normal", self.ui.color(response, self.ui.green) + "\n")
+			self.filemgmt.logwriter("normal", self.ui.color(response, self.ui.green) + "\n")
 			stripped1 = response.replace("<response status = 'success'><result><key>", "")
 			stripped2 = stripped1.replace("</key></result></response>", "")
 			pankey = stripped2
@@ -422,12 +449,12 @@ class palo_alto_firewall_interaction(object):
 	def push_uids(self, ipanduserdict, filelist):
 		xml_list = self.xml_formatter_v67(ipanduserdict)
 		urllist = self.xml_assembler_v67(xml_list)
-		self.ui.log_writer("normal", "Pushing the below IP : User mappings via " + str(len(urllist)) + " API calls")
+		self.filemgmt.logwriter("normal", "Pushing the below IP : User mappings via " + str(len(urllist)) + " API calls")
 		for entry in ipanduserdict:
-			self.ui.log_writer("normal", "IP Address: " + self.ui.color(entry, self.ui.cyan) + "\t\tUsername: " + self.ui.color(ipanduserdict[entry], self.ui.cyan))
+			self.filemgmt.logwriter("normal", "IP Address: " + self.ui.color(entry, self.ui.cyan) + "\t\tUsername: " + self.ui.color(ipanduserdict[entry], self.ui.cyan))
 		for eachurl in urllist:
 			response = urllib2.urlopen(eachurl).read()
-			self.ui.log_writer("normal", self.ui.color(response, self.ui.green) + "\n")
+			self.filemgmt.logwriter("normal", self.ui.color(response, self.ui.green) + "\n")
 		self.filemgmt.remove_files(filelist)
 
 
@@ -482,41 +509,41 @@ class radiuid_main_process(object):
 		parser.read(configfile)
 		logfile = parser.get('Paths_and_Files', 'logfile')
 		##### Initial log entry and help for anybody starting the .py program without first installing it #####
-		self.ui.log_writer("normal", "***********INITIAL WRITE TO THE LOG FILE: " + logfile + "...***********")
-		self.ui.log_writer("normal", "***********RADIUID INITIALIZING... IF PROGRAM FAULTS NOW, MAKE SURE YOU SUCCESSFULLY RAN THE INSTALLER ('python radiuid.py install')***********")
+		self.filemgmt.logwriter("normal", "***********INITIAL WRITE TO THE LOG FILE: " + logfile + "...***********")
+		self.filemgmt.logwriter("normal", "***********RADIUID INITIALIZING... IF PROGRAM FAULTS NOW, MAKE SURE YOU SUCCESSFULLY RAN THE INSTALLER ('python radiuid.py install')***********")
 		##### Suck in all variables from config file (only run when program is initially started, not during while loop) #####
-		self.ui.log_writer("normal", "***********INITIALIZING VARIABLES FROM CONFIG FILE: " + configfile + "...***********")
-		self.ui.log_writer("normal", "Initialized variable:" "\t" + "logfile" + "\t\t\t\t" + "with value:" + "\t" + self.ui.color(logfile, self.ui.green))
+		self.filemgmt.logwriter("normal", "***********INITIALIZING VARIABLES FROM CONFIG FILE: " + configfile + "...***********")
+		self.filemgmt.logwriter("normal", "Initialized variable:" "\t" + "logfile" + "\t\t\t\t" + "with value:" + "\t" + self.ui.color(logfile, self.ui.green))
 		radiuslogpath = parser.get('Paths_and_Files', 'radiuslogpath')
-		self.ui.log_writer("normal", "Initialized variable:" "\t" + "radiuslogpath" + "\t\t\t" + "with value:" + "\t" + self.ui.color(radiuslogpath, self.ui.green))
+		self.filemgmt.logwriter("normal", "Initialized variable:" "\t" + "radiuslogpath" + "\t\t\t" + "with value:" + "\t" + self.ui.color(radiuslogpath, self.ui.green))
 		hostname = parser.get('Palo_Alto_Target', 'hostname')
-		self.ui.log_writer("normal", "Initialized variable:" "\t" + "hostname" + "\t\t\t" + "with value:" + "\t" + self.ui.color(hostname, self.ui.green))
+		self.filemgmt.logwriter("normal", "Initialized variable:" "\t" + "hostname" + "\t\t\t" + "with value:" + "\t" + self.ui.color(hostname, self.ui.green))
 		panosversion = parser.get('Palo_Alto_Target', 'panosversion')
-		self.ui.log_writer("normal", "Initialized variable:" "\t" + "panosversion" + "\t\t\t" + "with value:" + "\t" + self.ui.color(panosversion, self.ui.green))
+		self.filemgmt.logwriter("normal", "Initialized variable:" "\t" + "panosversion" + "\t\t\t" + "with value:" + "\t" + self.ui.color(panosversion, self.ui.green))
 		panuser = parser.get('Palo_Alto_Target', 'username')
-		self.ui.log_writer("normal", "Initialized variable:" "\t" + "panuser" + "\t\t\t\t" + "with value:" + "\t" + self.ui.color(panuser, self.ui.green))
+		self.filemgmt.logwriter("normal", "Initialized variable:" "\t" + "panuser" + "\t\t\t\t" + "with value:" + "\t" + self.ui.color(panuser, self.ui.green))
 		panpassword = parser.get('Palo_Alto_Target', 'password')
-		self.ui.log_writer("normal", "Initialized variable:" "\t" + "panpassword" + "\t\t\t" + "with value:" + "\t" + self.ui.color(panpassword, self.ui.green))
+		self.filemgmt.logwriter("normal", "Initialized variable:" "\t" + "panpassword" + "\t\t\t" + "with value:" + "\t" + self.ui.color(panpassword, self.ui.green))
 		extrastuff = parser.get('URL_Stuff', 'extrastuff')
-		self.ui.log_writer("normal", "Initialized variable:" "\t" + "extrastuff" + "\t\t\t" + "with value:" + "\t" + self.ui.color(extrastuff, self.ui.green))
+		self.filemgmt.logwriter("normal", "Initialized variable:" "\t" + "extrastuff" + "\t\t\t" + "with value:" + "\t" + self.ui.color(extrastuff, self.ui.green))
 		ipaddressterm = parser.get('Search_Terms', 'ipaddressterm')
-		self.ui.log_writer("normal", "Initialized variable:" "\t" + "ipaddressterm" + "\t\t\t" + "with value:" + "\t" + self.ui.color(ipaddressterm, self.ui.green))
+		self.filemgmt.logwriter("normal", "Initialized variable:" "\t" + "ipaddressterm" + "\t\t\t" + "with value:" + "\t" + self.ui.color(ipaddressterm, self.ui.green))
 		usernameterm = parser.get('Search_Terms', 'usernameterm')
-		self.ui.log_writer("normal", "Initialized variable:" "\t" + "usernameterm" + "\t\t\t" + "with value:" + "\t" + self.ui.color(usernameterm, self.ui.green))
+		self.filemgmt.logwriter("normal", "Initialized variable:" "\t" + "usernameterm" + "\t\t\t" + "with value:" + "\t" + self.ui.color(usernameterm, self.ui.green))
 		delineatorterm = parser.get('Search_Terms', 'delineatorterm')
-		self.ui.log_writer("normal", "Initialized variable:" "\t" + "delineatorterm" + "\t\t\t" + "with value:" + "\t" + self.ui.color(delineatorterm, self.ui.green))
+		self.filemgmt.logwriter("normal", "Initialized variable:" "\t" + "delineatorterm" + "\t\t\t" + "with value:" + "\t" + self.ui.color(delineatorterm, self.ui.green))
 		userdomain = parser.get('UID_Settings', 'userdomain')
-		self.ui.log_writer("normal", "Initialized variable:" "\t" + "userdomain" + "\t\t\t" + "with value:" + "\t" + self.ui.color(userdomain, self.ui.green))
+		self.filemgmt.logwriter("normal", "Initialized variable:" "\t" + "userdomain" + "\t\t\t" + "with value:" + "\t" + self.ui.color(userdomain, self.ui.green))
 		timeout = parser.get('UID_Settings', 'timeout')
-		self.ui.log_writer("normal", "Initialized variable:" "\t" + "timeout" + "\t\t\t\t" + "with value:" + "\t" + self.ui.color(timeout, self.ui.green))
+		self.filemgmt.logwriter("normal", "Initialized variable:" "\t" + "timeout" + "\t\t\t\t" + "with value:" + "\t" + self.ui.color(timeout, self.ui.green))
 		##### Explicitly pull PAN key now and store API key in the main namespace #####
-		self.ui.log_writer("normal", "***********************************CONNECTING TO PALO ALTO FIREWALL TO EXTRACT THE API KEY...***********************************")
-		self.ui.log_writer("normal", "********************IF PROGRAM FREEZES/FAILS RIGHT NOW, THEN THERE IS LIKELY A COMMUNICATION PROBLEM WITH THE FIREWALL********************")
+		self.filemgmt.logwriter("normal", "***********************************CONNECTING TO PALO ALTO FIREWALL TO EXTRACT THE API KEY...***********************************")
+		self.filemgmt.logwriter("normal", "********************IF PROGRAM FREEZES/FAILS RIGHT NOW, THEN THERE IS LIKELY A COMMUNICATION PROBLEM WITH THE FIREWALL********************")
 		global pankey
 		pankey = self.pafi.pull_api_key(panuser, panpassword)
-		self.ui.log_writer("normal", "Initialized variable:" "\t" + "pankey" + "\t\t\t\t" + "with value:" + "\t" + pankey)
-		self.ui.log_writer("normal", "*******************************************CONFIG FILE SETTINGS INITIALIZED*******************************************")
-		self.ui.log_writer("normal", "***********************************RADIUID SERVER STARTING WITH INITIALIZED VARIABLES...******************************")
+		self.filemgmt.logwriter("normal", "Initialized variable:" "\t" + "pankey" + "\t\t\t\t" + "with value:" + "\t" + pankey)
+		self.filemgmt.logwriter("normal", "*******************************************CONFIG FILE SETTINGS INITIALIZED*******************************************")
+		self.filemgmt.logwriter("normal", "***********************************RADIUID SERVER STARTING WITH INITIALIZED VARIABLES...******************************")
 	##### RadiUID looper method which initializes the namespace with config variables and loops the main RadiUID program #####
 	def looper(self):
 		configfile = self.filemgmt.find_config("noisy")
@@ -1013,10 +1040,384 @@ class installer_maintenance_utility(object):
 
 
 
-imu = installer_maintenance_utility()
-imu.im_utility()
-
-#radiuid = radiuid_main_process()
-#radiuid.looper()
 
 
+#########################################################################
+#################### RADIUID COMMAND LINE INTERPRETER ###################
+#########################################################################
+####### Contains the code which interprets arguments to the shell #######
+#######       and runs the proper part of code in the source      #######
+#########################################################################
+class command_line_interpreter(object):
+	def __init__(self):
+		##### Instantiate external object dependencies #####
+		self.ui = user_interface()
+		self.radiuid = radiuid_main_process()
+		self.imu = installer_maintenance_utility()
+		self.imum = imu_methods()
+		self.filemgmt = file_management()
+		####################################################
+	##### Create str sentence out of list seperated by spaces and lowercase everything #####
+	##### Used for recognizing arguments when running RadiUID from the CLI #####
+	def cat_list(self, listname):
+		result = ""
+		counter = 0
+		#listlen = len(listname)
+		for word in listname:
+			result = result + listname[counter].lower() + " "
+			counter = counter + 1
+		result = result[:len(result) - 1:]
+		return result
+	######################### RadiUID Command Interpreter #############################
+	def interpreter(self):
+		arguments = self.cat_list(sys.argv[1:])
+		######################### RUN #############################
+		if arguments == "run":
+			self.radiuid.looper()
+		######################### INSTALL #############################
+		elif arguments == "install":
+			self.filemgmt.logwriter("cli-noconsole", "##### COMMAND '" + arguments + "' ISSUED FROM CLI BY USER '" + self.imum.currentuser()+ "' #####")
+			print "\n\n\n"
+			self.imu.im_utility()
+		######################### SHOW #############################
+		elif arguments == "show" or arguments == "show ?":
+			print "\n - show log         |     Show the RadiUID log file"
+			print " - show run         |     Show the RadiUID config file"
+			print " - show config      |     Show the RadiUID config file"
+			print " - show clients     |     Show the FreeRADIUS client config file"
+			print " - show status      |     Show the RadiUID and FreeRADIUS service statuses"
+		elif arguments == "show log":
+			self.filemgmt.logwriter("cli", "##### COMMAND '" + arguments + "' ISSUED FROM CLI BY USER '" + self.imum.currentuser()+ "' #####")
+			self.filemgmt.get_logfile()
+			configfile = self.filemgmt.find_config("quiet")
+			header = "########################## OUTPUT FROM FILE " + logfile + " ##########################"
+			print self.ui.color(header, self.ui.magenta)
+			print self.ui.color("#" * len(header), self.ui.magenta)
+			os.system("more " + logfile)
+			print self.ui.color("#" * len(header), self.ui.magenta)
+			print self.ui.color("#" * len(header), self.ui.magenta)
+		elif arguments == "show run":
+			self.filemgmt.logwriter("cli", "##### COMMAND '" + arguments + "' ISSUED FROM CLI BY USER '" + self.imum.currentuser()+ "' #####")
+			self.filemgmt.get_logfile()
+			configfile = self.filemgmt.find_config("quiet")
+			header = "########################## OUTPUT FROM FILE " + configfile + " ##########################"
+			print self.ui.color(header, self.ui.magenta)
+			print self.ui.color("#" * len(header), self.ui.magenta)
+			os.system("more " + configfile)
+			print self.ui.color("#" * len(header), self.ui.magenta)
+			print self.ui.color("#" * len(header), self.ui.magenta)
+		elif arguments == "show config":
+			self.filemgmt.logwriter("cli", "##### COMMAND '" + arguments + "' ISSUED FROM CLI BY USER '" + self.imum.currentuser()+ "' #####")
+			self.filemgmt.get_logfile()
+			configfile = self.filemgmt.find_config("quiet")
+			header = "########################## OUTPUT FROM FILE " + configfile + " ##########################"
+			print self.ui.color(header, self.ui.magenta)
+			print self.ui.color("#" * len(header), self.ui.magenta)
+			os.system("more " + configfile)
+			print self.ui.color("#" * len(header), self.ui.magenta)
+			print self.ui.color("#" * len(header), self.ui.magenta)
+		elif arguments == "show clients":
+			self.filemgmt.logwriter("cli", "##### COMMAND '" + arguments + "' ISSUED FROM CLI BY USER '" + self.imum.currentuser()+ "' #####")
+			self.filemgmt.get_logfile()
+			configfile = self.filemgmt.find_config("quiet")
+			header = "########################## OUTPUT FROM FILE /etc/raddb/clients.conf ##########################"
+			print self.ui.color(header, self.ui.magenta)
+			print self.ui.color("#" * len(header), self.ui.magenta)
+			os.system("more /etc/raddb/clients.conf")
+			print self.ui.color("#" * len(header), self.ui.magenta)
+			print self.ui.color("#" * len(header), self.ui.magenta)
+		elif arguments == "show status":
+			self.filemgmt.logwriter("cli", "##### COMMAND '" + arguments + "' ISSUED FROM CLI BY USER '" + self.imum.currentuser()+ "' #####")
+			header = "########################## OUTPUT FROM COMMAND: 'systemctl status radiuid' ##########################"
+			print self.ui.color(header, self.ui.magenta)
+			print self.ui.color("#" * len(header), self.ui.magenta)
+			os.system("systemctl status radiuid")
+			print self.ui.color("#" * len(header), self.ui.magenta)
+			print self.ui.color("#" * len(header), self.ui.magenta)
+			serviceinstalled = self.imum.check_service_installed("radiuid")
+			if serviceinstalled == "no":
+				print self.ui.color("\n\n********** RADIUID IS NOT INSTALLED YET **********\n\n", self.ui.yellow)
+			elif serviceinstalled == "yes":
+				checkservice = self.imum.check_service_running("radiuid")
+				if checkservice == "yes":
+					print self.ui.color("\n\n********** RADIUID IS CURRENTLY RUNNING **********\n\n", self.ui.green)
+				elif checkservice == "no":
+					print self.ui.color("\n\n********** RADIUID IS CURRENTLY NOT RUNNING **********\n\n", self.ui.yellow)
+			header = "########################## OUTPUT FROM COMMAND: 'systemctl status radiusd' ##########################"
+			print self.ui.color(header, self.ui.magenta)
+			print self.ui.color("#" * len(header), self.ui.magenta)
+			os.system("systemctl status radiusd")
+			print self.ui.color("#" * len(header), self.ui.magenta)
+			print self.ui.color("#" * len(header), self.ui.magenta)
+			serviceinstalled = self.imum.check_service_installed("radiusd")
+			if serviceinstalled == "no":
+				print self.ui.color("\n\n********** FREERADIUS IS NOT INSTALLED YET **********\n\n", self.ui.yellow)
+			elif serviceinstalled == "yes":
+				checkservice = self.imum.check_service_running("radiusd")
+				if checkservice == "yes":
+					print self.ui.color("\n\n********** FREERADIUS IS CURRENTLY RUNNING **********\n\n", self.ui.green)
+				elif checkservice == "no":
+					print self.ui.color("\n\n********** FREERADIUS IS CURRENTLY NOT RUNNING **********\n\n", self.ui.yellow)
+		######################### TAIL #############################
+		elif arguments == "tail" or arguments == "tail ?":
+			print "\n - tail log         |     Watch the RadiUID log file in real time\n"
+		elif arguments == "tail log":
+			self.filemgmt.logwriter("cli", "##### COMMAND '" + arguments + "' ISSUED FROM CLI BY USER '" + self.imum.currentuser()+ "' #####")
+			self.filemgmt.get_logfile()
+			configfile = self.filemgmt.find_config("quiet")
+			header = "########################## OUTPUT FROM FILE " + logfile + " ##########################"
+			print self.ui.color(header, self.ui.magenta)
+			print self.ui.color("#" * len(header), self.ui.magenta)
+			os.system("tail -fn 25 " + logfile)
+			print self.ui.color("#" * len(header), self.ui.magenta)
+			print self.ui.color("#" * len(header), self.ui.magenta)
+		######################### CLEAR #############################
+		elif arguments == "clear" or arguments == "clear ?":
+			print "\n - clear log         |     Delete the content in the log file\n"
+		elif arguments == "clear log":
+			self.filemgmt.get_logfile()
+			configfile = self.filemgmt.find_config("quiet")
+			print self.ui.color("********************* You are about to clear out the RadiUID log file... (" + logfile + ") ********************", self.ui.yellow)
+			raw_input("Hit CTRL-C to quit. Hit ENTER to continue\n>>>>>")
+			os.system("rm -f "+ logfile)
+			self.filemgmt.write_file(logfile, "***********Logfile cleared via RadiUID command by " + self.imum.currentuser() + "***********\n")
+			print self.ui.color("********************* Cleared logfile: " + logfile + " ********************", self.ui.yellow)
+		######################### EDIT #############################
+		elif arguments == "edit" or arguments == "edit ?":
+			print "\n - edit config      |     Edit the RadiUID config file"
+			print " - edit clients     |     Edit list of client IPs for FreeRADIUS\n"
+		elif arguments == "edit config":
+			self.filemgmt.logwriter("cli", "##### COMMAND '" + arguments + "' ISSUED FROM CLI BY USER '" + self.imum.currentuser()+ "' #####")
+			self.filemgmt.get_logfile()
+			configfile = self.filemgmt.find_config("quiet")
+			print self.ui.color("****************** You are about to edit the RadiUID config file in VI ******************", self.ui.yellow)
+			print self.ui.color("********************* Confirm that you know how to use the VI editor ********************", self.ui.yellow)
+			raw_input("Hit CTRL-C to quit. Hit ENTER to continue\n>>>>>")
+			os.system("vi " + configfile)
+		elif arguments == "edit clients":
+			self.filemgmt.logwriter("cli", "##### COMMAND '" + arguments + "' ISSUED FROM CLI BY USER '" + self.imum.currentuser()+ "' #####")
+			print self.ui.color("****************** You are about to edit the FreeRADIUS client file in VI ******************", self.ui.yellow)
+			print self.ui.color("*********************** Confirm that you know how to use the VI editor ********************", self.ui.yellow)
+			raw_input("Hit CTRL-C to quit. Hit ENTER to continue\n>>>>>")
+			os.system("vi /etc/raddb/clients.conf")
+		######################### RADIUID SERVICE CONTROL #############################
+		elif arguments == "start" or arguments == "start ?":
+			print "\n - start radiuid       |     Start the RadiUID system service"
+			print " - start freeradius    |     Start the FreeRADIUS system service"
+			print " - start all           |     Start the RadiUID and FreeRADIUS system services"
+		elif arguments == "stop" or arguments == "stop ?":
+			print "\n - stop radiuid        |     Stop the RadiUID system service"
+			print " - stop freeradius     |     Stop the FreeRADIUS system service"
+			print " - stop all            |     Stop the RadiUID and FreeRADIUS system services"
+		elif arguments == "restart" or arguments == "restart ?":
+			print "\n - restart radiuid     |     Restart the RadiUID system service"
+			print " - restart freeradius  |     Restart the FreeRADIUS system service"
+			print " - restart all         |     Restart the RadiUID and FreeRADIUS system services"
+		elif arguments == "start radiuid":
+			self.filemgmt.logwriter("cli", "##### COMMAND '" + arguments + "' ISSUED FROM CLI BY USER '" + self.imum.currentuser()+ "' #####")
+			os.system("systemctl start radiuid")
+			os.system("systemctl status radiuid")
+			checkservice = self.imum.check_service_running("radiuid")
+			if checkservice == "yes":
+				print self.ui.color("\n\n********** RADIUID SUCCESSFULLY STARTED UP! **********\n\n", self.ui.green)
+			elif checkservice == "no":
+				print self.ui.color("\n\n********** RADIUID STARTUP UNSUCCESSFUL. SOMETHING MUST BE WRONG... **********\n\n", red)
+		elif arguments == "stop radiuid":
+			self.filemgmt.logwriter("cli", "##### COMMAND '" + arguments + "' ISSUED FROM CLI BY USER '" + self.imum.currentuser()+ "' #####")
+			header = "########################## CURRENT RADIUID SERVICE STATUS ##########################"
+			print self.ui.color(header, self.ui.magenta)
+			print self.ui.color("#" * len(header), self.ui.magenta)
+			os.system("systemctl status radiuid")
+			print self.ui.color("\n\n***** ARE YOU SURE YOU WANT TO STOP IT?", self.ui.yellow)
+			raw_input(self.ui.color("\n\nHit CTRL-C to quit. Hit ENTER to continue\n>>>>>", self.ui.cyan))
+			os.system("systemctl stop radiuid")
+			os.system("systemctl status radiuid")
+			print self.ui.color("\n\n********** RADIUID STOPPED **********\n\n", self.ui.yellow)
+		elif arguments == "restart radiuid":
+			self.filemgmt.logwriter("cli", "##### COMMAND '" + arguments + "' ISSUED FROM CLI BY USER '" + self.imum.currentuser()+ "' #####")
+			header = "########################## CURRENT RADIUID SERVICE STATUS ##########################"
+			print self.ui.color(header, self.ui.magenta)
+			print self.ui.color("#" * len(header), self.ui.magenta)
+			os.system("systemctl status radiuid")
+			print self.ui.color("\n\n***** ARE YOU SURE YOU WANT TO RESTART IT?", self.ui.yellow)
+			raw_input(self.ui.color("\n\nHit CTRL-C to quit. Hit ENTER to continue\n>>>>>", self.ui.cyan))
+			os.system("systemctl stop radiuid")
+			os.system("systemctl status radiuid")
+			print self.ui.color("\n\n********** RADIUID STOPPED **********\n\n", self.ui.yellow)
+			self.ui.progress("Preparing to Start Up:", 2)
+			print "\n\n\n"
+			os.system("systemctl start radiuid")
+			os.system("systemctl status radiuid")
+			checkservice = self.imum.check_service_running("radiuid")
+			if checkservice == "yes":
+				print self.ui.color("\n\n********** RADIUID SUCCESSFULLY RESTARTED! **********\n\n", self.ui.green)
+			elif checkservice == "no":
+				print self.ui.color("\n\n********** RADIUID STARTUP UNSUCCESSFUL. SOMETHING MUST BE WRONG... **********\n\n", red)
+		######################### FREERADIUS SERVICE CONTROL #############################
+		elif arguments == "start freeradius":
+			self.filemgmt.logwriter("cli", "##### COMMAND '" + arguments + "' ISSUED FROM CLI BY USER '" + self.imum.currentuser()+ "' #####")
+			os.system("systemctl start radiusd")
+			os.system("systemctl status radiusd")
+			checkservice = self.imum.check_service_running("radiusd")
+			if checkservice == "yes":
+				print self.ui.color("\n\n********** FREERADIUS SUCCESSFULLY STARTED UP! **********\n\n", self.ui.green)
+			elif checkservice == "no":
+				print self.ui.color("\n\n********** FREERADIUS STARTUP UNSUCCESSFUL. SOMETHING MUST BE WRONG... **********\n\n", red)
+		elif arguments == "stop freeradius":
+			self.filemgmt.logwriter("cli", "##### COMMAND '" + arguments + "' ISSUED FROM CLI BY USER '" + self.imum.currentuser()+ "' #####")
+			header = "########################## CURRENT FREERADIUS SERVICE STATUS ##########################"
+			print self.ui.color(header, self.ui.magenta)
+			print self.ui.color("#" * len(header), self.ui.magenta)
+			os.system("systemctl status radiusd")
+			print self.ui.color("\n\n***** ARE YOU SURE YOU WANT TO STOP IT?", self.ui.yellow)
+			raw_input(self.ui.color("\n\nHit CTRL-C to quit. Hit ENTER to continue\n>>>>>", self.ui.cyan))
+			os.system("systemctl stop radiusd")
+			os.system("systemctl status radiusd")
+			print self.ui.color("\n\n********** FREERADIUS STOPPED **********\n\n", self.ui.yellow)
+		elif arguments == "restart freeradius":
+			self.filemgmt.logwriter("cli", "##### COMMAND '" + arguments + "' ISSUED FROM CLI BY USER '" + self.imum.currentuser()+ "' #####")
+			header = "########################## CURRENT FREERADIUS SERVICE STATUS ##########################"
+			print self.ui.color(header, self.ui.magenta)
+			print self.ui.color("#" * len(header), self.ui.magenta)
+			os.system("systemctl status radiusd")
+			print self.ui.color("\n\n***** ARE YOU SURE YOU WANT TO RESTART IT?", self.ui.yellow)
+			raw_input(self.ui.color("\n\nHit CTRL-C to quit. Hit ENTER to continue\n>>>>>", self.ui.cyan))
+			os.system("systemctl stop radiusd")
+			os.system("systemctl status radiusd")
+			print self.ui.color("\n\n********** FREERADIUS STOPPED **********\n\n", self.ui.yellow)
+			self.ui.progress("Preparing to Start Up:", 2)
+			print "\n\n\n"
+			os.system("systemctl start radiusd")
+			os.system("systemctl status radiusd")
+			checkservice = self.imum.check_service_running("radiusd")
+			if checkservice == "yes":
+				print self.ui.color("\n\n********** FREERADIUS SUCCESSFULLY RESTARTED! **********\n\n", self.ui.green)
+			elif checkservice == "no":
+				print self.ui.color("\n\n********** FREERADIUS STARTUP UNSUCCESSFUL. SOMETHING MUST BE WRONG... **********\n\n", red)
+		######################### COMBINED SERVICE CONTROL #############################
+		elif arguments == "start all":
+			self.filemgmt.logwriter("cli", "##### COMMAND '" + arguments + "' ISSUED FROM CLI BY USER '" + self.imum.currentuser()+ "' #####")
+			os.system("systemctl start radiusd")
+			os.system("systemctl status radiusd")
+			checkservice = self.imum.check_service_running("radiusd")
+			if checkservice == "yes":
+				print self.ui.color("\n\n********** FREERADIUS SUCCESSFULLY STARTED UP! **********\n\n", self.ui.green)
+			elif checkservice == "no":
+				print self.ui.color("\n\n********** FREERADIUS STARTUP UNSUCCESSFUL. SOMETHING MUST BE WRONG... **********\n\n", red)
+			print "\n\n\n"
+			os.system("systemctl start radiuid")
+			os.system("systemctl status radiuid")
+			checkservice = self.imum.check_service_running("radiuid")
+			if checkservice == "yes":
+				print self.ui.color("\n\n********** RADIUID SUCCESSFULLY STARTED UP! **********\n\n", self.ui.green)
+			elif checkservice == "no":
+				print self.ui.color("\n\n********** RADIUID STARTUP UNSUCCESSFUL. SOMETHING MUST BE WRONG... **********\n\n", red)
+		elif arguments == "stop all":
+			self.filemgmt.logwriter("cli", "##### COMMAND '" + arguments + "' ISSUED FROM CLI BY USER '" + self.imum.currentuser()+ "' #####")
+			header = "########################## CURRENT RADIUID SERVICE STATUS ##########################"
+			print self.ui.color(header, self.ui.magenta)
+			print self.ui.color("#" * len(header), self.ui.magenta)
+			os.system("systemctl status radiuid")
+			header = "########################## CURRENT FREERADIUS SERVICE STATUS ##########################"
+			print self.ui.color(header, self.ui.magenta)
+			print self.ui.color("#" * len(header), self.ui.magenta)
+			os.system("systemctl status radiusd")
+			print self.ui.color("\n\n***** ARE YOU SURE YOU WANT TO ALL SERVICES?", self.ui.yellow)
+			raw_input(self.ui.color("\n\nHit CTRL-C to quit. Hit ENTER to continue\n>>>>>", self.ui.cyan))
+			os.system("systemctl stop radiuid")
+			os.system("systemctl status radiuid")
+			print self.ui.color("\n\n********** RADIUID STOPPED **********\n\n", self.ui.yellow)
+			print "\n\n\n"
+			os.system("systemctl stop radiusd")
+			os.system("systemctl status radiusd")
+			print self.ui.color("\n\n********** FREERADIUS STOPPED **********\n\n", self.ui.yellow)
+		elif arguments == "restart all":
+			self.filemgmt.logwriter("cli", "##### COMMAND '" + arguments + "' ISSUED FROM CLI BY USER '" + self.imum.currentuser()+ "' #####")
+			header = "########################## CURRENT RADIUID SERVICE STATUS ##########################"
+			print self.ui.color(header, self.ui.magenta)
+			print self.ui.color("#" * len(header), self.ui.magenta)
+			os.system("systemctl status radiuid")
+			header = "########################## CURRENT FREERADIUS SERVICE STATUS ##########################"
+			print self.ui.color(header, self.ui.magenta)
+			print self.ui.color("#" * len(header), self.ui.magenta)
+			os.system("systemctl status radiusd")
+			print self.ui.color("\n\n***** ARE YOU SURE YOU WANT TO RESTART SERVICES?", self.ui.yellow)
+			raw_input(self.ui.color("\n\nHit CTRL-C to quit. Hit ENTER to continue\n>>>>>", self.ui.cyan))
+			os.system("systemctl stop radiuid")
+			os.system("systemctl status radiuid")
+			print self.ui.color("\n\n********** RADIUID STOPPED **********\n\n", self.ui.yellow)
+			self.ui.progress("Preparing to Start Up:", 2)
+			print "\n\n\n"
+			os.system("systemctl start radiuid")
+			os.system("systemctl status radiuid")
+			checkservice = self.imum.check_service_running("radiuid")
+			if checkservice == "yes":
+				print self.ui.color("\n\n********** RADIUID SUCCESSFULLY RESTARTED! **********\n\n", self.ui.green)
+			elif checkservice == "no":
+				print self.ui.color("\n\n********** RADIUID STARTUP UNSUCCESSFUL. SOMETHING MUST BE WRONG... **********\n\n", red)
+			os.system("systemctl stop radiusd")
+			os.system("systemctl status radiusd")
+			print self.ui.color("\n\n********** FREERADIUS STOPPED **********\n\n", self.ui.yellow)
+			self.ui.progress("Preparing to Start Up:", 2)
+			print "\n\n\n"
+			os.system("systemctl start radiusd")
+			os.system("systemctl status radiusd")
+			checkservice = self.imum.check_service_running("radiusd")
+			if checkservice == "yes":
+				print self.ui.color("\n\n********** FREERADIUS SUCCESSFULLY RESTARTED! **********\n\n", self.ui.green)
+			elif checkservice == "no":
+				print self.ui.color("\n\n********** FREERADIUS STARTUP UNSUCCESSFUL. SOMETHING MUST BE WRONG... **********\n\n", red)
+		######################### VERSION #############################
+		elif arguments == "version":
+			self.filemgmt.logwriter("cli", "##### COMMAND '" + arguments + "' ISSUED FROM CLI BY USER '" + self.imum.currentuser()+ "' #####")
+			header = "########################## CURRENT RADIUID AND FREERADIUS VERSIONS ##########################"
+			print self.ui.color(header, self.ui.magenta)
+			print "------------------------------------------ RADIUID -------------------------------------------"
+			print "***** Currently running RadiUID "+ self.ui.color(version, self.ui.green) + " *****"
+			print "----------------------------------------------------------------------------------------------\n"
+			print "----------------------------------------- FREERADIUS -----------------------------------------"
+			os.system("radiusd -v | grep ersion")
+			print "----------------------------------------------------------------------------------------------\n"
+			print self.ui.color("#" * len(header), self.ui.magenta)
+			print self.ui.color("#" * len(header), self.ui.magenta)
+		######################### GUIDE #############################
+		else:
+			print self.ui.color("\n\n\n########################## Below are the supported RadiUID Commands: ##########################", self.ui.magenta)
+			print self.ui.color("###############################################################################################\n\n", self.ui.magenta)
+			print "----------------------------------------------------------------------------------------------"
+			print " - run                 |     Run the RadiUID main program in shell mode begin pushing User-ID information"
+			print "----------------------------------------------------------------------------------------------\n"
+			print " - install             |     Run the RadiUID Install/Maintenance Utility"
+			print "----------------------------------------------------------------------------------------------\n"
+			print " - show log            |     Show the RadiUID log file"
+			print " - show run            |     Show the RadiUID config file"
+			print " - show config         |     Show the RadiUID config file"
+			print " - show clients        |     Show the FreeRADIUS client config file"
+			print " - show status         |     Show the RadiUID and FreeRADIUS service statuses"
+			print "----------------------------------------------------------------------------------------------\n"
+			print " - tail log            |     Watch the RadiUID log file in real time"
+			print "----------------------------------------------------------------------------------------------\n"
+			print " - clear log           |     Delete the content in the log file"
+			print "----------------------------------------------------------------------------------------------\n"
+			print " - edit config         |     Edit the RadiUID config file"
+			print " - edit clients        |     Edit list of client IPs for FreeRADIUS"
+			print "----------------------------------------------------------------------------------------------\n"
+			print " - start radiuid       |     Start the RadiUID system service"
+			print " - stop radiuid        |     Stop the RadiUID system service"
+			print " - restart radiuid     |     Restart the RadiUID system service"
+			print "----------------------------------------------------------------------------------------------\n"
+			print " - start freeradius    |     Start the FreeRADIUS system service"
+			print " - stop freeradius     |     Stop the FreeRADIUS system service"
+			print " - restart freeradius  |     Restart the FreeRADIUS system service"
+			print "----------------------------------------------------------------------------------------------\n"
+			print " - start all           |     Start the RadiUID and FreeRADIUS system services"
+			print " - stop all            |     Stop the RadiUID and FreeRADIUS system services"
+			print " - restart all         |     Restart the RadiUID and FreeRADIUS system services"
+			print "----------------------------------------------------------------------------------------------\n"
+			print " - version             |     Show the current version of RadiUID and FreeRADIUS"
+			print "----------------------------------------------------------------------------------------------\n\n\n"
+
+
+if __name__ == "__main__":
+	cli = command_line_interpreter()
+	cli.interpreter()
