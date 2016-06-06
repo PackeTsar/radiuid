@@ -286,13 +286,13 @@ class file_management(object):
 				elif self.file_exists(logfile) == "yes":
 					self.logwriter_core(logfile, input)
 					print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + input + "\n"
-		if mode == "quietfail":
+		if mode == "quiet":
 			configfile = self.find_config("quiet")
 			if configfile != "CHOOSERFAIL":
 				self.get_logfile()
 				if self.file_exists(logfile) == "yes":
 					self.logwriter_core(logfile, input)
-					print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + input + "\n"
+					# no printing to console
 
 
 
@@ -1072,7 +1072,7 @@ class command_line_interpreter(object):
 			self.radiuid.looper()
 		######################### INSTALL #############################
 		elif arguments == "install":
-			self.filemgmt.logwriter("quietfail", "##### COMMAND '" + arguments + "' ISSUED FROM CLI BY USER '" + self.imum.currentuser()+ "' #####")
+			self.filemgmt.logwriter("quiet", "##### COMMAND '" + arguments + "' ISSUED FROM CLI BY USER '" + self.imum.currentuser()+ "' #####")
 			print "\n\n\n"
 			self.imu.im_utility()
 		######################### SHOW #############################
