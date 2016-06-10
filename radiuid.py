@@ -12,7 +12,7 @@ import time
 import urllib
 import urllib2
 import commands
-import ConfigParser
+import xml.etree.ElementTree
 
 ##### Inform RadiUID version here #####
 version = "dev2.0.0"
@@ -293,6 +293,111 @@ class file_management(object):
 				if self.file_exists(logfile) == "yes":
 					self.logwriter_core(logfile, input)
 					# no printing to console
+
+
+
+
+
+
+#########################################################################
+############################ CONFIGURATOR CLASS #########################
+#########################################################################
+#######                 Used to read/edit/write/show              #######
+#######            the configuration from the config file         #######
+#########################################################################
+class configurator(object):
+	##### Initiate the object by reading in config file, pulling out comment (for use later by save_config), and parsing to element tree #####
+	##### All methods in this class rely on searching/writing to/parsing the element tree "self.root" #####
+	def __init__(self):
+		with open('radiuidnew.conf', 'r') as self.filetext:
+			self.xmldata = self.filetext.read()
+		self.regex = "(?s)<!--.*-->"
+		self.configcomment = re.findall(self.regex, self.xmldata, flags=0)[0]
+		self.cleanedxml = self.xmldata.replace(self.configcomment, "")
+		self.root = xml.etree.ElementTree.fromstring(self.cleanedxml)
+	##### Publish all settings to variables in the global namespace for use by other processes #####
+	##### All variables are set to strings with the exception of the targets, which is a list of dictionary items #####
+	def publish_config(self):
+		##### Suck config values into a dictionary #####
+		configdict = self.tinyxml2dict_starter()
+		##### Publish individual global settings values variables in main namespace #####
+		global radiuslogpath
+		global logfile
+		global userdomain
+		global timeout
+		global ipaddressterm
+		global usernameterm
+		global delineatorterm
+		logfile = configdict['globalsettings']['paths']['logfile']
+		radiuslogpath = configdict['globalsettings']['paths']['radiuslogpath']
+		userdomain = configdict['globalsettings']['uidsettings']['userdomain']
+		timeout = configdict['globalsettings']['uidsettings']['timeout']
+		ipaddressterm = configdict['globalsettings']['searchterms']['ipaddressterm']
+		usernameterm = configdict['globalsettings']['searchterms']['usernameterm']
+		delineatorterm = configdict['globalsettings']['searchterms']['delineatorterm']
+		##### Publish list of firewall targets into main namespace #####
+		global targets
+		targets = configdict['targets']['target']
+	##### Show XML formatted configuration item #####
+	def show_config_item(self, itemname):
+		for value in self.root.iter(itemname):
+			xmldata = xml.etree.ElementTree.tostring(value, encoding="us-ascii", method="xml")
+			regexnewline = "\n.*[a-z]"
+			newline = re.findall(regexnewline, xmldata, flags=0)
+			if len(newline) > 0:
+				regexlastline = ".*</%s>" % itemname
+				#print regexlastline
+				regexlastelement = "</%s>" % itemname
+				lastline = re.findall(regexlastline, xmldata, flags=0)[0]
+				#print lastline
+				lastelement = re.findall(regexlastelement, xmldata, flags=0)[0]
+				#print lastelement
+				indent = lastline.replace(lastelement, "")
+				print indent + xmldata
+			else:
+				print "\t\t" + xmldata
+	##### Pull individual configuration item and return to calling function #####
+	def get_globalconfig_item(self, elementname):
+		for value in self.root.iter(elementname):
+			return str(value.text)
+	##### Change individual configuration item to a different value #####
+	##### Do not use for targets. Only global settings #####
+	def change_config_item(self, itemname, newvalue):
+		for value in self.root.iter(itemname):
+			print "changed " + itemname + " from " + value.text + " to " + newvalue
+			value.text = newvalue
+	##### Recombine comment and XML config data into single string and write to config file #####
+	def save_config(self):
+		self.newconfig = self.configcomment + "\n" + xml.etree.ElementTree.tostring(self.root)
+		f = open("radiuidnew.conf", 'w')
+		f.write(self.newconfig)
+		f.close()
+	##### Basic XML to Dict converter used to pull configuration info from the config file #####
+	def tinyxml2dict(self, node):
+		if "\n" not in node.text:
+			result = node.text
+		else:
+			result = dict()
+			for child in node:
+				if child.tag not in result.keys():
+					result[child.tag] = self.tinyxml2dict(child)
+				else:
+					if type(result[child.tag]) != type([]):
+						result[child.tag] = [result[child.tag], self.tinyxml2dict(child)]
+					else:
+						result[child.tag].append(self.tinyxml2dict(child))
+		return result
+	##### Simple starter method for the XML to Dict conversion process #####
+	def tinyxml2dict_starter(self):
+		return self.tinyxml2dict(self.root)
+
+
+
+
+
+
+
+
 
 
 
