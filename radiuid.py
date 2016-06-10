@@ -19,7 +19,7 @@ version = "dev2.0.0"
 
 ##### Set default config file location #####
 etcconfigfile = '/etc/radiuid/radiuid.conf'
-
+extrastuff = '&type=user-id&vsys=vsys1&cmd='
 
 
 
@@ -127,6 +127,23 @@ class user_interface(object):
 
 
 #########################################################################
+############################ CONFIGURATOR CLASS #########################
+#########################################################################
+#######                 Used to read/edit/write/show              #######
+#######            the configuration from the config file         #######
+#########################################################################
+class configurator(object):
+	def __init__(self):
+		##### Instantiate external object dependencies #####
+		self.ui = user_interface()
+
+
+
+
+
+
+
+#########################################################################
 ########################## FILE MANAGEMENT CLASS ########################
 #########################################################################
 #######     Used by the main RadiUID methods to for changing,     #######
@@ -160,6 +177,20 @@ class file_management(object):
 		resultlist.append(filepath)
 		resultlist.append(filename)
 		return resultlist
+	##### Simple two-choice logic method to pick a preferred input over another #####
+	##### Used to decide whether to use the radiuid.conf file in the 'etc' location, or the one in the local working directory #####
+	def file_chooser(self, firstchoice, secondchoice):
+		firstexists = self.file_exists(firstchoice)
+		secondexists = self.file_exists(secondchoice)
+		if firstexists == "yes" and secondexists == "yes":
+			return firstchoice
+		if firstexists == "yes" and secondexists == "no":
+			return firstchoice
+		if firstexists == "no" and secondexists == "yes":
+			return secondchoice
+		if firstexists == "no" and secondexists == "no":
+			return "CHOOSERFAIL"
+			quit()
 	#######################################################
 	#######        File Manipulation Methods        #######
 	#######         Direct File Interaction         #######
@@ -206,20 +237,6 @@ class file_management(object):
 			else:
 				exists = "yes"
 		return exists
-	##### Simple two-choice logic method to pick a preferred input over another #####
-	##### Used to decide whether to use the radiuid.conf file in the 'etc' location, or the one in the local working directory #####
-	def file_chooser(self, firstchoice, secondchoice):
-		firstexists = self.file_exists(firstchoice)
-		secondexists = self.file_exists(secondchoice)
-		if firstexists == "yes" and secondexists == "yes":
-			return firstchoice
-		if firstexists == "yes" and secondexists == "no":
-			return firstchoice
-		if firstexists == "no" and secondexists == "yes":
-			return secondchoice
-		if firstexists == "no" and secondexists == "no":
-			return "CHOOSERFAIL"
-			quit()
 	##### Get the current working directory #####
 	##### Used when radiuid.py is run manually using the 'python radiuid.py <arg>' to get the working directory to help find the config file #####
 	def get_working_directory(self):
@@ -246,13 +263,6 @@ class file_management(object):
 		else:
 			print "Need to set mode for find_config to 'noisy' or 'quiet'"
 			quit()
-	##### Pull logfile location from configfile #####
-	def get_logfile(self):
-		configfile = self.find_config("quiet")
-		parser = ConfigParser.SafeConfigParser()
-		parser.read(configfile)
-		global logfile
-		logfile = parser.get('Paths_and_Files', 'logfile')
 	##### Core IO method for logwriter operations. Excludes mode awareness #####
 	def logwriter_core(self, file, input):
 		target = open(file, 'a')
@@ -276,51 +286,49 @@ class file_management(object):
 				print self.ui.color(time.strftime("%Y-%m-%d %H:%M:%S") + ":   " +"*********** LOGFILE VARIABLE NOT FOUND! ***********\n", self.ui.red)
 				quit()
 		if mode == "cli":
-			configfile = self.find_config("quiet")
-			if configfile == "CHOOSERFAIL":
+			self.initialize_config("quiet")
+			self.publish_config("quiet")
+			if self.file_exists(logfile) == "no":
 				print self.ui.color("***** WARNING: Could not write CLI accounting info to log file *****", self.ui.yellow)
-			else:
-				self.get_logfile()
-				if self.file_exists(logfile) == "no":
-					print self.ui.color("***** WARNING: Could not write CLI accounting info to log file *****", self.ui.yellow)
-				elif self.file_exists(logfile) == "yes":
-					self.logwriter_core(logfile, input)
-					print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + input + "\n"
+			elif self.file_exists(logfile) == "yes":
+				self.logwriter_core(logfile, input)
+				print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + input + "\n"
 		if mode == "quiet":
-			configfile = self.find_config("quiet")
-			if configfile != "CHOOSERFAIL":
-				self.get_logfile()
-				if self.file_exists(logfile) == "yes":
-					self.logwriter_core(logfile, input)
-					# no printing to console
-
-
-
-
-
-
-#########################################################################
-############################ CONFIGURATOR CLASS #########################
-#########################################################################
-#######                 Used to read/edit/write/show              #######
-#######            the configuration from the config file         #######
-#########################################################################
-class configurator(object):
+			self.initialize_config("quiet")
+			self.publish_config("quiet")
+			if self.file_exists(logfile) == "yes":
+				self.logwriter_core(logfile, input)
+				# no printing to console
+	#######################################################
+	#######    Configuration Management Methods     #######
+	#######################################################
+	#######    Used to read/edit/write/show the     #######
+	#######   configuration from the config file    #######
+	#######################################################
 	##### Initiate the object by reading in config file, pulling out comment (for use later by save_config), and parsing to element tree #####
 	##### All methods in this class rely on searching/writing to/parsing the element tree "self.root" #####
-	def __init__(self):
-		with open('radiuidnew.conf', 'r') as self.filetext:
-			self.xmldata = self.filetext.read()
-		self.regex = "(?s)<!--.*-->"
-		self.configcomment = re.findall(self.regex, self.xmldata, flags=0)[0]
-		self.cleanedxml = self.xmldata.replace(self.configcomment, "")
-		self.root = xml.etree.ElementTree.fromstring(self.cleanedxml)
+	def initialize_config(self, mode):
+		if mode == 'noisy':
+			configfile = self.find_config(mode)
+			with open(configfile, 'r') as self.filetext:
+				self.xmldata = self.filetext.read()
+			self.regex = "(?s)<!--.*-->"
+			self.configcomment = re.findall(self.regex, self.xmldata, flags=0)[0]
+			self.cleanedxml = self.xmldata.replace(self.configcomment, "")
+			print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + "***********EXTRACTED XML CONFIG DATA FROM CONFIG FILE " + configfile + "***********" + "\n"
+			self.root = xml.etree.ElementTree.fromstring(self.cleanedxml)
+			print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + "***********" + self.ui.color("SUCESSFULLY MOUNTED CONFIG XML ELEMENT-TREE", self.ui.green) + "***********\n"
+		if mode == 'quiet':
+			configfile = self.find_config(mode)
+			with open(configfile, 'r') as self.filetext:
+				self.xmldata = self.filetext.read()
+			self.regex = "(?s)<!--.*-->"
+			self.configcomment = re.findall(self.regex, self.xmldata, flags=0)[0]
+			self.cleanedxml = self.xmldata.replace(self.configcomment, "")
+			self.root = xml.etree.ElementTree.fromstring(self.cleanedxml)
 	##### Publish all settings to variables in the global namespace for use by other processes #####
 	##### All variables are set to strings with the exception of the targets, which is a list of dictionary items #####
-	def publish_config(self):
-		##### Suck config values into a dictionary #####
-		configdict = self.tinyxml2dict_starter()
-		##### Publish individual global settings values variables in main namespace #####
+	def publish_config(self, mode):
 		global radiuslogpath
 		global logfile
 		global userdomain
@@ -328,16 +336,47 @@ class configurator(object):
 		global ipaddressterm
 		global usernameterm
 		global delineatorterm
-		logfile = configdict['globalsettings']['paths']['logfile']
-		radiuslogpath = configdict['globalsettings']['paths']['radiuslogpath']
-		userdomain = configdict['globalsettings']['uidsettings']['userdomain']
-		timeout = configdict['globalsettings']['uidsettings']['timeout']
-		ipaddressterm = configdict['globalsettings']['searchterms']['ipaddressterm']
-		usernameterm = configdict['globalsettings']['searchterms']['usernameterm']
-		delineatorterm = configdict['globalsettings']['searchterms']['delineatorterm']
-		##### Publish list of firewall targets into main namespace #####
 		global targets
-		targets = configdict['targets']['target']
+		if mode == 'noisy':# to be used to initialize the RadiUID main app
+			##### Suck config values into a dictionary #####
+			configdict = self.tinyxml2dict_starter()
+			##### Publish individual global settings values variables in main namespace #####
+			logfile = configdict['globalsettings']['paths']['logfile']
+			self.logwriter("normal", "***********INITIAL WRITE TO THE LOG FILE: " + logfile + "...***********")
+			self.logwriter("normal", "***********INITIALIZING VARIABLES FROM CONFIG FILE...***********")
+			self.logwriter("normal", "Initialized variable:" "\t" + "logfile" + "\t\t\t\t" + "with value:" + "\t" + self.ui.color(logfile, self.ui.green))
+			radiuslogpath = configdict['globalsettings']['paths']['radiuslogpath']
+			self.logwriter("normal", "Initialized variable:" "\t" + "radiuslogpath" + "\t\t\t" + "with value:" + "\t" + self.ui.color(radiuslogpath, self.ui.green))
+			ipaddressterm = configdict['globalsettings']['searchterms']['ipaddressterm']
+			self.logwriter("normal", "Initialized variable:" "\t" + "ipaddressterm" + "\t\t\t" + "with value:" + "\t" + self.ui.color(ipaddressterm, self.ui.green))
+			usernameterm = configdict['globalsettings']['searchterms']['usernameterm']
+			self.logwriter("normal", "Initialized variable:" "\t" + "usernameterm" + "\t\t\t" + "with value:" + "\t" + self.ui.color(usernameterm, self.ui.green))
+			delineatorterm = configdict['globalsettings']['searchterms']['delineatorterm']
+			self.logwriter("normal", "Initialized variable:" "\t" + "delineatorterm" + "\t\t\t" + "with value:" + "\t" + self.ui.color(delineatorterm, self.ui.green))
+			userdomain = configdict['globalsettings']['uidsettings']['userdomain']
+			self.logwriter("normal", "Initialized variable:" "\t" + "userdomain" + "\t\t\t" + "with value:" + "\t" + self.ui.color(userdomain, self.ui.green))
+			timeout = configdict['globalsettings']['uidsettings']['timeout']
+			self.logwriter("normal", "Initialized variable:" "\t" + "timeout" + "\t\t\t\t" + "with value:" + "\t" + self.ui.color(timeout, self.ui.green))
+			##### Publish list of firewall targets into main namespace #####
+			self.logwriter("normal", "***********INITIALIZING TARGETS...***********")
+			targets = configdict['targets']['target']
+			if type(targets) != type([]):
+				targets = [targets]
+			for target in targets:
+				self.logwriter("normal", self.ui.color("[IMPORTED]", self.ui.cyan) + "   HOSTNAME: " + self.ui.color(target['hostname'], self.ui.green) + "\t\tUSERNAME: " + self.ui.color(target['username'], self.ui.green) + "\t\tPASSWORD: " + self.ui.color(target['password'], self.ui.green) + "\t\tVERSION: " + self.ui.color(target['version'], self.ui.green))
+		if mode == 'quiet':
+			##### Suck config values into a dictionary #####
+			configdict = self.tinyxml2dict_starter()
+			##### Publish individual global settings values variables in main namespace #####
+			logfile = configdict['globalsettings']['paths']['logfile']
+			radiuslogpath = configdict['globalsettings']['paths']['radiuslogpath']
+			userdomain = configdict['globalsettings']['uidsettings']['userdomain']
+			timeout = configdict['globalsettings']['uidsettings']['timeout']
+			ipaddressterm = configdict['globalsettings']['searchterms']['ipaddressterm']
+			usernameterm = configdict['globalsettings']['searchterms']['usernameterm']
+			delineatorterm = configdict['globalsettings']['searchterms']['delineatorterm']
+			##### Publish list of firewall targets into main namespace #####
+			targets = configdict['targets']['target']
 	##### Show XML formatted configuration item #####
 	def show_config_item(self, itemname):
 		for value in self.root.iter(itemname):
@@ -369,7 +408,7 @@ class configurator(object):
 	##### Recombine comment and XML config data into single string and write to config file #####
 	def save_config(self):
 		self.newconfig = self.configcomment + "\n" + xml.etree.ElementTree.tostring(self.root)
-		f = open("radiuidnew.conf", 'w')
+		f = open(configfile, 'w')
 		f.write(self.newconfig)
 		f.close()
 	##### Basic XML to Dict converter used to pull configuration info from the config file #####
@@ -390,14 +429,6 @@ class configurator(object):
 	##### Simple starter method for the XML to Dict conversion process #####
 	def tinyxml2dict_starter(self):
 		return self.tinyxml2dict(self.root)
-
-
-
-
-
-
-
-
 
 
 
@@ -486,30 +517,34 @@ class palo_alto_firewall_interaction(object):
 	#######################################################
 	##### Accepts a list of IP addresses (keys) and usernames (vals) in a dictionary and outputs a list of XML formatted entries as a list #####
 	##### This method outputs a list which is utilized by the xml_assembler_v67 method #####
-	def xml_formatter_v67(self, ipanduserdict):
-		if panosversion == '7' or panosversion == '6':
-			ipaddresses = ipanduserdict.keys()
-			xmllist = []
-			for ip in ipaddresses:
-				entry = '<entry name="%s\%s" ip="%s" timeout="%s">' % (userdomain, ipanduserdict[ip], ip, timeout)
-				xmllist.append(entry)
-				entry = ''
-			return xmllist
-		else:
-			self.filemgmt.logwriter("normal", self.ui.color("PAN-OS version not supported for XML push!", self.ui.red))
-			quit()
+	def xml_formatter_v67(self, ipanduserdict, targetlist):
+		xmldict = {}
+		for target in targetlist:
+			if target['version'] == '7' or target['version'] == '6':
+				xmldict[target['hostname']] = []
+				ipaddresses = ipanduserdict.keys()
+				for ip in ipaddresses:
+					entry = '<entry name="%s\%s" ip="%s" timeout="%s">' % (userdomain, ipanduserdict[ip], ip, timeout)
+					xmldict[target['hostname']].append(entry)
+					entry = ''
+			else:
+				self.filemgmt.logwriter("normal", self.ui.color("PAN-OS version not supported for XML push!", self.ui.red))
+				quit()
+		return xmldict
 	##### Accepts a list of XML-formatted IP-to-User mappings and produces a list of complete and encoded URLs which are used to push UID data #####
 	##### Each URL will contain no more than 100 UID mappings which can all be pushed at the same time by the push_uids method #####
-	def xml_assembler_v67(self, ipuserxmllist):
-		if panosversion == '7' or panosversion == '6':
-			finishedurllist = []
-			xmluserdata = ""
-			iterations = 0
-			while len(ipuserxmllist) > 0:
-				for entry in ipuserxmllist[:100]:
-					xmluserdata = xmluserdata + entry + "\n</entry>\n"
-					ipuserxmllist.remove(entry)
-				urldecoded = '<uid-message>\n\
+	def xml_assembler_v67(self, ipuserxmldict, targetlist):
+		finishedurldict = {}
+		for host in ipuserxmldict:
+			if host == '7' or panosversion == '6':
+				finishedurldict[host]
+				xmluserdata = ""
+				iterations = 0
+				while len(ipuserxmldict[host]) > 0:
+					for entry in ipuserxmldict[host][:100]:
+						xmluserdata = xmluserdata + entry + "\n</entry>\n"
+						ipuserxmldict[host].remove(entry)
+					urldecoded = '<uid-message>\n\
 	<version>1.0</version>\n\
 	<type>update</type>\n\
 	<payload>\n\
@@ -518,38 +553,43 @@ class palo_alto_firewall_interaction(object):
 	</login>\n\
 	</payload>\n\
 	</uid-message>'
-				urljunk = urllib.quote_plus(urldecoded)
-				finishedurllist.append('https://' + hostname + '/api/?key=' + pankey + extrastuff + urljunk)
-				xmluserdata = ""
-			return finishedurllist
-		else:
-			self.filemgmt.logwriter("normal", self.ui.color("PAN-OS version not supported for XML push!", self.ui.red))
-			quit()
+					urljunk = urllib.quote_plus(urldecoded)
+					finishedurllist.append('https://' + hostname + '/api/?key=' + pankey + extrastuff + urljunk)
+					xmluserdata = ""
+				return finishedurllist
+			else:
+				self.filemgmt.logwriter("normal", self.ui.color("PAN-OS version not supported for XML push!", self.ui.red))
+				quit()
 	#######################################################
 	#######         PAN Interaction Methods         #######
 	#######        Used for PAN Interaction         #######
 	#######################################################
 	##### Function to pull API key from firewall to be used for REST HTTP calls #####
 	##### Used during initialization of the RadiUID main process to generate the API key #####
-	def pull_api_key(self, username, password):
-		encodedusername = urllib.quote_plus(username)
-		encodedpassword = urllib.quote_plus(password)
-		url = 'https://' + hostname + '/api/?type=keygen&user=' + encodedusername + '&password=' + encodedpassword
-		response = urllib2.urlopen(url).read()
-		self.filemgmt.logwriter("normal", "Pulling API key using PAN credentials: " + username + "\\" + password + "\n")
-		if 'success' in response:
-			self.filemgmt.logwriter("normal", self.ui.color(response, self.ui.green) + "\n")
-			stripped1 = response.replace("<response status = 'success'><result><key>", "")
-			stripped2 = stripped1.replace("</key></result></response>", "")
-			pankey = stripped2
-			return pankey
-		else:
-			log_writer("normal", self.ui.color('ERROR: Username\\password failed. Please re-enter in config file...' + '\n', self.ui.red))
+	def pull_api_key(self, targetlist):
+		if type(targetlist) != type([]):
+			self.filemgmt.logwriter("normal", self.ui.color('ERROR: API Key function requires a list as input' + '\n', self.ui.red))
 			quit()
+		for target in targetlist:
+			encodedusername = urllib.quote_plus(target['username'])
+			encodedpassword = urllib.quote_plus(target['password'])
+			url = 'https://' + target['hostname'] + '/api/?type=keygen&user=' + encodedusername + '&password=' + encodedpassword
+			response = urllib2.urlopen(url).read()
+			self.filemgmt.logwriter("normal", "Pulling API key using PAN from " + target['hostname'] + " using credentials: " + target['username'] + "\\" + target['password'])
+			if 'success' in response:
+				self.filemgmt.logwriter("normal", self.ui.color(response, self.ui.green))
+				stripped1 = response.replace("<response status = 'success'><result><key>", "")
+				stripped2 = stripped1.replace("</key></result></response>", "")
+				pankey = stripped2
+				target['apikey'] = pankey
+				self.filemgmt.logwriter("normal", "Added 'apikey': " + pankey + " attribute to host: " + target['hostname'])
+			else:
+				self.filemgmt.logwriter("normal", self.ui.color('ERROR: Username\\password failed. Please re-enter in config file...' + '\n', self.ui.red))
+				quit()
 	##### Accepts IP-to-User mappings as a dict in, uses the xml-formatter and xml-assembler to generate a list of URLS, then opens those URLs and logs response codes  #####
 	def push_uids(self, ipanduserdict, filelist):
-		xml_list = self.xml_formatter_v67(ipanduserdict)
-		urllist = self.xml_assembler_v67(xml_list)
+		xml_dict = self.xml_formatter_v67(ipanduserdict, targets)
+		urldict = self.xml_assembler_v67(xml_dict)
 		self.filemgmt.logwriter("normal", "Pushing the below IP : User mappings via " + str(len(urllist)) + " API calls")
 		for entry in ipanduserdict:
 			self.filemgmt.logwriter("normal", "IP Address: " + self.ui.color(entry, self.ui.cyan) + "\t\tUsername: " + self.ui.color(ipanduserdict[entry], self.ui.cyan))
@@ -581,73 +621,18 @@ class radiuid_main_process(object):
 	##### This method runs once during the initial startup of the program #####
 	def initialize(self):
 		print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + "***********MAIN PROGRAM INITIALIZATION KICKED OFF...***********" + "\n"
-		global logfile
-		global radiuslogpath
-		global hostname
-		global panosversion
-		global panuser
-		global panpassword
-		global extrastuff
-		global ipaddressterm
-		global usernameterm
-		global delineatorterm
-		global userdomain
-		global timeout
-		##### Check if config file exists. Fail program if it doesn't #####
-		configfile = self.filemgmt.find_config("noisy")
-		checkfile = self.filemgmt.file_exists(configfile)
-		if checkfile == 'no':
-			print self.ui.color(time.strftime(
-				"%Y-%m-%d %H:%M:%S") + ":   " + "ERROR: CANNOT FIND RADIUID CONFIG FILE IN TYPICAL PATHS. QUITTING PROGRAM. RE-RUN INSTALLER ('python radiuid.py install')" + "\n", self.ui.red)
-			quit()
-		if checkfile == 'yes':
-			print time.strftime(
-				"%Y-%m-%d %H:%M:%S") + ":   " + "***********USING CONFIG FILE " + configfile + " TO START RADIUID APPLICATION***********" + "\n"
-			print time.strftime(
-				"%Y-%m-%d %H:%M:%S") + ":   " + "***********READING IN RADIUID LOGFILE INFORMATION. ALL SUBSEQUENT OUTPUT WILL BE LOGGED TO THE LOGFILE***********" + "\n"
-		##### Open the config file and read in the logfile location information #####
-		parser = ConfigParser.SafeConfigParser()
-		parser.read(configfile)
-		logfile = parser.get('Paths_and_Files', 'logfile')
 		##### Initial log entry and help for anybody starting the .py program without first installing it #####
-		self.filemgmt.logwriter("normal", "***********INITIAL WRITE TO THE LOG FILE: " + logfile + "...***********")
 		self.filemgmt.logwriter("normal", "***********RADIUID INITIALIZING... IF PROGRAM FAULTS NOW, MAKE SURE YOU SUCCESSFULLY RAN THE INSTALLER ('python radiuid.py install')***********")
-		##### Suck in all variables from config file (only run when program is initially started, not during while loop) #####
-		self.filemgmt.logwriter("normal", "***********INITIALIZING VARIABLES FROM CONFIG FILE: " + configfile + "...***********")
-		self.filemgmt.logwriter("normal", "Initialized variable:" "\t" + "logfile" + "\t\t\t\t" + "with value:" + "\t" + self.ui.color(logfile, self.ui.green))
-		radiuslogpath = parser.get('Paths_and_Files', 'radiuslogpath')
-		self.filemgmt.logwriter("normal", "Initialized variable:" "\t" + "radiuslogpath" + "\t\t\t" + "with value:" + "\t" + self.ui.color(radiuslogpath, self.ui.green))
-		hostname = parser.get('Palo_Alto_Target', 'hostname')
-		self.filemgmt.logwriter("normal", "Initialized variable:" "\t" + "hostname" + "\t\t\t" + "with value:" + "\t" + self.ui.color(hostname, self.ui.green))
-		panosversion = parser.get('Palo_Alto_Target', 'panosversion')
-		self.filemgmt.logwriter("normal", "Initialized variable:" "\t" + "panosversion" + "\t\t\t" + "with value:" + "\t" + self.ui.color(panosversion, self.ui.green))
-		panuser = parser.get('Palo_Alto_Target', 'username')
-		self.filemgmt.logwriter("normal", "Initialized variable:" "\t" + "panuser" + "\t\t\t\t" + "with value:" + "\t" + self.ui.color(panuser, self.ui.green))
-		panpassword = parser.get('Palo_Alto_Target', 'password')
-		self.filemgmt.logwriter("normal", "Initialized variable:" "\t" + "panpassword" + "\t\t\t" + "with value:" + "\t" + self.ui.color(panpassword, self.ui.green))
-		extrastuff = parser.get('URL_Stuff', 'extrastuff')
-		self.filemgmt.logwriter("normal", "Initialized variable:" "\t" + "extrastuff" + "\t\t\t" + "with value:" + "\t" + self.ui.color(extrastuff, self.ui.green))
-		ipaddressterm = parser.get('Search_Terms', 'ipaddressterm')
-		self.filemgmt.logwriter("normal", "Initialized variable:" "\t" + "ipaddressterm" + "\t\t\t" + "with value:" + "\t" + self.ui.color(ipaddressterm, self.ui.green))
-		usernameterm = parser.get('Search_Terms', 'usernameterm')
-		self.filemgmt.logwriter("normal", "Initialized variable:" "\t" + "usernameterm" + "\t\t\t" + "with value:" + "\t" + self.ui.color(usernameterm, self.ui.green))
-		delineatorterm = parser.get('Search_Terms', 'delineatorterm')
-		self.filemgmt.logwriter("normal", "Initialized variable:" "\t" + "delineatorterm" + "\t\t\t" + "with value:" + "\t" + self.ui.color(delineatorterm, self.ui.green))
-		userdomain = parser.get('UID_Settings', 'userdomain')
-		self.filemgmt.logwriter("normal", "Initialized variable:" "\t" + "userdomain" + "\t\t\t" + "with value:" + "\t" + self.ui.color(userdomain, self.ui.green))
-		timeout = parser.get('UID_Settings', 'timeout')
-		self.filemgmt.logwriter("normal", "Initialized variable:" "\t" + "timeout" + "\t\t\t\t" + "with value:" + "\t" + self.ui.color(timeout, self.ui.green))
 		##### Explicitly pull PAN key now and store API key in the main namespace #####
 		self.filemgmt.logwriter("normal", "***********************************CONNECTING TO PALO ALTO FIREWALL TO EXTRACT THE API KEY...***********************************")
 		self.filemgmt.logwriter("normal", "********************IF PROGRAM FREEZES/FAILS RIGHT NOW, THEN THERE IS LIKELY A COMMUNICATION PROBLEM WITH THE FIREWALL********************")
-		global pankey
-		pankey = self.pafi.pull_api_key(panuser, panpassword)
-		self.filemgmt.logwriter("normal", "Initialized variable:" "\t" + "pankey" + "\t\t\t\t" + "with value:" + "\t" + pankey)
+		pankey = self.pafi.pull_api_key(targets)
 		self.filemgmt.logwriter("normal", "*******************************************CONFIG FILE SETTINGS INITIALIZED*******************************************")
 		self.filemgmt.logwriter("normal", "***********************************RADIUID SERVER STARTING WITH INITIALIZED VARIABLES...******************************")
 	##### RadiUID looper method which initializes the namespace with config variables and loops the main RadiUID program #####
 	def looper(self):
-		configfile = self.filemgmt.find_config("noisy")
+		self.filemgmt.initialize_config("noisy")
+		self.filemgmt.publish_config("noisy")
 		self.initialize()
 		while __name__ == "__main__":
 			filelist = self.filemgmt.list_files(radiuslogpath)
