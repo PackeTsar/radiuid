@@ -535,15 +535,16 @@ class palo_alto_firewall_interaction(object):
 	##### Each URL will contain no more than 100 UID mappings which can all be pushed at the same time by the push_uids method #####
 	def xml_assembler_v67(self, ipuserxmldict, targetlist):
 		finishedurldict = {}
-		for host in ipuserxmldict:
-			if host == '7' or panosversion == '6':
-				finishedurldict[host]
+		for host in targetlist:
+			if host['version'] == '7' or host['version'] == '6':
 				xmluserdata = ""
-				iterations = 0
-				while len(ipuserxmldict[host]) > 0:
-					for entry in ipuserxmldict[host][:100]:
+				hostname = host['hostname']
+				hostxmlentries = ipuserxmldict[hostname]
+				while len(hostxmlentries) > 0:
+					finishedurllist = []
+					for entry in hostxmlentries[:100]:
 						xmluserdata = xmluserdata + entry + "\n</entry>\n"
-						ipuserxmldict[host].remove(entry)
+						hostxmlentries.remove(entry)
 					urldecoded = '<uid-message>\n\
 	<version>1.0</version>\n\
 	<type>update</type>\n\
@@ -554,12 +555,15 @@ class palo_alto_firewall_interaction(object):
 	</payload>\n\
 	</uid-message>'
 					urljunk = urllib.quote_plus(urldecoded)
-					finishedurllist.append('https://' + hostname + '/api/?key=' + pankey + extrastuff + urljunk)
-					xmluserdata = ""
-				return finishedurllist
+					finishedurllist.append('https://' + hostname + '/api/?key=' + host['apikey'] + extrastuff + urljunk)
+				xmluserdata = ""
+				finishedurldict.update({hostname: finishedurllist})
+				del hostname
+				del hostxmlentries
 			else:
 				self.filemgmt.logwriter("normal", self.ui.color("PAN-OS version not supported for XML push!", self.ui.red))
 				quit()
+		return finishedurldict
 	#######################################################
 	#######         PAN Interaction Methods         #######
 	#######        Used for PAN Interaction         #######
@@ -589,13 +593,15 @@ class palo_alto_firewall_interaction(object):
 	##### Accepts IP-to-User mappings as a dict in, uses the xml-formatter and xml-assembler to generate a list of URLS, then opens those URLs and logs response codes  #####
 	def push_uids(self, ipanduserdict, filelist):
 		xml_dict = self.xml_formatter_v67(ipanduserdict, targets)
-		urldict = self.xml_assembler_v67(xml_dict)
-		self.filemgmt.logwriter("normal", "Pushing the below IP : User mappings via " + str(len(urllist)) + " API calls")
-		for entry in ipanduserdict:
-			self.filemgmt.logwriter("normal", "IP Address: " + self.ui.color(entry, self.ui.cyan) + "\t\tUsername: " + self.ui.color(ipanduserdict[entry], self.ui.cyan))
-		for eachurl in urllist:
-			response = urllib2.urlopen(eachurl).read()
-			self.filemgmt.logwriter("normal", self.ui.color(response, self.ui.green) + "\n")
+		urldict = self.xml_assembler_v67(xml_dict, targets)
+		for host in urldict:
+			self.filemgmt.logwriter("normal", "Pushing the below IP : User mappings to " + host + " via " + str(len(urldict[host])) + " API calls")
+			urllist = urldict[host]
+			for entry in ipanduserdict:
+				self.filemgmt.logwriter("normal", "IP Address: " + self.ui.color(entry, self.ui.cyan) + "\t\tUsername: " + self.ui.color(ipanduserdict[entry], self.ui.cyan))
+			for eachurl in urllist:
+				response = urllib2.urlopen(eachurl).read()
+				self.filemgmt.logwriter("normal", self.ui.color(response, self.ui.green) + "\n")
 		self.filemgmt.remove_files(filelist)
 
 
