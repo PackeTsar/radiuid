@@ -304,6 +304,10 @@ class file_management(object):
 			print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + "***********" + self.ui.color("SUCESSFULLY MOUNTED CONFIG XML ELEMENT-TREE", self.ui.green) + "***********\n"
 		if mode == 'quiet':
 			configfile = self.find_config(mode)
+			if configfile == 'CHOOSERFAIL':
+				print self.ui.color(time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + "***********ERROR: Config file (radiuid.conf) not found in preferred location (/etc/radiuid/) or in working directory***********", self.ui.red)
+				print self.ui.color(time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + "***********Please put a copy of the radiuid.conf config file in one of these directories***********", self.ui.red)
+				quit()
 			with open(configfile, 'r') as self.filetext:
 				self.xmldata = self.filetext.read()
 			self.regex = "(?s)<!--.*-->"
@@ -1176,13 +1180,8 @@ class installer_maintenance_utility(object):
 		print "\n\n\n\n\n\n***** Thank you for using the RadiUID installer/management utility"
 		raw_input(self.ui.color(">>>>> Hit ENTER to see the tail of the RadiUID log file before you exit the utility\n\n>>>>>", self.ui.cyan))
 		##### Read in logfile path from found config file #####
-		configfile = self.filemgmt.find_config("quiet")
-		parser = ConfigParser.SafeConfigParser()
-		parser.read(configfile)
-		f = open(configfile, 'r')
-		config_file_data = f.read()
-		f.close()
-		logfile = parser.get('Paths_and_Files', 'logfile')
+		self.filemgmt.initialize_config("quiet")
+		self.filemgmt.publish_config("quiet")
 		#######################################################
 		print "\n\n############################## LAST 50 LINES FROM " + logfile + "##############################"
 		print "########################################################################################################"
