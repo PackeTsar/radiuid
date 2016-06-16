@@ -127,23 +127,6 @@ class user_interface(object):
 
 
 #########################################################################
-############################ CONFIGURATOR CLASS #########################
-#########################################################################
-#######                 Used to read/edit/write/show              #######
-#######            the configuration from the config file         #######
-#########################################################################
-class configurator(object):
-	def __init__(self):
-		##### Instantiate external object dependencies #####
-		self.ui = user_interface()
-
-
-
-
-
-
-
-#########################################################################
 ########################## FILE MANAGEMENT CLASS ########################
 #########################################################################
 #######     Used by the main RadiUID methods to for changing,     #######
@@ -308,6 +291,7 @@ class file_management(object):
 	##### Initiate the object by reading in config file, pulling out comment (for use later by save_config), and parsing to element tree #####
 	##### All methods in this class rely on searching/writing to/parsing the element tree "self.root" #####
 	def initialize_config(self, mode):
+		global configfile
 		if mode == 'noisy':
 			configfile = self.find_config(mode)
 			with open(configfile, 'r') as self.filetext:
@@ -403,8 +387,81 @@ class file_management(object):
 	##### Do not use for targets. Only global settings #####
 	def change_config_item(self, itemname, newvalue):
 		for value in self.root.iter(itemname):
-			print "changed " + itemname + " from " + value.text + " to " + newvalue
 			value.text = newvalue
+	##### Add target firewalls to XML configuration elements #####
+	##### Method accepts a list of dictionaries which contain the standard 4 elements for a firewall target #####
+	##### Method will detect if the 'targets' element already exists and will create it if it doesn't #####
+	def add_targets(self, targetlist):
+		if len(self.root.findall('.//target')) == 0: # if <target> XML elements do not exist
+			for item in self.root.iter('globalsettings'): # adjust tail of 'globalsettings' element for formatting purposes
+				item.tail = '\n\t' # formatting added to tail of </globalsettings> element
+			targets = xml.etree.ElementTree.SubElement(self.root, 'targets') # mount new <targets> element as variable
+			targets.text = "\n\t\t" # add some formatting for upcoming <target> element
+			targets.tail = "\n" # add formatting to end for the </config> element
+		else:
+			targets = self.root.findall('.//targets')[0] # if <target> XML elements do already exist
+			lasttarget = self.root.findall('.//target')[len(self.root.findall('.//target')) - 1] # mount the last existing <target> element as variable
+			lasttarget.tail = "\n\t\t" # adjust formatting on tail of last </target> element
+		numtargets = len(targetlist) # check number of targets being added so last one's tail can be formatted differently
+		for item in targetlist:
+			target = xml.etree.ElementTree.SubElement(targets, 'target') # mount new target element as variable
+			target.text = "\n\t\t\t" # add some formatting to indent the upcoming <hostname> element properly
+			if numtargets == 1: # add different tail formatting if this is the last 'target' element entry
+				target.tail = "\n\t" # add formatting if this is the last target being added (to indent the '</targets>' properly)
+			else:
+				target.tail = "\n\t\t" # add formatting if this is NOT the last target being added (to indent the next '<target>' properly)
+			##### Add the different elements for the target #####
+			hostname = xml.etree.ElementTree.SubElement(target, 'hostname')
+			hostname.text = item['hostname']
+			hostname.tail = "\n\t\t\t"
+			username = xml.etree.ElementTree.SubElement(target, 'username')
+			username.text = item['username']
+			username.tail = "\n\t\t\t"
+			password = xml.etree.ElementTree.SubElement(target, 'password')
+			password.text = item['password']
+			password.tail = "\n\t\t\t"
+			version = xml.etree.ElementTree.SubElement(target, 'version')
+			version.text = item['version']
+			version.tail = "\n\t\t"
+			numtargets = numtargets - 1 # decrement the target counter for proper formatting on last target
+			##### Remove temporary variables #####
+			del hostname
+			del username
+			del password
+			del version
+			del target
+		del numtargets
+	##### Remove specific list of targets from config #####
+	##### Method accepts a list of dictionaries which contain at least the hostname key/value pair of the target #####
+	def remove_targets(self, targetlist):
+		if len(self.root.findall('.//target')) == 0: # If no targets exist in config, print error
+			print "No firewall targets exist. Nothing to remove"
+		else: # if some targets do exist in config
+			for removalitem in targetlist: # for each host listed for removal
+				result = 'failure' # initialize result in case host is not found for removal
+				for target in self.root.findall('.//target'): # for each target element 
+					for element in target.getchildren(): # list out children (atttributes) of the target (like hostname, username, etc)
+						if element.text == removalitem['hostname']: # check child elements of target element for hostname listed for removal
+							targets = self.root.findall('.//targets')[0] # mount <targets> element
+							targets.remove(target) # remove this <target> element from the <targets> element
+							del targets # unmount <targets> element
+							result = 'success' # set successful result
+							print "target " + element.text + " removed" # print confirmation of removal
+				if result == 'failure': # if we did not find the target to be removed
+					print "could not find that target" # print an error message
+		##### If we did not remove the last <target> element from <targets>, then set the proper tail indent on last <target> element
+		if len(self.root.findall('.//target')) > 0:
+			lasttarget = self.root.findall('.//target')[len(self.root.findall('.//target')) - 1] # mount the last existing <target> element as variable
+			lasttarget.tail = "\n\t" # adjust formatting on tail of last </target> element
+			del lasttarget # unmount last <target> element
+		else: # If we just removed the last <target> element from <targets>
+			self.clear_targets() # use the 'clear_targets' method to remove the left over elements from the config
+	##### Delete all firewall targets in mounted config #####
+	def clear_targets(self):
+		for item in self.root.iter('targets'):
+			self.root.remove(item)
+		for item in self.root.iter('globalsettings'):
+			item.tail = '\n'
 	##### Recombine comment and XML config data into single string and write to config file #####
 	def save_config(self):
 		self.newconfig = self.configcomment + "\n" + xml.etree.ElementTree.tostring(self.root)
@@ -726,7 +783,7 @@ class imu_methods(object):
 	##### Used to ask questions and set new config settings in the install/maintenance utility #####
 	def change_setting(self, setting, question):
 		newsetting = raw_input(self.ui.color(">>>>> " + question + " [" + setting + "]: ", self.ui.cyan))
-		if newsetting == '':
+		if newsetting == '' or newsetting == setting:
 			print self.ui.color("~~~ Keeping current setting...", self.ui.green)
 			newsetting = setting
 		else:
@@ -1013,13 +1070,10 @@ class installer_maintenance_utility(object):
 		#########################################################################
 		###Read current .conf settings into interpreter
 		#########################################################################
-		editradiuidconf = self.ui.yesorno("Do you want to edit the settings in the RadiUID .conf file (if you just installed or reinstalled RadiUID, then you need to do this)?")
+		editradiuidconf = self.ui.yesorno("Do you want to edit the settings in the RadiUID .conf file (if you just installed or reinstalled RadiUID, then you should do this)?")
 		if editradiuidconf == "yes":
-			configfile = self.filemgmt.find_config("noisy")
-			checkfile = self.filemgmt.file_exists(configfile)
-			if checkfile == 'no':
-				print self.ui.color("ERROR: Config file (radiuid.conf) not found. Make sure the radiuid.conf file exists in same directory as radiuid.py", self.ui.red)
-				quit()
+			self.filemgmt.initialize_config("quiet")
+			global configfile
 			print "Configuring File: " + self.ui.color(configfile, self.ui.green) + "\n"
 			print "\n\n\n****************Now, we will import the settings from the " + configfile + " file...****************\n"
 			print "*****************The current values for each setting are [displayed in the prompt]****************\n"
@@ -1028,73 +1082,84 @@ class installer_maintenance_utility(object):
 			print "\n\n\n\n\n\n\n"
 			print "**************** Reading in current settings from " + configfile + " ****************\n"
 			self.ui.progress('Reading:', 1)
-			parser = ConfigParser.SafeConfigParser()
-			parser.read(configfile)
-			f = open(configfile, 'r')
-			config_file_data = f.read()
-			f.close()
-			logfile = parser.get('Paths_and_Files', 'logfile')
-			radiuslogpath = parser.get('Paths_and_Files', 'radiuslogpath')
-			hostname = parser.get('Palo_Alto_Target', 'hostname')
-			panosversion = parser.get('Palo_Alto_Target', 'panosversion')
-			username = parser.get('Palo_Alto_Target', 'username')
-			password = parser.get('Palo_Alto_Target', 'password')
-			extrastuff = parser.get('URL_Stuff', 'extrastuff')
-			ipaddressterm = parser.get('Search_Terms', 'ipaddressterm')
-			usernameterm = parser.get('Search_Terms', 'usernameterm')
-			delineatorterm = parser.get('Search_Terms', 'delineatorterm')
-			userdomain = parser.get('UID_Settings', 'userdomain')
-			timeout = parser.get('UID_Settings', 'timeout')			
+			self.filemgmt.publish_config("quiet")
 			#########################################################################
 			###Ask questions to the console for editing the .conf file settings
 			#########################################################################
 			print "\n\n\n\n\n\n****************Please enter values for the different settings in the radiuid.conf file****************\n"
+			global logfile
 			newlogfile = self.imum.change_setting(logfile, 'Enter full path to the new RadiUID Log File')
 			print "\n"
 			newradiuslogpath = self.imum.change_setting(radiuslogpath, 'Enter path to the FreeRADIUS Accounting Logs')
-			print "\n"
-			newhostname = self.imum.change_setting(hostname, 'Enter IP address or hostname for target Palo Alto firewall')
-			print "\n"
-			newpanosversion = self.imum.change_setting(panosversion, 'Enter PAN-OS software version on target firewall (only PAN-OS 6 and 7 are currently supported)')
-			print "\n"
-			newusername = self.imum.change_setting(username, 'Enter administrative username for Palo Alto firewall')
-			print "\n"
-			newpassword = self.imum.change_setting(password, 'Enter administrative password for Palo Alto firewall (entered text will be shown in the clear)')
-			while newpassword.find("%") != -1:
-				newpassword = self.imum.change_setting(password, 'The "%" sign is not allowed in the password. Please enter a password without it')
 			print "\n"
 			newuserdomain = self.imum.change_setting(userdomain, 'Enter the user domain to be prefixed to User-IDs')
 			print "\n"
 			newtimeout = self.imum.change_setting(timeout, 'Enter timeout period for pushed UIDs (in minutes)')
 			#########################################################################
+			###Ask questions to add/edit targets for the config file
+			#########################################################################
+			print "\n****************Checking for already configured firewall targets****************\n"
+			self.ui.progress('Reading:', 1)
+			for target in targets:
+				print "   HOSTNAME: " + self.ui.color(target['hostname'], self.ui.green) + "\t\tUSERNAME: " + self.ui.color(target['username'], self.ui.green) + "\t\tPASSWORD: " + self.ui.color(target['password'], self.ui.green) + "\t\tVERSION: " + self.ui.color(target['version'], self.ui.green)
+			print "\n\n"
+			changetargets = self.ui.yesorno("Do you want to delete the current targets and set up new ones?")
+			if changetargets == 'no':
+				print "~~~ OK. Leaving current targets alone..."
+				newtargets = targets
+			elif changetargets == 'yes':
+				anothertarget = 'yes'
+				newtargets = []
+				while anothertarget == 'yes':
+					print "\n\n\n"
+					addhostname = self.imum.change_setting('192.168.1.1', 'Enter the IP ADDRESS or HOSTNAME of the target firewall to recieve User-ID mappings')
+					addusername = self.imum.change_setting('admin', 'Enter the administrative USERNAME to use for authentication against the firewall')
+					addpassword = self.imum.change_setting('admin', 'Enter the PASSWORD for the username you just entered')
+					addversion = self.imum.change_setting('7', 'Enter the major software version running on the firewall')
+					newtargets.append({'hostname': addhostname, 'username': addusername, 'password': addpassword, 'version': addversion})
+					print "\n\n"
+					anothertarget = self.ui.yesorno("Do you want to add another target firewall?")
+				print "\n****************New Targets Are:****************\n"
+				for target in newtargets:
+					print "   HOSTNAME: " + self.ui.color(target['hostname'], self.ui.green) + "\t\tUSERNAME: " + self.ui.color(target['username'], self.ui.green) + "\t\tPASSWORD: " + self.ui.color(target['password'], self.ui.green) + "\t\tVERSION: " + self.ui.color(target['version'], self.ui.green)
+				print "\n\n\n"
+				raw_input(self.ui.color("\n\n>>>>> Hit ENTER to see what the new config will look like...\n\n>>>>>", self.ui.cyan))
+				print "\n\n\n"
+				##### Apply global settings to mounted config #####
+				self.filemgmt.change_config_item('logfile', newlogfile)
+				self.filemgmt.change_config_item('radiuslogpath', newradiuslogpath)
+				self.filemgmt.change_config_item('userdomain', newuserdomain)
+				self.filemgmt.change_config_item('timeout', newtimeout)
+				##### Apply target settings to mounted config #####
+				self.filemgmt.clear_targets()
+				self.filemgmt.add_targets(newtargets)
+				##### Show Config #####
+				self.filemgmt.show_config_item('config')
+				print "\n\n\n"
+			#########################################################################
 			###Pushing settings to .conf file with the code below
 			#########################################################################
-			print "\n\n\n\n\n\n****************Applying entered settings into the radiuid.conf file...****************\n"
-			new_config_file_data = config_file_data
-			self.ui.progress('Applying:', 1)
-			new_config_file_data = self.imum.apply_setting(new_config_file_data, 'logfile', logfile, newlogfile)
-			new_config_file_data = self.imum.apply_setting(new_config_file_data, 'radiuslogpath', radiuslogpath, newradiuslogpath)
-			new_config_file_data = self.imum.apply_setting(new_config_file_data, 'hostname', hostname, newhostname)
-			new_config_file_data = self.imum.apply_setting(new_config_file_data, 'panosversion', panosversion, newpanosversion)
-			new_config_file_data = self.imum.apply_setting(new_config_file_data, 'username', username, newusername)
-			new_config_file_data = self.imum.apply_setting(new_config_file_data, 'password', password, newpassword)
-			new_config_file_data = self.imum.apply_setting(new_config_file_data, 'userdomain', userdomain, newuserdomain)
-			new_config_file_data = self.imum.apply_setting(new_config_file_data, 'timeout', timeout, newtimeout)
-			self.filemgmt.write_file(etcconfigfile, new_config_file_data)
-			newlogfiledir = self.filemgmt.strip_filepath(newlogfile)[0][0]
-			os.system('mkdir -p ' + newlogfiledir)
-			print "\n\n****************Starting/Restarting the RadiUID service...****************\n"
-			self.imum.restart_service('radiuid')
-			radiuidrunning = self.imum.check_service_running('radiuid')
-			if radiuidrunning == "yes":
-				print self.ui.color("***** RadiUID successfully started up!!!", self.ui.green)
-			raw_input(self.ui.color(">>>>> Hit ENTER to continue...\n\n>>>>>", self.ui.cyan))
-			if radiuidrunning == "no":
-				print self.ui.color("***** Something went wrong. Looks like the installation or startup failed... ", self.ui.red)
-				print self.ui.color("***** Please make sure you are installing RadiUID on a support platform", self.ui.red)
-				print self.ui.color("***** You can manually edit the RadiUID config file by entering 'radiuid edit config' in the CLI", self.ui.red)
-				raw_input(self.ui.color("Hit ENTER to quit the program...\n\n>>>>>", self.ui.cyan))
-				quit()
+			applysettings = self.ui.yesorno("Do you want to apply your entered settings to the config file and restart the RadiUID service?")
+			if applysettings == 'no':
+				print "~~~ OK. Disregarding config changes..."
+			elif applysettings == 'yes':
+				print "\n\n\n\n\n\n****************Applying entered settings into the radiuid.conf file...****************\n"
+				self.ui.progress('Applying:', 1)
+				self.filemgmt.save_config()
+				newlogfiledir = self.filemgmt.strip_filepath(newlogfile)[0][0]
+				os.system('mkdir -p ' + newlogfiledir)
+				print "\n\n****************Starting/Restarting the RadiUID service...****************\n"
+				self.imum.restart_service('radiuid')
+				radiuidrunning = self.imum.check_service_running('radiuid')
+				if radiuidrunning == "yes":
+					print self.ui.color("***** RadiUID successfully started up!!!", self.ui.green)
+				raw_input(self.ui.color(">>>>> Hit ENTER to continue...\n\n>>>>>", self.ui.cyan))
+				if radiuidrunning == "no":
+					print self.ui.color("***** Something went wrong. Looks like the installation or startup failed... ", self.ui.red)
+					print self.ui.color("***** Please make sure you are installing RadiUID on a support platform", self.ui.red)
+					print self.ui.color("***** You can manually edit the RadiUID config file by entering 'radiuid edit config' in the CLI", self.ui.red)
+					raw_input(self.ui.color("Hit ENTER to quit the program...\n\n>>>>>", self.ui.cyan))
+					quit()
 		else:
 			print "~~~ OK... Leaving the .conf file alone"
 		#########################################################################
