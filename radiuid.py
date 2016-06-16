@@ -601,8 +601,8 @@ class palo_alto_firewall_interaction(object):
 				xmluserdata = ""
 				hostname = host['hostname']
 				hostxmlentries = ipuserxmldict[hostname]
+				finishedurllist = []
 				while len(hostxmlentries) > 0:
-					finishedurllist = []
 					for entry in hostxmlentries[:100]:
 						xmluserdata = xmluserdata + entry + "\n</entry>\n"
 						hostxmlentries.remove(entry)
@@ -617,7 +617,7 @@ class palo_alto_firewall_interaction(object):
 	</uid-message>'
 					urljunk = urllib.quote_plus(urldecoded)
 					finishedurllist.append('https://' + hostname + '/api/?key=' + host['apikey'] + extrastuff + urljunk)
-				xmluserdata = ""
+					xmluserdata = ""
 				finishedurldict.update({hostname: finishedurllist})
 				del hostname
 				del hostxmlentries
@@ -1150,7 +1150,8 @@ class installer_maintenance_utility(object):
 				print "\n\n\n\n\n\n****************Applying entered settings into the radiuid.conf file...****************\n"
 				self.ui.progress('Applying:', 1)
 				self.filemgmt.save_config()
-				newlogfiledir = self.filemgmt.strip_filepath(newlogfile)[0][0]
+				newlogfiledir = self.filemgmt.strip_filepath(newlogfile)[0]
+				print "\n\n****************Creating log directory: "+ newlogfiledir + "****************\n"
 				os.system('mkdir -p ' + newlogfiledir)
 				print "\n\n****************Starting/Restarting the RadiUID service...****************\n"
 				self.imum.restart_service('radiuid')
