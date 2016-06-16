@@ -1228,6 +1228,9 @@ class command_line_interpreter(object):
 	######################### RadiUID Command Interpreter #############################
 	def interpreter(self):
 		arguments = self.cat_list(sys.argv[1:])
+		self.filemgmt.initialize_config('quiet')
+		self.filemgmt.publish_config('quiet')
+		global configfile
 		######################### RUN #############################
 		if arguments == "run":
 			self.radiuid.looper()
@@ -1245,7 +1248,6 @@ class command_line_interpreter(object):
 			print " - show status      |     Show the RadiUID and FreeRADIUS service statuses"
 		elif arguments == "show log":
 			self.filemgmt.logwriter("cli", "##### COMMAND '" + arguments + "' ISSUED FROM CLI BY USER '" + self.imum.currentuser()+ "' #####")
-			self.filemgmt.get_logfile()
 			configfile = self.filemgmt.find_config("quiet")
 			header = "########################## OUTPUT FROM FILE " + logfile + " ##########################"
 			print self.ui.color(header, self.ui.magenta)
@@ -1255,18 +1257,14 @@ class command_line_interpreter(object):
 			print self.ui.color("#" * len(header), self.ui.magenta)
 		elif arguments == "show run" or arguments == "show config":
 			self.filemgmt.logwriter("cli", "##### COMMAND '" + arguments + "' ISSUED FROM CLI BY USER '" + self.imum.currentuser()+ "' #####")
-			self.filemgmt.get_logfile()
-			configfile = self.filemgmt.find_config("quiet")
 			header = "########################## OUTPUT FROM FILE " + configfile + " ##########################"
 			print self.ui.color(header, self.ui.magenta)
 			print self.ui.color("#" * len(header), self.ui.magenta)
-			os.system("more " + configfile)
+			self.filemgmt.show_config_item('config')
 			print self.ui.color("#" * len(header), self.ui.magenta)
 			print self.ui.color("#" * len(header), self.ui.magenta)
 		elif arguments == "show clients":
 			self.filemgmt.logwriter("cli", "##### COMMAND '" + arguments + "' ISSUED FROM CLI BY USER '" + self.imum.currentuser()+ "' #####")
-			self.filemgmt.get_logfile()
-			configfile = self.filemgmt.find_config("quiet")
 			header = "########################## OUTPUT FROM FILE /etc/raddb/clients.conf ##########################"
 			print self.ui.color(header, self.ui.magenta)
 			print self.ui.color("#" * len(header), self.ui.magenta)
@@ -1310,8 +1308,6 @@ class command_line_interpreter(object):
 			print "\n - tail log         |     Watch the RadiUID log file in real time\n"
 		elif arguments == "tail log":
 			self.filemgmt.logwriter("cli", "##### COMMAND '" + arguments + "' ISSUED FROM CLI BY USER '" + self.imum.currentuser()+ "' #####")
-			self.filemgmt.get_logfile()
-			configfile = self.filemgmt.find_config("quiet")
 			header = "########################## OUTPUT FROM FILE " + logfile + " ##########################"
 			print self.ui.color(header, self.ui.magenta)
 			print self.ui.color("#" * len(header), self.ui.magenta)
@@ -1322,8 +1318,6 @@ class command_line_interpreter(object):
 		elif arguments == "clear" or arguments == "clear ?":
 			print "\n - clear log         |     Delete the content in the log file\n"
 		elif arguments == "clear log":
-			self.filemgmt.get_logfile()
-			configfile = self.filemgmt.find_config("quiet")
 			print self.ui.color("********************* You are about to clear out the RadiUID log file... (" + logfile + ") ********************", self.ui.yellow)
 			raw_input("Hit CTRL-C to quit. Hit ENTER to continue\n>>>>>")
 			os.system("rm -f "+ logfile)
@@ -1335,9 +1329,8 @@ class command_line_interpreter(object):
 			print " - edit clients     |     Edit list of client IPs for FreeRADIUS\n"
 		elif arguments == "edit config":
 			self.filemgmt.logwriter("cli", "##### COMMAND '" + arguments + "' ISSUED FROM CLI BY USER '" + self.imum.currentuser()+ "' #####")
-			self.filemgmt.get_logfile()
-			configfile = self.filemgmt.find_config("quiet")
 			print self.ui.color("****************** You are about to edit the RadiUID config file in VI ******************", self.ui.yellow)
+			print self.ui.color("****************** It is recommend you use 'set' commands instead of this ******************", self.ui.yellow)
 			print self.ui.color("********************* Confirm that you know how to use the VI editor ********************", self.ui.yellow)
 			raw_input("Hit CTRL-C to quit. Hit ENTER to continue\n>>>>>")
 			os.system("vi " + configfile)
@@ -1348,19 +1341,25 @@ class command_line_interpreter(object):
 			raw_input("Hit CTRL-C to quit. Hit ENTER to continue\n>>>>>")
 			os.system("vi /etc/raddb/clients.conf")
 		######################### RADIUID SERVICE CONTROL #############################
-		elif arguments == "start" or arguments == "start ?":
-			print "\n - start radiuid       |     Start the RadiUID system service"
-			print " - start freeradius    |     Start the FreeRADIUS system service"
-			print " - start all           |     Start the RadiUID and FreeRADIUS system services"
-		elif arguments == "stop" or arguments == "stop ?":
-			print "\n - stop radiuid        |     Stop the RadiUID system service"
-			print " - stop freeradius     |     Stop the FreeRADIUS system service"
-			print " - stop all            |     Stop the RadiUID and FreeRADIUS system services"
-		elif arguments == "restart" or arguments == "restart ?":
-			print "\n - restart radiuid     |     Restart the RadiUID system service"
-			print " - restart freeradius  |     Restart the FreeRADIUS system service"
-			print " - restart all         |     Restart the RadiUID and FreeRADIUS system services"
-		elif arguments == "start radiuid":
+		elif arguments == "service" or arguments == "service ?":
+			print "\n - Usage: radiuid service (radiuid | freeradius | all) (start | stop | restart)"
+			print "----------------------------------------------------------------------------------"
+			print "\n - service radiuid       |     Control the RadiUID system service"
+			print " - service freeradius    |     Control the FreeRADIUS system service"
+			print " - service all           |     Control the RadiUID and FreeRADIUS system services\n"
+		elif arguments == "service radiuid" or arguments == "service radiuid ?":
+			print "\n - service radiuid start        |     Start the RadiUID system service"
+			print " - service radiuid stop         |     Stop the RadiUID system service"
+			print " - service radiuid restart      |     Restart the RadiUID system service\n"
+		elif arguments == "service freeradius" or arguments == "service freeradius ?":
+			print "\n - service freeradius start        |     Start the FreeRADIUS system service"
+			print " - service freeradius stop         |     Stop the FreeRADIUS system service"
+			print " - service freeradius restart      |     Restart the FreeRADIUS system service\n"
+		elif arguments == "service all" or arguments == "service all ?":
+			print "\n - service all start        |     Start the RadiUID and FreeRADIUS system services"
+			print " - service all stop         |     Stop the RadiUID and FreeRADIUS system services"
+			print " - service all restart      |     Restart the RadiUID and FreeRADIUS system services\n"
+		elif arguments == "service radiuid start":
 			self.filemgmt.logwriter("cli", "##### COMMAND '" + arguments + "' ISSUED FROM CLI BY USER '" + self.imum.currentuser()+ "' #####")
 			os.system("systemctl start radiuid")
 			os.system("systemctl status radiuid")
@@ -1369,7 +1368,7 @@ class command_line_interpreter(object):
 				print self.ui.color("\n\n********** RADIUID SUCCESSFULLY STARTED UP! **********\n\n", self.ui.green)
 			elif checkservice == "no":
 				print self.ui.color("\n\n********** RADIUID STARTUP UNSUCCESSFUL. SOMETHING MUST BE WRONG... **********\n\n", self.ui.red)
-		elif arguments == "stop radiuid":
+		elif arguments == "service radiuid stop":
 			self.filemgmt.logwriter("cli", "##### COMMAND '" + arguments + "' ISSUED FROM CLI BY USER '" + self.imum.currentuser()+ "' #####")
 			header = "########################## CURRENT RADIUID SERVICE STATUS ##########################"
 			print self.ui.color(header, self.ui.magenta)
@@ -1380,7 +1379,7 @@ class command_line_interpreter(object):
 			os.system("systemctl stop radiuid")
 			os.system("systemctl status radiuid")
 			print self.ui.color("\n\n********** RADIUID STOPPED **********\n\n", self.ui.yellow)
-		elif arguments == "restart radiuid":
+		elif arguments == "service radiuid restart":
 			self.filemgmt.logwriter("cli", "##### COMMAND '" + arguments + "' ISSUED FROM CLI BY USER '" + self.imum.currentuser()+ "' #####")
 			header = "########################## CURRENT RADIUID SERVICE STATUS ##########################"
 			print self.ui.color(header, self.ui.magenta)
@@ -1401,7 +1400,7 @@ class command_line_interpreter(object):
 			elif checkservice == "no":
 				print self.ui.color("\n\n********** RADIUID STARTUP UNSUCCESSFUL. SOMETHING MUST BE WRONG... **********\n\n", self.ui.red)
 		######################### FREERADIUS SERVICE CONTROL #############################
-		elif arguments == "start freeradius":
+		elif arguments == "service freeradius start":
 			self.filemgmt.logwriter("cli", "##### COMMAND '" + arguments + "' ISSUED FROM CLI BY USER '" + self.imum.currentuser()+ "' #####")
 			os.system("systemctl start radiusd")
 			os.system("systemctl status radiusd")
@@ -1410,7 +1409,7 @@ class command_line_interpreter(object):
 				print self.ui.color("\n\n********** FREERADIUS SUCCESSFULLY STARTED UP! **********\n\n", self.ui.green)
 			elif checkservice == "no":
 				print self.ui.color("\n\n********** FREERADIUS STARTUP UNSUCCESSFUL. SOMETHING MUST BE WRONG... **********\n\n", self.ui.red)
-		elif arguments == "stop freeradius":
+		elif arguments == "service freeradius stop":
 			self.filemgmt.logwriter("cli", "##### COMMAND '" + arguments + "' ISSUED FROM CLI BY USER '" + self.imum.currentuser()+ "' #####")
 			header = "########################## CURRENT FREERADIUS SERVICE STATUS ##########################"
 			print self.ui.color(header, self.ui.magenta)
@@ -1421,7 +1420,7 @@ class command_line_interpreter(object):
 			os.system("systemctl stop radiusd")
 			os.system("systemctl status radiusd")
 			print self.ui.color("\n\n********** FREERADIUS STOPPED **********\n\n", self.ui.yellow)
-		elif arguments == "restart freeradius":
+		elif arguments == "service freeradius restart":
 			self.filemgmt.logwriter("cli", "##### COMMAND '" + arguments + "' ISSUED FROM CLI BY USER '" + self.imum.currentuser()+ "' #####")
 			header = "########################## CURRENT FREERADIUS SERVICE STATUS ##########################"
 			print self.ui.color(header, self.ui.magenta)
@@ -1442,7 +1441,7 @@ class command_line_interpreter(object):
 			elif checkservice == "no":
 				print self.ui.color("\n\n********** FREERADIUS STARTUP UNSUCCESSFUL. SOMETHING MUST BE WRONG... **********\n\n", self.ui.red)
 		######################### COMBINED SERVICE CONTROL #############################
-		elif arguments == "start all":
+		elif arguments == "service all start":
 			self.filemgmt.logwriter("cli", "##### COMMAND '" + arguments + "' ISSUED FROM CLI BY USER '" + self.imum.currentuser()+ "' #####")
 			os.system("systemctl start radiusd")
 			os.system("systemctl status radiusd")
@@ -1459,7 +1458,7 @@ class command_line_interpreter(object):
 				print self.ui.color("\n\n********** RADIUID SUCCESSFULLY STARTED UP! **********\n\n", self.ui.green)
 			elif checkservice == "no":
 				print self.ui.color("\n\n********** RADIUID STARTUP UNSUCCESSFUL. SOMETHING MUST BE WRONG... **********\n\n", self.ui.red)
-		elif arguments == "stop all":
+		elif arguments == "service all stop":
 			self.filemgmt.logwriter("cli", "##### COMMAND '" + arguments + "' ISSUED FROM CLI BY USER '" + self.imum.currentuser()+ "' #####")
 			header = "########################## CURRENT RADIUID SERVICE STATUS ##########################"
 			print self.ui.color(header, self.ui.magenta)
@@ -1478,7 +1477,7 @@ class command_line_interpreter(object):
 			os.system("systemctl stop radiusd")
 			os.system("systemctl status radiusd")
 			print self.ui.color("\n\n********** FREERADIUS STOPPED **********\n\n", self.ui.yellow)
-		elif arguments == "restart all":
+		elif arguments == "service all restart":
 			self.filemgmt.logwriter("cli", "##### COMMAND '" + arguments + "' ISSUED FROM CLI BY USER '" + self.imum.currentuser()+ "' #####")
 			header = "########################## CURRENT RADIUID SERVICE STATUS ##########################"
 			print self.ui.color(header, self.ui.magenta)
@@ -1549,17 +1548,8 @@ class command_line_interpreter(object):
 			print " - edit config         |     Edit the RadiUID config file"
 			print " - edit clients        |     Edit list of client IPs for FreeRADIUS"
 			print "----------------------------------------------------------------------------------------------\n"
-			print " - start radiuid       |     Start the RadiUID system service"
-			print " - stop radiuid        |     Stop the RadiUID system service"
-			print " - restart radiuid     |     Restart the RadiUID system service"
-			print "----------------------------------------------------------------------------------------------\n"
-			print " - start freeradius    |     Start the FreeRADIUS system service"
-			print " - stop freeradius     |     Stop the FreeRADIUS system service"
-			print " - restart freeradius  |     Restart the FreeRADIUS system service"
-			print "----------------------------------------------------------------------------------------------\n"
-			print " - start all           |     Start the RadiUID and FreeRADIUS system services"
-			print " - stop all            |     Stop the RadiUID and FreeRADIUS system services"
-			print " - restart all         |     Restart the RadiUID and FreeRADIUS system services"
+			print " - service             |     Control the RadiUID and FreeRADIUS system services"
+			print "                       |     Usage: radiuid service (radiuid | freeradius | all) (start | stop | restart)"
 			print "----------------------------------------------------------------------------------------------\n"
 			print " - version             |     Show the current version of RadiUID and FreeRADIUS"
 			print "----------------------------------------------------------------------------------------------\n\n\n"
