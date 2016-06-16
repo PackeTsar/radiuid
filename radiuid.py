@@ -12,14 +12,14 @@ import time
 import urllib
 import urllib2
 import commands
-import ConfigParser
+import xml.etree.ElementTree
 
 ##### Inform RadiUID version here #####
 version = "dev2.0.0"
 
 ##### Set default config file location #####
 etcconfigfile = '/etc/radiuid/radiuid.conf'
-
+extrastuff = '&type=user-id&vsys=vsys1&cmd='
 
 
 
@@ -160,6 +160,20 @@ class file_management(object):
 		resultlist.append(filepath)
 		resultlist.append(filename)
 		return resultlist
+	##### Simple two-choice logic method to pick a preferred input over another #####
+	##### Used to decide whether to use the radiuid.conf file in the 'etc' location, or the one in the local working directory #####
+	def file_chooser(self, firstchoice, secondchoice):
+		firstexists = self.file_exists(firstchoice)
+		secondexists = self.file_exists(secondchoice)
+		if firstexists == "yes" and secondexists == "yes":
+			return firstchoice
+		if firstexists == "yes" and secondexists == "no":
+			return firstchoice
+		if firstexists == "no" and secondexists == "yes":
+			return secondchoice
+		if firstexists == "no" and secondexists == "no":
+			return "CHOOSERFAIL"
+			quit()
 	#######################################################
 	#######        File Manipulation Methods        #######
 	#######         Direct File Interaction         #######
@@ -206,20 +220,6 @@ class file_management(object):
 			else:
 				exists = "yes"
 		return exists
-	##### Simple two-choice logic method to pick a preferred input over another #####
-	##### Used to decide whether to use the radiuid.conf file in the 'etc' location, or the one in the local working directory #####
-	def file_chooser(self, firstchoice, secondchoice):
-		firstexists = self.file_exists(firstchoice)
-		secondexists = self.file_exists(secondchoice)
-		if firstexists == "yes" and secondexists == "yes":
-			return firstchoice
-		if firstexists == "yes" and secondexists == "no":
-			return firstchoice
-		if firstexists == "no" and secondexists == "yes":
-			return secondchoice
-		if firstexists == "no" and secondexists == "no":
-			return "CHOOSERFAIL"
-			quit()
 	##### Get the current working directory #####
 	##### Used when radiuid.py is run manually using the 'python radiuid.py <arg>' to get the working directory to help find the config file #####
 	def get_working_directory(self):
@@ -246,13 +246,6 @@ class file_management(object):
 		else:
 			print "Need to set mode for find_config to 'noisy' or 'quiet'"
 			quit()
-	##### Pull logfile location from configfile #####
-	def get_logfile(self):
-		configfile = self.find_config("quiet")
-		parser = ConfigParser.SafeConfigParser()
-		parser.read(configfile)
-		global logfile
-		logfile = parser.get('Paths_and_Files', 'logfile')
 	##### Core IO method for logwriter operations. Excludes mode awareness #####
 	def logwriter_core(self, file, input):
 		target = open(file, 'a')
@@ -276,23 +269,227 @@ class file_management(object):
 				print self.ui.color(time.strftime("%Y-%m-%d %H:%M:%S") + ":   " +"*********** LOGFILE VARIABLE NOT FOUND! ***********\n", self.ui.red)
 				quit()
 		if mode == "cli":
-			configfile = self.find_config("quiet")
-			if configfile == "CHOOSERFAIL":
+			self.initialize_config("quiet")
+			self.publish_config("quiet")
+			if self.file_exists(logfile) == "no":
 				print self.ui.color("***** WARNING: Could not write CLI accounting info to log file *****", self.ui.yellow)
-			else:
-				self.get_logfile()
-				if self.file_exists(logfile) == "no":
-					print self.ui.color("***** WARNING: Could not write CLI accounting info to log file *****", self.ui.yellow)
-				elif self.file_exists(logfile) == "yes":
-					self.logwriter_core(logfile, input)
-					print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + input + "\n"
+			elif self.file_exists(logfile) == "yes":
+				self.logwriter_core(logfile, input)
+				print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + input + "\n"
 		if mode == "quiet":
-			configfile = self.find_config("quiet")
-			if configfile != "CHOOSERFAIL":
-				self.get_logfile()
-				if self.file_exists(logfile) == "yes":
-					self.logwriter_core(logfile, input)
-					# no printing to console
+			self.initialize_config("quiet")
+			self.publish_config("quiet")
+			if self.file_exists(logfile) == "yes":
+				self.logwriter_core(logfile, input)
+				# no printing to console
+	#######################################################
+	#######    Configuration Management Methods     #######
+	#######################################################
+	#######    Used to read/edit/write/show the     #######
+	#######   configuration from the config file    #######
+	#######################################################
+	##### Initiate the object by reading in config file, pulling out comment (for use later by save_config), and parsing to element tree #####
+	##### All methods in this class rely on searching/writing to/parsing the element tree "self.root" #####
+	def initialize_config(self, mode):
+		global configfile
+		if mode == 'noisy':
+			configfile = self.find_config(mode)
+			with open(configfile, 'r') as self.filetext:
+				self.xmldata = self.filetext.read()
+			self.regex = "(?s)<!--.*-->"
+			self.configcomment = re.findall(self.regex, self.xmldata, flags=0)[0]
+			self.cleanedxml = self.xmldata.replace(self.configcomment, "")
+			print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + "***********EXTRACTED XML CONFIG DATA FROM CONFIG FILE " + configfile + "***********" + "\n"
+			self.root = xml.etree.ElementTree.fromstring(self.cleanedxml)
+			print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + "***********" + self.ui.color("SUCESSFULLY MOUNTED CONFIG XML ELEMENT-TREE", self.ui.green) + "***********\n"
+		if mode == 'quiet':
+			configfile = self.find_config(mode)
+			if configfile == 'CHOOSERFAIL':
+				print self.ui.color(time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + "***********ERROR: Config file (radiuid.conf) not found in preferred location (/etc/radiuid/) or in working directory***********", self.ui.red)
+				print self.ui.color(time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + "***********Please put a copy of the radiuid.conf config file in one of these directories***********", self.ui.red)
+				quit()
+			with open(configfile, 'r') as self.filetext:
+				self.xmldata = self.filetext.read()
+			self.regex = "(?s)<!--.*-->"
+			self.configcomment = re.findall(self.regex, self.xmldata, flags=0)[0]
+			self.cleanedxml = self.xmldata.replace(self.configcomment, "")
+			self.root = xml.etree.ElementTree.fromstring(self.cleanedxml)
+	##### Publish all settings to variables in the global namespace for use by other processes #####
+	##### All variables are set to strings with the exception of the targets, which is a list of dictionary items #####
+	def publish_config(self, mode):
+		global radiuslogpath
+		global logfile
+		global userdomain
+		global timeout
+		global ipaddressterm
+		global usernameterm
+		global delineatorterm
+		global targets
+		if mode == 'noisy':# to be used to initialize the RadiUID main app
+			##### Suck config values into a dictionary #####
+			configdict = self.tinyxml2dict_starter()
+			##### Publish individual global settings values variables in main namespace #####
+			logfile = configdict['globalsettings']['paths']['logfile']
+			self.logwriter("normal", "***********INITIAL WRITE TO THE LOG FILE: " + logfile + "...***********")
+			self.logwriter("normal", "***********INITIALIZING VARIABLES FROM CONFIG FILE...***********")
+			self.logwriter("normal", "Initialized variable:" "\t" + "logfile" + "\t\t\t\t" + "with value:" + "\t" + self.ui.color(logfile, self.ui.green))
+			radiuslogpath = configdict['globalsettings']['paths']['radiuslogpath']
+			self.logwriter("normal", "Initialized variable:" "\t" + "radiuslogpath" + "\t\t\t" + "with value:" + "\t" + self.ui.color(radiuslogpath, self.ui.green))
+			ipaddressterm = configdict['globalsettings']['searchterms']['ipaddressterm']
+			self.logwriter("normal", "Initialized variable:" "\t" + "ipaddressterm" + "\t\t\t" + "with value:" + "\t" + self.ui.color(ipaddressterm, self.ui.green))
+			usernameterm = configdict['globalsettings']['searchterms']['usernameterm']
+			self.logwriter("normal", "Initialized variable:" "\t" + "usernameterm" + "\t\t\t" + "with value:" + "\t" + self.ui.color(usernameterm, self.ui.green))
+			delineatorterm = configdict['globalsettings']['searchterms']['delineatorterm']
+			self.logwriter("normal", "Initialized variable:" "\t" + "delineatorterm" + "\t\t\t" + "with value:" + "\t" + self.ui.color(delineatorterm, self.ui.green))
+			userdomain = configdict['globalsettings']['uidsettings']['userdomain']
+			self.logwriter("normal", "Initialized variable:" "\t" + "userdomain" + "\t\t\t" + "with value:" + "\t" + self.ui.color(userdomain, self.ui.green))
+			timeout = configdict['globalsettings']['uidsettings']['timeout']
+			self.logwriter("normal", "Initialized variable:" "\t" + "timeout" + "\t\t\t\t" + "with value:" + "\t" + self.ui.color(timeout, self.ui.green))
+			##### Publish list of firewall targets into main namespace #####
+			self.logwriter("normal", "***********INITIALIZING TARGETS...***********")
+			targets = configdict['targets']['target']
+			if type(targets) != type([]):
+				targets = [targets]
+			for target in targets:
+				self.logwriter("normal", self.ui.color("[IMPORTED]", self.ui.cyan) + "   HOSTNAME: " + self.ui.color(target['hostname'], self.ui.green) + "\t\tUSERNAME: " + self.ui.color(target['username'], self.ui.green) + "\t\tPASSWORD: " + self.ui.color(target['password'], self.ui.green) + "\t\tVERSION: " + self.ui.color(target['version'], self.ui.green))
+		if mode == 'quiet':
+			##### Suck config values into a dictionary #####
+			configdict = self.tinyxml2dict_starter()
+			##### Publish individual global settings values variables in main namespace #####
+			logfile = configdict['globalsettings']['paths']['logfile']
+			radiuslogpath = configdict['globalsettings']['paths']['radiuslogpath']
+			userdomain = configdict['globalsettings']['uidsettings']['userdomain']
+			timeout = configdict['globalsettings']['uidsettings']['timeout']
+			ipaddressterm = configdict['globalsettings']['searchterms']['ipaddressterm']
+			usernameterm = configdict['globalsettings']['searchterms']['usernameterm']
+			delineatorterm = configdict['globalsettings']['searchterms']['delineatorterm']
+			##### Publish list of firewall targets into main namespace #####
+			targets = configdict['targets']['target']
+	##### Show XML formatted configuration item #####
+	def show_config_item(self, itemname):
+		for value in self.root.iter(itemname):
+			xmldata = xml.etree.ElementTree.tostring(value, encoding="us-ascii", method="xml")
+			regexnewline = "\n.*[a-z]"
+			newline = re.findall(regexnewline, xmldata, flags=0)
+			if len(newline) > 0:
+				regexlastline = ".*</%s>" % itemname
+				#print regexlastline
+				regexlastelement = "</%s>" % itemname
+				lastline = re.findall(regexlastline, xmldata, flags=0)[0]
+				#print lastline
+				lastelement = re.findall(regexlastelement, xmldata, flags=0)[0]
+				#print lastelement
+				indent = lastline.replace(lastelement, "")
+				print indent + xmldata
+			else:
+				print "\t\t" + xmldata
+	##### Pull individual configuration item and return to calling function #####
+	def get_globalconfig_item(self, elementname):
+		for value in self.root.iter(elementname):
+			return str(value.text)
+	##### Change individual configuration item to a different value #####
+	##### Do not use for targets. Only global settings #####
+	def change_config_item(self, itemname, newvalue):
+		for value in self.root.iter(itemname):
+			value.text = newvalue
+	##### Add target firewalls to XML configuration elements #####
+	##### Method accepts a list of dictionaries which contain the standard 4 elements for a firewall target #####
+	##### Method will detect if the 'targets' element already exists and will create it if it doesn't #####
+	def add_targets(self, targetlist):
+		if len(self.root.findall('.//target')) == 0: # if <target> XML elements do not exist
+			for item in self.root.iter('globalsettings'): # adjust tail of 'globalsettings' element for formatting purposes
+				item.tail = '\n\t' # formatting added to tail of </globalsettings> element
+			targets = xml.etree.ElementTree.SubElement(self.root, 'targets') # mount new <targets> element as variable
+			targets.text = "\n\t\t" # add some formatting for upcoming <target> element
+			targets.tail = "\n" # add formatting to end for the </config> element
+		else:
+			targets = self.root.findall('.//targets')[0] # if <target> XML elements do already exist
+			lasttarget = self.root.findall('.//target')[len(self.root.findall('.//target')) - 1] # mount the last existing <target> element as variable
+			lasttarget.tail = "\n\t\t" # adjust formatting on tail of last </target> element
+		numtargets = len(targetlist) # check number of targets being added so last one's tail can be formatted differently
+		for item in targetlist:
+			target = xml.etree.ElementTree.SubElement(targets, 'target') # mount new target element as variable
+			target.text = "\n\t\t\t" # add some formatting to indent the upcoming <hostname> element properly
+			if numtargets == 1: # add different tail formatting if this is the last 'target' element entry
+				target.tail = "\n\t" # add formatting if this is the last target being added (to indent the '</targets>' properly)
+			else:
+				target.tail = "\n\t\t" # add formatting if this is NOT the last target being added (to indent the next '<target>' properly)
+			##### Add the different elements for the target #####
+			hostname = xml.etree.ElementTree.SubElement(target, 'hostname')
+			hostname.text = item['hostname']
+			hostname.tail = "\n\t\t\t"
+			username = xml.etree.ElementTree.SubElement(target, 'username')
+			username.text = item['username']
+			username.tail = "\n\t\t\t"
+			password = xml.etree.ElementTree.SubElement(target, 'password')
+			password.text = item['password']
+			password.tail = "\n\t\t\t"
+			version = xml.etree.ElementTree.SubElement(target, 'version')
+			version.text = item['version']
+			version.tail = "\n\t\t"
+			numtargets = numtargets - 1 # decrement the target counter for proper formatting on last target
+			##### Remove temporary variables #####
+			del hostname
+			del username
+			del password
+			del version
+			del target
+		del numtargets
+	##### Remove specific list of targets from config #####
+	##### Method accepts a list of dictionaries which contain at least the hostname key/value pair of the target #####
+	def remove_targets(self, targetlist):
+		if len(self.root.findall('.//target')) == 0: # If no targets exist in config, print error
+			print "No firewall targets exist. Nothing to remove"
+		else: # if some targets do exist in config
+			for removalitem in targetlist: # for each host listed for removal
+				result = 'failure' # initialize result in case host is not found for removal
+				for target in self.root.findall('.//target'): # for each target element 
+					for element in target.getchildren(): # list out children (atttributes) of the target (like hostname, username, etc)
+						if element.text == removalitem['hostname']: # check child elements of target element for hostname listed for removal
+							targets = self.root.findall('.//targets')[0] # mount <targets> element
+							targets.remove(target) # remove this <target> element from the <targets> element
+							del targets # unmount <targets> element
+							result = 'success' # set successful result
+							print "target " + element.text + " removed" # print confirmation of removal
+				if result == 'failure': # if we did not find the target to be removed
+					print "could not find that target" # print an error message
+		##### If we did not remove the last <target> element from <targets>, then set the proper tail indent on last <target> element
+		if len(self.root.findall('.//target')) > 0:
+			lasttarget = self.root.findall('.//target')[len(self.root.findall('.//target')) - 1] # mount the last existing <target> element as variable
+			lasttarget.tail = "\n\t" # adjust formatting on tail of last </target> element
+			del lasttarget # unmount last <target> element
+		else: # If we just removed the last <target> element from <targets>
+			self.clear_targets() # use the 'clear_targets' method to remove the left over elements from the config
+	##### Delete all firewall targets in mounted config #####
+	def clear_targets(self):
+		for item in self.root.iter('targets'):
+			self.root.remove(item)
+		for item in self.root.iter('globalsettings'):
+			item.tail = '\n'
+	##### Recombine comment and XML config data into single string and write to config file #####
+	def save_config(self):
+		self.newconfig = self.configcomment + "\n" + xml.etree.ElementTree.tostring(self.root)
+		f = open(configfile, 'w')
+		f.write(self.newconfig)
+		f.close()
+	##### Basic XML to Dict converter used to pull configuration info from the config file #####
+	def tinyxml2dict(self, node):
+		if "\n" not in node.text:
+			result = node.text
+		else:
+			result = dict()
+			for child in node:
+				if child.tag not in result.keys():
+					result[child.tag] = self.tinyxml2dict(child)
+				else:
+					if type(result[child.tag]) != type([]):
+						result[child.tag] = [result[child.tag], self.tinyxml2dict(child)]
+					else:
+						result[child.tag].append(self.tinyxml2dict(child))
+		return result
+	##### Simple starter method for the XML to Dict conversion process #####
+	def tinyxml2dict_starter(self):
+		return self.tinyxml2dict(self.root)
 
 
 
@@ -381,30 +578,35 @@ class palo_alto_firewall_interaction(object):
 	#######################################################
 	##### Accepts a list of IP addresses (keys) and usernames (vals) in a dictionary and outputs a list of XML formatted entries as a list #####
 	##### This method outputs a list which is utilized by the xml_assembler_v67 method #####
-	def xml_formatter_v67(self, ipanduserdict):
-		if panosversion == '7' or panosversion == '6':
-			ipaddresses = ipanduserdict.keys()
-			xmllist = []
-			for ip in ipaddresses:
-				entry = '<entry name="%s\%s" ip="%s" timeout="%s">' % (userdomain, ipanduserdict[ip], ip, timeout)
-				xmllist.append(entry)
-				entry = ''
-			return xmllist
-		else:
-			self.filemgmt.logwriter("normal", self.ui.color("PAN-OS version not supported for XML push!", self.ui.red))
-			quit()
+	def xml_formatter_v67(self, ipanduserdict, targetlist):
+		xmldict = {}
+		for target in targetlist:
+			if target['version'] == '7' or target['version'] == '6':
+				xmldict[target['hostname']] = []
+				ipaddresses = ipanduserdict.keys()
+				for ip in ipaddresses:
+					entry = '<entry name="%s\%s" ip="%s" timeout="%s">' % (userdomain, ipanduserdict[ip], ip, timeout)
+					xmldict[target['hostname']].append(entry)
+					entry = ''
+			else:
+				self.filemgmt.logwriter("normal", self.ui.color("PAN-OS version not supported for XML push!", self.ui.red))
+				quit()
+		return xmldict
 	##### Accepts a list of XML-formatted IP-to-User mappings and produces a list of complete and encoded URLs which are used to push UID data #####
 	##### Each URL will contain no more than 100 UID mappings which can all be pushed at the same time by the push_uids method #####
-	def xml_assembler_v67(self, ipuserxmllist):
-		if panosversion == '7' or panosversion == '6':
-			finishedurllist = []
-			xmluserdata = ""
-			iterations = 0
-			while len(ipuserxmllist) > 0:
-				for entry in ipuserxmllist[:100]:
-					xmluserdata = xmluserdata + entry + "\n</entry>\n"
-					ipuserxmllist.remove(entry)
-				urldecoded = '<uid-message>\n\
+	def xml_assembler_v67(self, ipuserxmldict, targetlist):
+		finishedurldict = {}
+		for host in targetlist:
+			if host['version'] == '7' or host['version'] == '6':
+				xmluserdata = ""
+				hostname = host['hostname']
+				hostxmlentries = ipuserxmldict[hostname]
+				finishedurllist = []
+				while len(hostxmlentries) > 0:
+					for entry in hostxmlentries[:100]:
+						xmluserdata = xmluserdata + entry + "\n</entry>\n"
+						hostxmlentries.remove(entry)
+					urldecoded = '<uid-message>\n\
 	<version>1.0</version>\n\
 	<type>update</type>\n\
 	<payload>\n\
@@ -413,44 +615,54 @@ class palo_alto_firewall_interaction(object):
 	</login>\n\
 	</payload>\n\
 	</uid-message>'
-				urljunk = urllib.quote_plus(urldecoded)
-				finishedurllist.append('https://' + hostname + '/api/?key=' + pankey + extrastuff + urljunk)
-				xmluserdata = ""
-			return finishedurllist
-		else:
-			self.filemgmt.logwriter("normal", self.ui.color("PAN-OS version not supported for XML push!", self.ui.red))
-			quit()
+					urljunk = urllib.quote_plus(urldecoded)
+					finishedurllist.append('https://' + hostname + '/api/?key=' + host['apikey'] + extrastuff + urljunk)
+					xmluserdata = ""
+				finishedurldict.update({hostname: finishedurllist})
+				del hostname
+				del hostxmlentries
+			else:
+				self.filemgmt.logwriter("normal", self.ui.color("PAN-OS version not supported for XML push!", self.ui.red))
+				quit()
+		return finishedurldict
 	#######################################################
 	#######         PAN Interaction Methods         #######
 	#######        Used for PAN Interaction         #######
 	#######################################################
 	##### Function to pull API key from firewall to be used for REST HTTP calls #####
 	##### Used during initialization of the RadiUID main process to generate the API key #####
-	def pull_api_key(self, username, password):
-		encodedusername = urllib.quote_plus(username)
-		encodedpassword = urllib.quote_plus(password)
-		url = 'https://' + hostname + '/api/?type=keygen&user=' + encodedusername + '&password=' + encodedpassword
-		response = urllib2.urlopen(url).read()
-		self.filemgmt.logwriter("normal", "Pulling API key using PAN credentials: " + username + "\\" + password + "\n")
-		if 'success' in response:
-			self.filemgmt.logwriter("normal", self.ui.color(response, self.ui.green) + "\n")
-			stripped1 = response.replace("<response status = 'success'><result><key>", "")
-			stripped2 = stripped1.replace("</key></result></response>", "")
-			pankey = stripped2
-			return pankey
-		else:
-			log_writer("normal", self.ui.color('ERROR: Username\\password failed. Please re-enter in config file...' + '\n', self.ui.red))
+	def pull_api_key(self, targetlist):
+		if type(targetlist) != type([]):
+			self.filemgmt.logwriter("normal", self.ui.color('ERROR: API Key function requires a list as input' + '\n', self.ui.red))
 			quit()
+		for target in targetlist:
+			encodedusername = urllib.quote_plus(target['username'])
+			encodedpassword = urllib.quote_plus(target['password'])
+			url = 'https://' + target['hostname'] + '/api/?type=keygen&user=' + encodedusername + '&password=' + encodedpassword
+			response = urllib2.urlopen(url).read()
+			self.filemgmt.logwriter("normal", "Pulling API key using PAN from " + target['hostname'] + " using credentials: " + target['username'] + "\\" + target['password'])
+			if 'success' in response:
+				self.filemgmt.logwriter("normal", self.ui.color(response, self.ui.green))
+				stripped1 = response.replace("<response status = 'success'><result><key>", "")
+				stripped2 = stripped1.replace("</key></result></response>", "")
+				pankey = stripped2
+				target['apikey'] = pankey
+				self.filemgmt.logwriter("normal", "Added 'apikey': " + pankey + " attribute to host: " + target['hostname'])
+			else:
+				self.filemgmt.logwriter("normal", self.ui.color('ERROR: Username\\password failed. Please re-enter in config file...' + '\n', self.ui.red))
+				quit()
 	##### Accepts IP-to-User mappings as a dict in, uses the xml-formatter and xml-assembler to generate a list of URLS, then opens those URLs and logs response codes  #####
 	def push_uids(self, ipanduserdict, filelist):
-		xml_list = self.xml_formatter_v67(ipanduserdict)
-		urllist = self.xml_assembler_v67(xml_list)
-		self.filemgmt.logwriter("normal", "Pushing the below IP : User mappings via " + str(len(urllist)) + " API calls")
-		for entry in ipanduserdict:
-			self.filemgmt.logwriter("normal", "IP Address: " + self.ui.color(entry, self.ui.cyan) + "\t\tUsername: " + self.ui.color(ipanduserdict[entry], self.ui.cyan))
-		for eachurl in urllist:
-			response = urllib2.urlopen(eachurl).read()
-			self.filemgmt.logwriter("normal", self.ui.color(response, self.ui.green) + "\n")
+		xml_dict = self.xml_formatter_v67(ipanduserdict, targets)
+		urldict = self.xml_assembler_v67(xml_dict, targets)
+		for host in urldict:
+			self.filemgmt.logwriter("normal", "Pushing the below IP : User mappings to " + host + " via " + str(len(urldict[host])) + " API calls")
+			urllist = urldict[host]
+			for entry in ipanduserdict:
+				self.filemgmt.logwriter("normal", "IP Address: " + self.ui.color(entry, self.ui.cyan) + "\t\tUsername: " + self.ui.color(ipanduserdict[entry], self.ui.cyan))
+			for eachurl in urllist:
+				response = urllib2.urlopen(eachurl).read()
+				self.filemgmt.logwriter("normal", self.ui.color(response, self.ui.green) + "\n")
 		self.filemgmt.remove_files(filelist)
 
 
@@ -476,73 +688,18 @@ class radiuid_main_process(object):
 	##### This method runs once during the initial startup of the program #####
 	def initialize(self):
 		print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + "***********MAIN PROGRAM INITIALIZATION KICKED OFF...***********" + "\n"
-		global logfile
-		global radiuslogpath
-		global hostname
-		global panosversion
-		global panuser
-		global panpassword
-		global extrastuff
-		global ipaddressterm
-		global usernameterm
-		global delineatorterm
-		global userdomain
-		global timeout
-		##### Check if config file exists. Fail program if it doesn't #####
-		configfile = self.filemgmt.find_config("noisy")
-		checkfile = self.filemgmt.file_exists(configfile)
-		if checkfile == 'no':
-			print self.ui.color(time.strftime(
-				"%Y-%m-%d %H:%M:%S") + ":   " + "ERROR: CANNOT FIND RADIUID CONFIG FILE IN TYPICAL PATHS. QUITTING PROGRAM. RE-RUN INSTALLER ('python radiuid.py install')" + "\n", self.ui.red)
-			quit()
-		if checkfile == 'yes':
-			print time.strftime(
-				"%Y-%m-%d %H:%M:%S") + ":   " + "***********USING CONFIG FILE " + configfile + " TO START RADIUID APPLICATION***********" + "\n"
-			print time.strftime(
-				"%Y-%m-%d %H:%M:%S") + ":   " + "***********READING IN RADIUID LOGFILE INFORMATION. ALL SUBSEQUENT OUTPUT WILL BE LOGGED TO THE LOGFILE***********" + "\n"
-		##### Open the config file and read in the logfile location information #####
-		parser = ConfigParser.SafeConfigParser()
-		parser.read(configfile)
-		logfile = parser.get('Paths_and_Files', 'logfile')
 		##### Initial log entry and help for anybody starting the .py program without first installing it #####
-		self.filemgmt.logwriter("normal", "***********INITIAL WRITE TO THE LOG FILE: " + logfile + "...***********")
 		self.filemgmt.logwriter("normal", "***********RADIUID INITIALIZING... IF PROGRAM FAULTS NOW, MAKE SURE YOU SUCCESSFULLY RAN THE INSTALLER ('python radiuid.py install')***********")
-		##### Suck in all variables from config file (only run when program is initially started, not during while loop) #####
-		self.filemgmt.logwriter("normal", "***********INITIALIZING VARIABLES FROM CONFIG FILE: " + configfile + "...***********")
-		self.filemgmt.logwriter("normal", "Initialized variable:" "\t" + "logfile" + "\t\t\t\t" + "with value:" + "\t" + self.ui.color(logfile, self.ui.green))
-		radiuslogpath = parser.get('Paths_and_Files', 'radiuslogpath')
-		self.filemgmt.logwriter("normal", "Initialized variable:" "\t" + "radiuslogpath" + "\t\t\t" + "with value:" + "\t" + self.ui.color(radiuslogpath, self.ui.green))
-		hostname = parser.get('Palo_Alto_Target', 'hostname')
-		self.filemgmt.logwriter("normal", "Initialized variable:" "\t" + "hostname" + "\t\t\t" + "with value:" + "\t" + self.ui.color(hostname, self.ui.green))
-		panosversion = parser.get('Palo_Alto_Target', 'panosversion')
-		self.filemgmt.logwriter("normal", "Initialized variable:" "\t" + "panosversion" + "\t\t\t" + "with value:" + "\t" + self.ui.color(panosversion, self.ui.green))
-		panuser = parser.get('Palo_Alto_Target', 'username')
-		self.filemgmt.logwriter("normal", "Initialized variable:" "\t" + "panuser" + "\t\t\t\t" + "with value:" + "\t" + self.ui.color(panuser, self.ui.green))
-		panpassword = parser.get('Palo_Alto_Target', 'password')
-		self.filemgmt.logwriter("normal", "Initialized variable:" "\t" + "panpassword" + "\t\t\t" + "with value:" + "\t" + self.ui.color(panpassword, self.ui.green))
-		extrastuff = parser.get('URL_Stuff', 'extrastuff')
-		self.filemgmt.logwriter("normal", "Initialized variable:" "\t" + "extrastuff" + "\t\t\t" + "with value:" + "\t" + self.ui.color(extrastuff, self.ui.green))
-		ipaddressterm = parser.get('Search_Terms', 'ipaddressterm')
-		self.filemgmt.logwriter("normal", "Initialized variable:" "\t" + "ipaddressterm" + "\t\t\t" + "with value:" + "\t" + self.ui.color(ipaddressterm, self.ui.green))
-		usernameterm = parser.get('Search_Terms', 'usernameterm')
-		self.filemgmt.logwriter("normal", "Initialized variable:" "\t" + "usernameterm" + "\t\t\t" + "with value:" + "\t" + self.ui.color(usernameterm, self.ui.green))
-		delineatorterm = parser.get('Search_Terms', 'delineatorterm')
-		self.filemgmt.logwriter("normal", "Initialized variable:" "\t" + "delineatorterm" + "\t\t\t" + "with value:" + "\t" + self.ui.color(delineatorterm, self.ui.green))
-		userdomain = parser.get('UID_Settings', 'userdomain')
-		self.filemgmt.logwriter("normal", "Initialized variable:" "\t" + "userdomain" + "\t\t\t" + "with value:" + "\t" + self.ui.color(userdomain, self.ui.green))
-		timeout = parser.get('UID_Settings', 'timeout')
-		self.filemgmt.logwriter("normal", "Initialized variable:" "\t" + "timeout" + "\t\t\t\t" + "with value:" + "\t" + self.ui.color(timeout, self.ui.green))
 		##### Explicitly pull PAN key now and store API key in the main namespace #####
 		self.filemgmt.logwriter("normal", "***********************************CONNECTING TO PALO ALTO FIREWALL TO EXTRACT THE API KEY...***********************************")
 		self.filemgmt.logwriter("normal", "********************IF PROGRAM FREEZES/FAILS RIGHT NOW, THEN THERE IS LIKELY A COMMUNICATION PROBLEM WITH THE FIREWALL********************")
-		global pankey
-		pankey = self.pafi.pull_api_key(panuser, panpassword)
-		self.filemgmt.logwriter("normal", "Initialized variable:" "\t" + "pankey" + "\t\t\t\t" + "with value:" + "\t" + pankey)
+		pankey = self.pafi.pull_api_key(targets)
 		self.filemgmt.logwriter("normal", "*******************************************CONFIG FILE SETTINGS INITIALIZED*******************************************")
 		self.filemgmt.logwriter("normal", "***********************************RADIUID SERVER STARTING WITH INITIALIZED VARIABLES...******************************")
 	##### RadiUID looper method which initializes the namespace with config variables and loops the main RadiUID program #####
 	def looper(self):
-		configfile = self.filemgmt.find_config("noisy")
+		self.filemgmt.initialize_config("noisy")
+		self.filemgmt.publish_config("noisy")
 		self.initialize()
 		while __name__ == "__main__":
 			filelist = self.filemgmt.list_files(radiuslogpath)
@@ -630,7 +787,7 @@ class imu_methods(object):
 	##### Used to ask questions and set new config settings in the install/maintenance utility #####
 	def change_setting(self, setting, question):
 		newsetting = raw_input(self.ui.color(">>>>> " + question + " [" + setting + "]: ", self.ui.cyan))
-		if newsetting == '':
+		if newsetting == '' or newsetting == setting:
 			print self.ui.color("~~~ Keeping current setting...", self.ui.green)
 			newsetting = setting
 		else:
@@ -917,13 +1074,10 @@ class installer_maintenance_utility(object):
 		#########################################################################
 		###Read current .conf settings into interpreter
 		#########################################################################
-		editradiuidconf = self.ui.yesorno("Do you want to edit the settings in the RadiUID .conf file (if you just installed or reinstalled RadiUID, then you need to do this)?")
+		editradiuidconf = self.ui.yesorno("Do you want to edit the settings in the RadiUID .conf file (if you just installed or reinstalled RadiUID, then you should do this)?")
 		if editradiuidconf == "yes":
-			configfile = self.filemgmt.find_config("noisy")
-			checkfile = self.filemgmt.file_exists(configfile)
-			if checkfile == 'no':
-				print self.ui.color("ERROR: Config file (radiuid.conf) not found. Make sure the radiuid.conf file exists in same directory as radiuid.py", self.ui.red)
-				quit()
+			self.filemgmt.initialize_config("quiet")
+			global configfile
 			print "Configuring File: " + self.ui.color(configfile, self.ui.green) + "\n"
 			print "\n\n\n****************Now, we will import the settings from the " + configfile + " file...****************\n"
 			print "*****************The current values for each setting are [displayed in the prompt]****************\n"
@@ -932,73 +1086,85 @@ class installer_maintenance_utility(object):
 			print "\n\n\n\n\n\n\n"
 			print "**************** Reading in current settings from " + configfile + " ****************\n"
 			self.ui.progress('Reading:', 1)
-			parser = ConfigParser.SafeConfigParser()
-			parser.read(configfile)
-			f = open(configfile, 'r')
-			config_file_data = f.read()
-			f.close()
-			logfile = parser.get('Paths_and_Files', 'logfile')
-			radiuslogpath = parser.get('Paths_and_Files', 'radiuslogpath')
-			hostname = parser.get('Palo_Alto_Target', 'hostname')
-			panosversion = parser.get('Palo_Alto_Target', 'panosversion')
-			username = parser.get('Palo_Alto_Target', 'username')
-			password = parser.get('Palo_Alto_Target', 'password')
-			extrastuff = parser.get('URL_Stuff', 'extrastuff')
-			ipaddressterm = parser.get('Search_Terms', 'ipaddressterm')
-			usernameterm = parser.get('Search_Terms', 'usernameterm')
-			delineatorterm = parser.get('Search_Terms', 'delineatorterm')
-			userdomain = parser.get('UID_Settings', 'userdomain')
-			timeout = parser.get('UID_Settings', 'timeout')			
+			self.filemgmt.publish_config("quiet")
 			#########################################################################
 			###Ask questions to the console for editing the .conf file settings
 			#########################################################################
 			print "\n\n\n\n\n\n****************Please enter values for the different settings in the radiuid.conf file****************\n"
+			global logfile
 			newlogfile = self.imum.change_setting(logfile, 'Enter full path to the new RadiUID Log File')
 			print "\n"
 			newradiuslogpath = self.imum.change_setting(radiuslogpath, 'Enter path to the FreeRADIUS Accounting Logs')
-			print "\n"
-			newhostname = self.imum.change_setting(hostname, 'Enter IP address or hostname for target Palo Alto firewall')
-			print "\n"
-			newpanosversion = self.imum.change_setting(panosversion, 'Enter PAN-OS software version on target firewall (only PAN-OS 6 and 7 are currently supported)')
-			print "\n"
-			newusername = self.imum.change_setting(username, 'Enter administrative username for Palo Alto firewall')
-			print "\n"
-			newpassword = self.imum.change_setting(password, 'Enter administrative password for Palo Alto firewall (entered text will be shown in the clear)')
-			while newpassword.find("%") != -1:
-				newpassword = self.imum.change_setting(password, 'The "%" sign is not allowed in the password. Please enter a password without it')
 			print "\n"
 			newuserdomain = self.imum.change_setting(userdomain, 'Enter the user domain to be prefixed to User-IDs')
 			print "\n"
 			newtimeout = self.imum.change_setting(timeout, 'Enter timeout period for pushed UIDs (in minutes)')
 			#########################################################################
+			###Ask questions to add/edit targets for the config file
+			#########################################################################
+			print "\n****************Checking for already configured firewall targets****************\n"
+			self.ui.progress('Reading:', 1)
+			for target in targets:
+				print "   HOSTNAME: " + self.ui.color(target['hostname'], self.ui.green) + "\t\tUSERNAME: " + self.ui.color(target['username'], self.ui.green) + "\t\tPASSWORD: " + self.ui.color(target['password'], self.ui.green) + "\t\tVERSION: " + self.ui.color(target['version'], self.ui.green)
+			print "\n\n"
+			changetargets = self.ui.yesorno("Do you want to delete the current targets and set up new ones?")
+			if changetargets == 'no':
+				print "~~~ OK. Leaving current targets alone..."
+				newtargets = targets
+			elif changetargets == 'yes':
+				anothertarget = 'yes'
+				newtargets = []
+				while anothertarget == 'yes':
+					print "\n\n\n"
+					addhostname = self.imum.change_setting('192.168.1.1', 'Enter the IP ADDRESS or HOSTNAME of the target firewall to recieve User-ID mappings')
+					addusername = self.imum.change_setting('admin', 'Enter the administrative USERNAME to use for authentication against the firewall')
+					addpassword = self.imum.change_setting('admin', 'Enter the PASSWORD for the username you just entered')
+					addversion = self.imum.change_setting('7', 'Enter the major software version running on the firewall')
+					newtargets.append({'hostname': addhostname, 'username': addusername, 'password': addpassword, 'version': addversion})
+					print "\n\n"
+					anothertarget = self.ui.yesorno("Do you want to add another target firewall?")
+				print "\n****************New Targets Are:****************\n"
+				for target in newtargets:
+					print "   HOSTNAME: " + self.ui.color(target['hostname'], self.ui.green) + "\t\tUSERNAME: " + self.ui.color(target['username'], self.ui.green) + "\t\tPASSWORD: " + self.ui.color(target['password'], self.ui.green) + "\t\tVERSION: " + self.ui.color(target['version'], self.ui.green)
+				print "\n\n\n"
+				raw_input(self.ui.color("\n\n>>>>> Hit ENTER to see what the new config will look like...\n\n>>>>>", self.ui.cyan))
+				print "\n\n\n"
+				##### Apply global settings to mounted config #####
+				self.filemgmt.change_config_item('logfile', newlogfile)
+				self.filemgmt.change_config_item('radiuslogpath', newradiuslogpath)
+				self.filemgmt.change_config_item('userdomain', newuserdomain)
+				self.filemgmt.change_config_item('timeout', newtimeout)
+				##### Apply target settings to mounted config #####
+				self.filemgmt.clear_targets()
+				self.filemgmt.add_targets(newtargets)
+				##### Show Config #####
+				self.filemgmt.show_config_item('config')
+				print "\n\n\n"
+			#########################################################################
 			###Pushing settings to .conf file with the code below
 			#########################################################################
-			print "\n\n\n\n\n\n****************Applying entered settings into the radiuid.conf file...****************\n"
-			new_config_file_data = config_file_data
-			self.ui.progress('Applying:', 1)
-			new_config_file_data = self.imum.apply_setting(new_config_file_data, 'logfile', logfile, newlogfile)
-			new_config_file_data = self.imum.apply_setting(new_config_file_data, 'radiuslogpath', radiuslogpath, newradiuslogpath)
-			new_config_file_data = self.imum.apply_setting(new_config_file_data, 'hostname', hostname, newhostname)
-			new_config_file_data = self.imum.apply_setting(new_config_file_data, 'panosversion', panosversion, newpanosversion)
-			new_config_file_data = self.imum.apply_setting(new_config_file_data, 'username', username, newusername)
-			new_config_file_data = self.imum.apply_setting(new_config_file_data, 'password', password, newpassword)
-			new_config_file_data = self.imum.apply_setting(new_config_file_data, 'userdomain', userdomain, newuserdomain)
-			new_config_file_data = self.imum.apply_setting(new_config_file_data, 'timeout', timeout, newtimeout)
-			self.filemgmt.write_file(etcconfigfile, new_config_file_data)
-			newlogfiledir = self.filemgmt.strip_filepath(newlogfile)[0][0]
-			os.system('mkdir -p ' + newlogfiledir)
-			print "\n\n****************Starting/Restarting the RadiUID service...****************\n"
-			self.imum.restart_service('radiuid')
-			radiuidrunning = self.imum.check_service_running('radiuid')
-			if radiuidrunning == "yes":
-				print self.ui.color("***** RadiUID successfully started up!!!", self.ui.green)
-			raw_input(self.ui.color(">>>>> Hit ENTER to continue...\n\n>>>>>", self.ui.cyan))
-			if radiuidrunning == "no":
-				print self.ui.color("***** Something went wrong. Looks like the installation or startup failed... ", self.ui.red)
-				print self.ui.color("***** Please make sure you are installing RadiUID on a support platform", self.ui.red)
-				print self.ui.color("***** You can manually edit the RadiUID config file by entering 'radiuid edit config' in the CLI", self.ui.red)
-				raw_input(self.ui.color("Hit ENTER to quit the program...\n\n>>>>>", self.ui.cyan))
-				quit()
+			applysettings = self.ui.yesorno("Do you want to apply your entered settings to the config file and restart the RadiUID service?")
+			if applysettings == 'no':
+				print "~~~ OK. Disregarding config changes..."
+			elif applysettings == 'yes':
+				print "\n\n\n\n\n\n****************Applying entered settings into the radiuid.conf file...****************\n"
+				self.ui.progress('Applying:', 1)
+				self.filemgmt.save_config()
+				newlogfiledir = self.filemgmt.strip_filepath(newlogfile)[0]
+				print "\n\n****************Creating log directory: "+ newlogfiledir + "****************\n"
+				os.system('mkdir -p ' + newlogfiledir)
+				print "\n\n****************Starting/Restarting the RadiUID service...****************\n"
+				self.imum.restart_service('radiuid')
+				radiuidrunning = self.imum.check_service_running('radiuid')
+				if radiuidrunning == "yes":
+					print self.ui.color("***** RadiUID successfully started up!!!", self.ui.green)
+				raw_input(self.ui.color(">>>>> Hit ENTER to continue...\n\n>>>>>", self.ui.cyan))
+				if radiuidrunning == "no":
+					print self.ui.color("***** Something went wrong. Looks like the installation or startup failed... ", self.ui.red)
+					print self.ui.color("***** Please make sure you are installing RadiUID on a support platform", self.ui.red)
+					print self.ui.color("***** You can manually edit the RadiUID config file by entering 'radiuid edit config' in the CLI", self.ui.red)
+					raw_input(self.ui.color("Hit ENTER to quit the program...\n\n>>>>>", self.ui.cyan))
+					quit()
 		else:
 			print "~~~ OK... Leaving the .conf file alone"
 		#########################################################################
@@ -1015,13 +1181,8 @@ class installer_maintenance_utility(object):
 		print "\n\n\n\n\n\n***** Thank you for using the RadiUID installer/management utility"
 		raw_input(self.ui.color(">>>>> Hit ENTER to see the tail of the RadiUID log file before you exit the utility\n\n>>>>>", self.ui.cyan))
 		##### Read in logfile path from found config file #####
-		configfile = self.filemgmt.find_config("quiet")
-		parser = ConfigParser.SafeConfigParser()
-		parser.read(configfile)
-		f = open(configfile, 'r')
-		config_file_data = f.read()
-		f.close()
-		logfile = parser.get('Paths_and_Files', 'logfile')
+		self.filemgmt.initialize_config("quiet")
+		self.filemgmt.publish_config("quiet")
 		#######################################################
 		print "\n\n############################## LAST 50 LINES FROM " + logfile + "##############################"
 		print "########################################################################################################"
@@ -1067,6 +1228,9 @@ class command_line_interpreter(object):
 	######################### RadiUID Command Interpreter #############################
 	def interpreter(self):
 		arguments = self.cat_list(sys.argv[1:])
+		self.filemgmt.initialize_config('quiet')
+		self.filemgmt.publish_config('quiet')
+		global configfile
 		######################### RUN #############################
 		if arguments == "run":
 			self.radiuid.looper()
@@ -1084,7 +1248,6 @@ class command_line_interpreter(object):
 			print " - show status      |     Show the RadiUID and FreeRADIUS service statuses"
 		elif arguments == "show log":
 			self.filemgmt.logwriter("cli", "##### COMMAND '" + arguments + "' ISSUED FROM CLI BY USER '" + self.imum.currentuser()+ "' #####")
-			self.filemgmt.get_logfile()
 			configfile = self.filemgmt.find_config("quiet")
 			header = "########################## OUTPUT FROM FILE " + logfile + " ##########################"
 			print self.ui.color(header, self.ui.magenta)
@@ -1094,18 +1257,14 @@ class command_line_interpreter(object):
 			print self.ui.color("#" * len(header), self.ui.magenta)
 		elif arguments == "show run" or arguments == "show config":
 			self.filemgmt.logwriter("cli", "##### COMMAND '" + arguments + "' ISSUED FROM CLI BY USER '" + self.imum.currentuser()+ "' #####")
-			self.filemgmt.get_logfile()
-			configfile = self.filemgmt.find_config("quiet")
 			header = "########################## OUTPUT FROM FILE " + configfile + " ##########################"
 			print self.ui.color(header, self.ui.magenta)
 			print self.ui.color("#" * len(header), self.ui.magenta)
-			os.system("more " + configfile)
+			self.filemgmt.show_config_item('config')
 			print self.ui.color("#" * len(header), self.ui.magenta)
 			print self.ui.color("#" * len(header), self.ui.magenta)
 		elif arguments == "show clients":
 			self.filemgmt.logwriter("cli", "##### COMMAND '" + arguments + "' ISSUED FROM CLI BY USER '" + self.imum.currentuser()+ "' #####")
-			self.filemgmt.get_logfile()
-			configfile = self.filemgmt.find_config("quiet")
 			header = "########################## OUTPUT FROM FILE /etc/raddb/clients.conf ##########################"
 			print self.ui.color(header, self.ui.magenta)
 			print self.ui.color("#" * len(header), self.ui.magenta)
@@ -1149,8 +1308,6 @@ class command_line_interpreter(object):
 			print "\n - tail log         |     Watch the RadiUID log file in real time\n"
 		elif arguments == "tail log":
 			self.filemgmt.logwriter("cli", "##### COMMAND '" + arguments + "' ISSUED FROM CLI BY USER '" + self.imum.currentuser()+ "' #####")
-			self.filemgmt.get_logfile()
-			configfile = self.filemgmt.find_config("quiet")
 			header = "########################## OUTPUT FROM FILE " + logfile + " ##########################"
 			print self.ui.color(header, self.ui.magenta)
 			print self.ui.color("#" * len(header), self.ui.magenta)
@@ -1161,8 +1318,6 @@ class command_line_interpreter(object):
 		elif arguments == "clear" or arguments == "clear ?":
 			print "\n - clear log         |     Delete the content in the log file\n"
 		elif arguments == "clear log":
-			self.filemgmt.get_logfile()
-			configfile = self.filemgmt.find_config("quiet")
 			print self.ui.color("********************* You are about to clear out the RadiUID log file... (" + logfile + ") ********************", self.ui.yellow)
 			raw_input("Hit CTRL-C to quit. Hit ENTER to continue\n>>>>>")
 			os.system("rm -f "+ logfile)
@@ -1174,9 +1329,8 @@ class command_line_interpreter(object):
 			print " - edit clients     |     Edit list of client IPs for FreeRADIUS\n"
 		elif arguments == "edit config":
 			self.filemgmt.logwriter("cli", "##### COMMAND '" + arguments + "' ISSUED FROM CLI BY USER '" + self.imum.currentuser()+ "' #####")
-			self.filemgmt.get_logfile()
-			configfile = self.filemgmt.find_config("quiet")
 			print self.ui.color("****************** You are about to edit the RadiUID config file in VI ******************", self.ui.yellow)
+			print self.ui.color("****************** It is recommend you use 'set' commands instead of this ******************", self.ui.yellow)
 			print self.ui.color("********************* Confirm that you know how to use the VI editor ********************", self.ui.yellow)
 			raw_input("Hit CTRL-C to quit. Hit ENTER to continue\n>>>>>")
 			os.system("vi " + configfile)
@@ -1187,19 +1341,25 @@ class command_line_interpreter(object):
 			raw_input("Hit CTRL-C to quit. Hit ENTER to continue\n>>>>>")
 			os.system("vi /etc/raddb/clients.conf")
 		######################### RADIUID SERVICE CONTROL #############################
-		elif arguments == "start" or arguments == "start ?":
-			print "\n - start radiuid       |     Start the RadiUID system service"
-			print " - start freeradius    |     Start the FreeRADIUS system service"
-			print " - start all           |     Start the RadiUID and FreeRADIUS system services"
-		elif arguments == "stop" or arguments == "stop ?":
-			print "\n - stop radiuid        |     Stop the RadiUID system service"
-			print " - stop freeradius     |     Stop the FreeRADIUS system service"
-			print " - stop all            |     Stop the RadiUID and FreeRADIUS system services"
-		elif arguments == "restart" or arguments == "restart ?":
-			print "\n - restart radiuid     |     Restart the RadiUID system service"
-			print " - restart freeradius  |     Restart the FreeRADIUS system service"
-			print " - restart all         |     Restart the RadiUID and FreeRADIUS system services"
-		elif arguments == "start radiuid":
+		elif arguments == "service" or arguments == "service ?":
+			print "\n - Usage: radiuid service (radiuid | freeradius | all) (start | stop | restart)"
+			print "----------------------------------------------------------------------------------"
+			print "\n - service radiuid       |     Control the RadiUID system service"
+			print " - service freeradius    |     Control the FreeRADIUS system service"
+			print " - service all           |     Control the RadiUID and FreeRADIUS system services\n"
+		elif arguments == "service radiuid" or arguments == "service radiuid ?":
+			print "\n - service radiuid start        |     Start the RadiUID system service"
+			print " - service radiuid stop         |     Stop the RadiUID system service"
+			print " - service radiuid restart      |     Restart the RadiUID system service\n"
+		elif arguments == "service freeradius" or arguments == "service freeradius ?":
+			print "\n - service freeradius start        |     Start the FreeRADIUS system service"
+			print " - service freeradius stop         |     Stop the FreeRADIUS system service"
+			print " - service freeradius restart      |     Restart the FreeRADIUS system service\n"
+		elif arguments == "service all" or arguments == "service all ?":
+			print "\n - service all start        |     Start the RadiUID and FreeRADIUS system services"
+			print " - service all stop         |     Stop the RadiUID and FreeRADIUS system services"
+			print " - service all restart      |     Restart the RadiUID and FreeRADIUS system services\n"
+		elif arguments == "service radiuid start":
 			self.filemgmt.logwriter("cli", "##### COMMAND '" + arguments + "' ISSUED FROM CLI BY USER '" + self.imum.currentuser()+ "' #####")
 			os.system("systemctl start radiuid")
 			os.system("systemctl status radiuid")
@@ -1208,7 +1368,7 @@ class command_line_interpreter(object):
 				print self.ui.color("\n\n********** RADIUID SUCCESSFULLY STARTED UP! **********\n\n", self.ui.green)
 			elif checkservice == "no":
 				print self.ui.color("\n\n********** RADIUID STARTUP UNSUCCESSFUL. SOMETHING MUST BE WRONG... **********\n\n", self.ui.red)
-		elif arguments == "stop radiuid":
+		elif arguments == "service radiuid stop":
 			self.filemgmt.logwriter("cli", "##### COMMAND '" + arguments + "' ISSUED FROM CLI BY USER '" + self.imum.currentuser()+ "' #####")
 			header = "########################## CURRENT RADIUID SERVICE STATUS ##########################"
 			print self.ui.color(header, self.ui.magenta)
@@ -1219,7 +1379,7 @@ class command_line_interpreter(object):
 			os.system("systemctl stop radiuid")
 			os.system("systemctl status radiuid")
 			print self.ui.color("\n\n********** RADIUID STOPPED **********\n\n", self.ui.yellow)
-		elif arguments == "restart radiuid":
+		elif arguments == "service radiuid restart":
 			self.filemgmt.logwriter("cli", "##### COMMAND '" + arguments + "' ISSUED FROM CLI BY USER '" + self.imum.currentuser()+ "' #####")
 			header = "########################## CURRENT RADIUID SERVICE STATUS ##########################"
 			print self.ui.color(header, self.ui.magenta)
@@ -1240,7 +1400,7 @@ class command_line_interpreter(object):
 			elif checkservice == "no":
 				print self.ui.color("\n\n********** RADIUID STARTUP UNSUCCESSFUL. SOMETHING MUST BE WRONG... **********\n\n", self.ui.red)
 		######################### FREERADIUS SERVICE CONTROL #############################
-		elif arguments == "start freeradius":
+		elif arguments == "service freeradius start":
 			self.filemgmt.logwriter("cli", "##### COMMAND '" + arguments + "' ISSUED FROM CLI BY USER '" + self.imum.currentuser()+ "' #####")
 			os.system("systemctl start radiusd")
 			os.system("systemctl status radiusd")
@@ -1249,7 +1409,7 @@ class command_line_interpreter(object):
 				print self.ui.color("\n\n********** FREERADIUS SUCCESSFULLY STARTED UP! **********\n\n", self.ui.green)
 			elif checkservice == "no":
 				print self.ui.color("\n\n********** FREERADIUS STARTUP UNSUCCESSFUL. SOMETHING MUST BE WRONG... **********\n\n", self.ui.red)
-		elif arguments == "stop freeradius":
+		elif arguments == "service freeradius stop":
 			self.filemgmt.logwriter("cli", "##### COMMAND '" + arguments + "' ISSUED FROM CLI BY USER '" + self.imum.currentuser()+ "' #####")
 			header = "########################## CURRENT FREERADIUS SERVICE STATUS ##########################"
 			print self.ui.color(header, self.ui.magenta)
@@ -1260,7 +1420,7 @@ class command_line_interpreter(object):
 			os.system("systemctl stop radiusd")
 			os.system("systemctl status radiusd")
 			print self.ui.color("\n\n********** FREERADIUS STOPPED **********\n\n", self.ui.yellow)
-		elif arguments == "restart freeradius":
+		elif arguments == "service freeradius restart":
 			self.filemgmt.logwriter("cli", "##### COMMAND '" + arguments + "' ISSUED FROM CLI BY USER '" + self.imum.currentuser()+ "' #####")
 			header = "########################## CURRENT FREERADIUS SERVICE STATUS ##########################"
 			print self.ui.color(header, self.ui.magenta)
@@ -1281,7 +1441,7 @@ class command_line_interpreter(object):
 			elif checkservice == "no":
 				print self.ui.color("\n\n********** FREERADIUS STARTUP UNSUCCESSFUL. SOMETHING MUST BE WRONG... **********\n\n", self.ui.red)
 		######################### COMBINED SERVICE CONTROL #############################
-		elif arguments == "start all":
+		elif arguments == "service all start":
 			self.filemgmt.logwriter("cli", "##### COMMAND '" + arguments + "' ISSUED FROM CLI BY USER '" + self.imum.currentuser()+ "' #####")
 			os.system("systemctl start radiusd")
 			os.system("systemctl status radiusd")
@@ -1298,7 +1458,7 @@ class command_line_interpreter(object):
 				print self.ui.color("\n\n********** RADIUID SUCCESSFULLY STARTED UP! **********\n\n", self.ui.green)
 			elif checkservice == "no":
 				print self.ui.color("\n\n********** RADIUID STARTUP UNSUCCESSFUL. SOMETHING MUST BE WRONG... **********\n\n", self.ui.red)
-		elif arguments == "stop all":
+		elif arguments == "service all stop":
 			self.filemgmt.logwriter("cli", "##### COMMAND '" + arguments + "' ISSUED FROM CLI BY USER '" + self.imum.currentuser()+ "' #####")
 			header = "########################## CURRENT RADIUID SERVICE STATUS ##########################"
 			print self.ui.color(header, self.ui.magenta)
@@ -1317,7 +1477,7 @@ class command_line_interpreter(object):
 			os.system("systemctl stop radiusd")
 			os.system("systemctl status radiusd")
 			print self.ui.color("\n\n********** FREERADIUS STOPPED **********\n\n", self.ui.yellow)
-		elif arguments == "restart all":
+		elif arguments == "service all restart":
 			self.filemgmt.logwriter("cli", "##### COMMAND '" + arguments + "' ISSUED FROM CLI BY USER '" + self.imum.currentuser()+ "' #####")
 			header = "########################## CURRENT RADIUID SERVICE STATUS ##########################"
 			print self.ui.color(header, self.ui.magenta)
@@ -1388,17 +1548,8 @@ class command_line_interpreter(object):
 			print " - edit config         |     Edit the RadiUID config file"
 			print " - edit clients        |     Edit list of client IPs for FreeRADIUS"
 			print "----------------------------------------------------------------------------------------------\n"
-			print " - start radiuid       |     Start the RadiUID system service"
-			print " - stop radiuid        |     Stop the RadiUID system service"
-			print " - restart radiuid     |     Restart the RadiUID system service"
-			print "----------------------------------------------------------------------------------------------\n"
-			print " - start freeradius    |     Start the FreeRADIUS system service"
-			print " - stop freeradius     |     Stop the FreeRADIUS system service"
-			print " - restart freeradius  |     Restart the FreeRADIUS system service"
-			print "----------------------------------------------------------------------------------------------\n"
-			print " - start all           |     Start the RadiUID and FreeRADIUS system services"
-			print " - stop all            |     Stop the RadiUID and FreeRADIUS system services"
-			print " - restart all         |     Restart the RadiUID and FreeRADIUS system services"
+			print " - service             |     Control the RadiUID and FreeRADIUS system services"
+			print "                       |     Usage: radiuid service (radiuid | freeradius | all) (start | stop | restart)"
 			print "----------------------------------------------------------------------------------------------\n"
 			print " - version             |     Show the current version of RadiUID and FreeRADIUS"
 			print "----------------------------------------------------------------------------------------------\n\n\n"
