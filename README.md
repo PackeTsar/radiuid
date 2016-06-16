@@ -23,43 +23,14 @@ The version of RadiUID documented here is:
 
 
 
-##########   UPDATES IN V1.1.0   ##########
+##########   UPDATES IN V2.2.0   ##########
 --------------------------------------
-
-**Fixed issue #2: Rewrite push and URL converter to push multiple mappings per REST call.**
-
-Fixed in v1.1.0. The push mechanism will now push up to 100 IP-to-User mappings in each API call and will make as many API calls in a row as necessary to push all collected data from the logs.
-This greatly speeds up the push of mappings to the firewall.
-
-
-**Fixed issue #3: Rewrite "clean_ips" and "clean_names" to use regex instead of static data removal methods.**
-
-Fixed in v1.1.0. This has no tangible effect to an end user, but it is a cleaner method of extracting IP addresses and usernames from the FreeRADIUS logs.
-
-
-**Fixed issue #5: Issue with complex PAN passwords.**
-
-Fixed in v1.1.0. The program can now accept any password with special characters with the exception of the percent sign (%).
-
-
-**Fixed issue #6: Documentation of messages made in installer.**
-
-Fixed in v1.1.0. Added comment to installer() method to document the textual cues
-
-
-**Fixed issue #7: Rewrite log_writer to use global logfile variable.**
-
-Fixed in v1.1.0. kog_writer now only has one input argument and it uses the global logfile var.
-
-
-**Fixed issue #8: Retest installer utility with all different inputs.**
-
-Fixed in v1.1.0. Tested the utility with different inputs and in different scenarios. Added some error checking for certain situations.
-
-
 
 ADDED FEATURES:
      - Added logging of CLI commands to log file for accounting purposes using the cli_log_writer method.
+	 - Changed config file to XML format. The config management no longer depends on ConfigParser. It is all custom written.
+		- Multiple target firewalls are now supported; mappings can be pushed to mutiple firewalls using different credentials.
+	
 
 
 
