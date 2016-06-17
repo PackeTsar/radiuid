@@ -1219,7 +1219,6 @@ class command_line_interpreter(object):
 	def cat_list(self, listname):
 		result = ""
 		counter = 0
-		#listlen = len(listname)
 		for word in listname:
 			result = result + listname[counter].lower() + " "
 			counter = counter + 1
@@ -1303,6 +1302,28 @@ class command_line_interpreter(object):
 					print self.ui.color("\n\n********** FREERADIUS IS CURRENTLY RUNNING **********\n\n", self.ui.green)
 				elif checkservice == "no":
 					print self.ui.color("\n\n********** FREERADIUS IS CURRENTLY NOT RUNNING **********\n\n", self.ui.yellow)
+		######################### SET #############################
+		elif arguments == "set" or arguments == "set ?":
+			print "\n - set logfile <file path>              |     Set the RadiUID logfile path"
+			print " - set radiuslogpath <directory path>   |     Set the path used to find FreeRADIUS accounting log files"
+			print " - set userdomain <domain name>         |     Set the domain name prepended to User-ID mappings"
+			print " - set timeout <minutes>                |     Set the timeout (in minutes) for User-ID mappings sent to the firewall targets"
+			print " - set target [parameters]              |     Set configuration elements for existing to new firewall targets\n"
+		elif arguments == "set logfile" or arguments == "set logfile ?":
+			print "\n - set logfile <path>  |  Example: 'radiuid set logfile /etc/radiuid/radiuid.log'\n"
+		elif self.cat_list(sys.argv[1:3]) == "set logfile" and len(re.findall("^(\/*)", sys.argv[3], flags=0)) > 0:
+			self.filemgmt.logwriter("cli", "##### COMMAND '" + arguments + "' ISSUED FROM CLI BY USER '" + self.imum.currentuser()+ "' #####")
+			self.filemgmt.change_config_item('logfile', sys.argv[3])
+			self.filemgmt.save_config()
+			newlogfiledir = self.filemgmt.strip_filepath(sys.argv[3])[0]
+			time.strftime("%Y-%m-%d %H:%M:%S") + ":   " +"****************Making sure directory: "+ newlogfiledir + " exists****************"
+			os.system('mkdir -p ' + newlogfiledir)
+			self.filemgmt.write_file(sys.argv[3], "***********Logfile created via RadiUID command by " + self.imum.currentuser() + "***********\n")
+			print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " +"Changed <logfile> configuration element to :\n"
+			self.filemgmt.show_config_item('logfile')
+			if self.filemgmt.get_globalconfig_item('logfile') == sys.argv[3]:
+				print self.ui.color("Success!", self.ui.green)
+			print "\n"
 		######################### TAIL #############################
 		elif arguments == "tail" or arguments == "tail ?":
 			print "\n - tail log         |     Watch the RadiUID log file in real time\n"
@@ -1530,29 +1551,38 @@ class command_line_interpreter(object):
 		else:
 			print self.ui.color("\n\n\n########################## Below are the supported RadiUID Commands: ##########################", self.ui.magenta)
 			print self.ui.color("###############################################################################################\n\n", self.ui.magenta)
-			print "----------------------------------------------------------------------------------------------"
-			print " - run                 |     Run the RadiUID main program in shell mode begin pushing User-ID information"
-			print "----------------------------------------------------------------------------------------------\n"
-			print " - install             |     Run the RadiUID Install/Maintenance Utility"
-			print "----------------------------------------------------------------------------------------------\n"
-			print " - show log            |     Show the RadiUID log file"
-			print " - show run            |     Show the RadiUID config file"
-			print " - show config         |     Show the RadiUID config file"
-			print " - show clients        |     Show the FreeRADIUS client config file"
-			print " - show status         |     Show the RadiUID and FreeRADIUS service statuses"
-			print "----------------------------------------------------------------------------------------------\n"
-			print " - tail log            |     Watch the RadiUID log file in real time"
-			print "----------------------------------------------------------------------------------------------\n"
-			print " - clear log           |     Delete the content in the log file"
-			print "----------------------------------------------------------------------------------------------\n"
-			print " - edit config         |     Edit the RadiUID config file"
-			print " - edit clients        |     Edit list of client IPs for FreeRADIUS"
-			print "----------------------------------------------------------------------------------------------\n"
-			print " - service             |     Control the RadiUID and FreeRADIUS system services"
-			print "                       |     Usage: radiuid service (radiuid | freeradius | all) (start | stop | restart)"
-			print "----------------------------------------------------------------------------------------------\n"
-			print " - version             |     Show the current version of RadiUID and FreeRADIUS"
-			print "----------------------------------------------------------------------------------------------\n\n\n"
+			print self.ui.color(" - Usage: radiuid [arguments]", self.ui.cyan) + "\n"
+			print "--------------------------------------------------------------------------------------------------------------"
+			print "       ARGUMENTS           |                             DESCRIPTIONS"
+			print "--------------------------------------------------------------------------------------------------------------\n"
+			print " - run                     |     Run the RadiUID main program in shell mode begin pushing User-ID information"
+			print "--------------------------------------------------------------------------------------------------------------\n"
+			print " - install                 |     Run the RadiUID Install/Maintenance Utility"
+			print "--------------------------------------------------------------------------------------------------------------\n"
+			print " - show log                |     Show the RadiUID log file"
+			print " - show run                |     Show the RadiUID config file"
+			print " - show config             |     Show the RadiUID config file"
+			print " - show clients            |     Show the FreeRADIUS client config file"
+			print " - show status             |     Show the RadiUID and FreeRADIUS service statuses"
+			print "--------------------------------------------------------------------------------------------------------------\n"
+			print " - set logfile             |     Set the RadiUID logfile path"
+			print " - set radiuslogpath       |     Set the path used to find FreeRADIUS accounting log files"
+			print " - set userdomain          |     Set the domain name prepended to User-ID mappings"
+			print " - set timeout             |     Set the timeout (in minutes) for User-ID mappings sent to the firewall targets"
+			print " - set target [parameters] |     Set configuration elements for existing to new firewall targets"
+			print "--------------------------------------------------------------------------------------------------------------\n"
+			print " - tail log                |     Watch the RadiUID log file in real time"
+			print "--------------------------------------------------------------------------------------------------------------\n"
+			print " - clear log               |     Delete the content in the log file"
+			print "--------------------------------------------------------------------------------------------------------------\n"
+			print " - edit config             |     Edit the RadiUID config file"
+			print " - edit clients            |     Edit list of client IPs for FreeRADIUS"
+			print "--------------------------------------------------------------------------------------------------------------\n"
+			print " - service [parameters]    |     Control the RadiUID and FreeRADIUS system services"
+			print "                           |     Usage: radiuid service (radiuid | freeradius | all) (start | stop | restart)"
+			print "--------------------------------------------------------------------------------------------------------------\n"
+			print " - version                 |     Show the current version of RadiUID and FreeRADIUS"
+			print "--------------------------------------------------------------------------------------------------------------\n\n\n"
 
 
 if __name__ == "__main__":
