@@ -160,19 +160,28 @@ class file_management(object):
 		resultlist.append(filepath)
 		resultlist.append(filename)
 		return resultlist
-	def check_file_path(self, filepath):
-		result = 'good'
-		regexblacklist = [" ", "\/\/", "\/$", '"', "'", "\|", "\.\.", ",", "!", "`", "&", "\*", "\(", "\)"]
-		for badpattern in regexblacklist:
-			if len(re.findall(badpattern, filepath)) > 0:
-				result = 'bad'
-				return result
-		regexwhitelist = ["^\/"]
-		for goodpattern in regexwhitelist:
-			if len(re.findall(goodpattern, filepath)) == 0:
-				result = 'bad'
-				return result
-		return result
+	##### Check a file or directory path for illegal patterns/characters and for required patterns #####
+	##### The inputtype arg can be "dir" or "file" (depending on if the input is a file path or a directory path). The input arg is a str of the file or dir path #####
+	##### The returned data is a list of two strings where result[0] equals either "good" or "bad" and list[1] equals the error message if input is determined to be bad ####
+	def check_path(self, inputtype, input):
+		regexblacklistdict = {"space character": " ", "double forward slash (//)": "\/\/", 'double quote (")': '"', "single quote (')": "'", "pipe character (|)": "\|", "double period (..)": "\.\.", "comma (,)": ",", "exclamation point (!)": "!", "grave accent(`)": "`", "ampersand (&)": "&", "asterisk (*)": "\*", "left parenthesis [(]": "\(", "right parenthesis [)]": "\)"} # Set common blacklist characters and patterns with keys as friendly names and values as the regex patterns
+		regexrequiredict = {"begins with /":"^\/"} # Set common required patterns with keys as friendly names and values as the regex patterns
+		if inputtype == "dir": # if the input type is "dir"
+			regexrequiredict.update({"ends with /": "\/$"}) # add additional patterns to requirements dict
+		elif inputtype == "file": # if the input type is "file"
+			regexblacklistdict.update({"ends with /": "\/$"}) # add additional patterns to blacklist dict
+		result = ['good', 'error message here'] # set initial result as "good"
+		for key in regexblacklistdict: # For every entry in the blacklist dict
+			if len(re.findall(regexblacklistdict[key], input)) > 0: # If a pattern from the blacklist dict is matched in the input data
+				result[0] = 'bad' # Set the result to bad
+				result[1] = "Pattern Not Allowed: " + key # Set the error message in the result with the matched bad pattern/character
+				return result # Return bad result and error message
+		for key in regexrequiredict: # For every entry in the requirement dict
+			if len(re.findall(regexrequiredict[key], input)) == 0: # If the pattern is not found in the input
+				result[0] = 'bad' # Set the result to bad
+				result[1] = "Pattern Required: " + key # Set the error message in the result with the matched bad pattern/character
+				return result # Return bad result and error message
+		return result # If the input makes it through the gauntlet, return the good news
 	##### Simple two-choice logic method to pick a preferred input over another #####
 	##### Used to decide whether to use the radiuid.conf file in the 'etc' location, or the one in the local working directory #####
 	def file_chooser(self, firstchoice, secondchoice):
@@ -214,14 +223,9 @@ class file_management(object):
 	##### Writes the new config data to the config file #####
 	##### Used at the end of the wizard when new config values have been defined and need to be written to a config file #####
 	def write_file(self, filepath, filedata):
-		try:
-			f = open(filepath, 'w')
-			f.write(filedata)
-			f.close()
-		except IOError:
-			print self.ui.color(time.strftime("%Y-%m-%d %H:%M:%S") + ":   " +"***********CANNOT OPEN FILE: " + filepath + " ***********\n", self.ui.red)
-			print self.ui.color(time.strftime("%Y-%m-%d %H:%M:%S") + ":   " +"***********PLEASE MAKE SURE YOU RAN THE INSTALLER ('python radiuid.py install')***********\n", self.ui.red)
-			quit()
+		f = open(filepath, 'w')
+		f.write(filedata)
+		f.close()
 	##### Check if specific file exists #####
 	def file_exists(self, filepath):
 		checkdata = commands.getstatusoutput("ls " + filepath)
@@ -1325,22 +1329,31 @@ class command_line_interpreter(object):
 		elif arguments == "set logfile" or arguments == "set logfile ?":
 			print "\n - set logfile <path>  |  Example: 'radiuid set logfile /etc/radiuid/radiuid.log'\n"
 		elif self.cat_list(sys.argv[1:3]) == "set logfile" and len(re.findall("^(\/*)", sys.argv[3], flags=0)) > 0:
-			print "\n"
 			self.filemgmt.logwriter("cli", "##### COMMAND '" + arguments + "' ISSUED FROM CLI BY USER '" + self.imum.currentuser()+ "' #####")
-			if self.filemgmt.check_file_path(sys.argv[3]) == "bad":
-				self.filemgmt.logwriter("cli", self.ui.color("****************ERROR: Illegal Character(s) or pattern in file path****************", self.ui.red))
-				quit()
-			self.filemgmt.change_config_item('logfile', sys.argv[3])
-			self.filemgmt.save_config()
-			newlogfiledir = self.filemgmt.strip_filepath(sys.argv[3])[0]
-			time.strftime("%Y-%m-%d %H:%M:%S") + ":   " +"****************Making sure directory: "+ newlogfiledir + " exists****************"
-			os.system('mkdir -p ' + newlogfiledir)
-			self.filemgmt.write_file(sys.argv[3], "***********Logfile created via RadiUID command by " + self.imum.currentuser() + "***********\n")
-			print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " +"Changing <logfile> configuration element to :\n"
-			self.filemgmt.show_config_item('logfile')
+			header = "########################## EXECUTING COMMAND: " + arguments + " ##########################"
+			print self.ui.color(header, self.ui.magenta)
+			print self.ui.color("#" * len(header), self.ui.magenta)
+			pathcheck = self.filemgmt.check_path("file",sys.argv[3])
+			if pathcheck[0] == "bad":
+				print self.ui.color(time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + "****************ERROR: " + pathcheck[1] + "****************", self.ui.red)
+			elif pathcheck[0] == "good":
+				newlogfiledir = self.filemgmt.strip_filepath(sys.argv[3])[0]
+				print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " +"****************Making sure directory: "+ newlogfiledir + " exists****************\n"
+				os.system('mkdir -p ' + newlogfiledir)
+				try:
+					self.filemgmt.write_file(sys.argv[3], "***********Logfile created via RadiUID command by " + self.imum.currentuser() + "***********\n")
+					print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " +"Changing <logfile> configuration element to :\n"
+					self.filemgmt.change_config_item('logfile', sys.argv[3])
+					self.filemgmt.save_config()
+					self.filemgmt.show_config_item('logfile')
+				except IOError:
+					print self.ui.color(time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + "****************ERROR: One of the directory names already exists as a file or vice-versa****************", self.ui.red)
 			if self.filemgmt.get_globalconfig_item('logfile') == sys.argv[3]:
 				print self.ui.color("Success!", self.ui.green)
-			print "\n"
+			else:
+				print self.ui.color("Something Went Wrong!", self.ui.red)
+			print self.ui.color("#" * len(header), self.ui.magenta)
+			print self.ui.color("#" * len(header), self.ui.magenta)
 		######################### TAIL #############################
 		elif arguments == "tail" or arguments == "tail ?":
 			print "\n - tail log         |     Watch the RadiUID log file in real time\n"
