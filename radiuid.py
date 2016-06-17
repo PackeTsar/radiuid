@@ -160,6 +160,19 @@ class file_management(object):
 		resultlist.append(filepath)
 		resultlist.append(filename)
 		return resultlist
+	def check_file_path(self, filepath):
+		result = 'good'
+		regexblacklist = [" ", "\/\/", "\/$", '"', "'", "\|", "\.\.", ",", "!", "`", "&", "\*", "\(", "\)"]
+		for badpattern in regexblacklist:
+			if len(re.findall(badpattern, filepath)) > 0:
+				result = 'bad'
+				return result
+		regexwhitelist = ["^\/"]
+		for goodpattern in regexwhitelist:
+			if len(re.findall(goodpattern, filepath)) == 0:
+				result = 'bad'
+				return result
+		return result
 	##### Simple two-choice logic method to pick a preferred input over another #####
 	##### Used to decide whether to use the radiuid.conf file in the 'etc' location, or the one in the local working directory #####
 	def file_chooser(self, firstchoice, secondchoice):
@@ -1312,14 +1325,18 @@ class command_line_interpreter(object):
 		elif arguments == "set logfile" or arguments == "set logfile ?":
 			print "\n - set logfile <path>  |  Example: 'radiuid set logfile /etc/radiuid/radiuid.log'\n"
 		elif self.cat_list(sys.argv[1:3]) == "set logfile" and len(re.findall("^(\/*)", sys.argv[3], flags=0)) > 0:
+			print "\n"
 			self.filemgmt.logwriter("cli", "##### COMMAND '" + arguments + "' ISSUED FROM CLI BY USER '" + self.imum.currentuser()+ "' #####")
+			if self.filemgmt.check_file_path(sys.argv[3]) == "bad":
+				self.filemgmt.logwriter("cli", self.ui.color("****************ERROR: Illegal Character(s) or pattern in file path****************", self.ui.red))
+				quit()
 			self.filemgmt.change_config_item('logfile', sys.argv[3])
 			self.filemgmt.save_config()
 			newlogfiledir = self.filemgmt.strip_filepath(sys.argv[3])[0]
 			time.strftime("%Y-%m-%d %H:%M:%S") + ":   " +"****************Making sure directory: "+ newlogfiledir + " exists****************"
 			os.system('mkdir -p ' + newlogfiledir)
 			self.filemgmt.write_file(sys.argv[3], "***********Logfile created via RadiUID command by " + self.imum.currentuser() + "***********\n")
-			print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " +"Changed <logfile> configuration element to :\n"
+			print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " +"Changing <logfile> configuration element to :\n"
 			self.filemgmt.show_config_item('logfile')
 			if self.filemgmt.get_globalconfig_item('logfile') == sys.argv[3]:
 				print self.ui.color("Success!", self.ui.green)
