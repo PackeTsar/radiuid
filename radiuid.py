@@ -438,7 +438,7 @@ class file_management(object):
 				for target in targets:
 					self.logwriter("normal", self.ui.color("[IMPORTED]", self.ui.cyan) + "   HOSTNAME: " + self.ui.color(target['hostname'], self.ui.green) + "\t\tUSERNAME: " + self.ui.color(target['username'], self.ui.green) + "\t\tPASSWORD: " + self.ui.color(target['password'], self.ui.green) + "\t\tVERSION: " + self.ui.color(target['version'], self.ui.green))
 			except KeyError:
-				print "\n" + self.ui.color(time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + "****************WARNING: Could not import some important settings****************\n", self.ui.yellow)
+				print self.ui.color(time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + "****************WARNING: Could not import some important settings****************\n", self.ui.yellow)
 		if mode == 'quiet':
 			##### Suck config values into a dictionary #####
 			configdict = self.tinyxml2dict_starter()
@@ -453,6 +453,8 @@ class file_management(object):
 				delineatorterm = configdict['globalsettings']['searchterms']['delineatorterm']
 				##### Publish list of firewall targets into main namespace #####
 				targets = configdict['targets']['target']
+				if type(targets) != type([]):
+					targets = [targets]
 			except KeyError:
 				return "WARNING: Could not import some important settings"
 	##### Show XML formatted configuration item #####
@@ -528,21 +530,22 @@ class file_management(object):
 	##### Remove specific list of targets from config #####
 	##### Method accepts a list of dictionaries which contain at least the hostname key/value pair of the target #####
 	def remove_targets(self, targetlist):
-		if len(self.root.findall('.//target')) == 0: # If no targets exist in config, print error
-			print "No firewall targets exist. Nothing to remove"
+		result = ["fail"] # Start with failed result
+		if len(self.root.findall('.//target')) == 0: # If no targets exist in config, return error
+			result.append("No firewall targets exist. Nothing to remove")
 		else: # if some targets do exist in config
 			for removalitem in targetlist: # for each host listed for removal
-				result = 'failure' # initialize result in case host is not found for removal
+				hostresult = 'failure' # initialize hostresult in case host is not found for removal
 				for target in self.root.findall('.//target'): # for each target element 
 					for element in target.getchildren(): # list out children (atttributes) of the target (like hostname, username, etc)
 						if element.text == removalitem['hostname']: # check child elements of target element for hostname listed for removal
 							targets = self.root.findall('.//targets')[0] # mount <targets> element
 							targets.remove(target) # remove this <target> element from the <targets> element
 							del targets # unmount <targets> element
-							result = 'success' # set successful result
-							print "target " + element.text + " removed" # print confirmation of removal
-				if result == 'failure': # if we did not find the target to be removed
-					print "could not find that target" # print an error message
+							hostresult = 'success' # set successful hostresult
+							result[0] = "pass"
+				if hostresult == 'failure': # if we did not find the target to be removed
+					result.append("Could not find target" + removalitem['hostname']) # return an error message
 		##### If we did not remove the last <target> element from <targets>, then set the proper tail indent on last <target> element
 		if len(self.root.findall('.//target')) > 0:
 			lasttarget = self.root.findall('.//target')[len(self.root.findall('.//target')) - 1] # mount the last existing <target> element as variable
@@ -550,6 +553,9 @@ class file_management(object):
 			del lasttarget # unmount last <target> element
 		else: # If we just removed the last <target> element from <targets>
 			self.clear_targets() # use the 'clear_targets' method to remove the left over elements from the config
+		if result[0] == "pass" and len(result) > 1:
+			result[0] = "partial"
+		return result
 	##### Delete all firewall targets in mounted config #####
 	def clear_targets(self):
 		for item in self.root.iter('targets'):
@@ -1540,12 +1546,14 @@ class command_line_interpreter(object):
 			print "\n - clear target (<target> | all)  |  Examples: 'clear target 192.168.1.1'"
 			print "                                  |            'clear target pan1.domain.com'"
 			print "                                  |            'clear target all'\n"
+		##### CLEAR LOG #####
 		elif arguments == "clear log":
 			print self.ui.color("********************* You are about to clear out the RadiUID log file... (" + logfile + ") ********************", self.ui.yellow)
 			raw_input("Hit CTRL-C to quit. Hit ENTER to continue\n>>>>>")
 			os.system("rm -f "+ logfile)
 			self.filemgmt.write_file(logfile, "***********Logfile cleared via RadiUID command by " + self.imum.currentuser() + "***********\n")
 			print self.ui.color("********************* Cleared logfile: " + logfile + " ********************", self.ui.yellow)
+		##### CLEAR TARGET ALL #####
 		elif arguments == "clear target all":
 			self.filemgmt.logwriter("cli", "##### COMMAND '" + arguments + "' ISSUED FROM CLI BY USER '" + self.imum.currentuser()+ "' #####")
 			header = "########################## EXECUTING COMMAND: " + arguments + " ##########################"
@@ -1559,6 +1567,36 @@ class command_line_interpreter(object):
 				self.filemgmt.clear_targets()
 				print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " +"****************Writing config change to: "+ configfile + "****************\n"
 				self.filemgmt.save_config()
+				if self.filemgmt.get_globalconfig_item('target') == None:
+					print self.ui.color("Success!", self.ui.green)
+				else:
+					print self.ui.color("Something Went Wrong!", self.ui.red)
+			print self.ui.color("#" * len(header), self.ui.magenta)
+			print self.ui.color("#" * len(header), self.ui.magenta)
+		##### CLEAR TARGET <HOSTNAME> #####
+		elif self.cat_list(sys.argv[1:3]) == "clear target" and re.findall("^[0-9A-Za-z]", sys.argv[3]) > 0:
+			self.filemgmt.logwriter("cli", "##### COMMAND '" + arguments + "' ISSUED FROM CLI BY USER '" + self.imum.currentuser()+ "' #####")
+			header = "########################## EXECUTING COMMAND: " + arguments + " ##########################"
+			print self.ui.color(header, self.ui.magenta)
+			print self.ui.color("#" * len(header), self.ui.magenta)
+			targetexists = "no"
+			try:
+				for target in targets:
+					if target['hostname'] == sys.argv[3]:
+						targetexists = "yes"
+				if targetexists == "no":
+					print "\n" + self.ui.color(time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + "****************ERROR: Target " + sys.argv[3] + " doesn't currently exist in config****************\n", self.ui.red)
+				elif targetexists == "yes":
+					print "\n" + time.strftime("%Y-%m-%d %H:%M:%S") + ":   " +"****************Deleting target: " + sys.argv[3] + " ****************\n"
+					targetremove = self.filemgmt.remove_targets([{'hostname': sys.argv[3]}])
+					print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " +"****************Writing config change to: "+ configfile + "****************\n"
+					self.filemgmt.save_config()
+					if targetremove[0] == "pass":
+						print self.ui.color("Success!", self.ui.green)
+					else:
+						print self.ui.color("Something Went Wrong!", self.ui.red)
+			except NameError:
+				print "\n" + self.ui.color(time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + "****************ERROR: No targets currently exist in config****************\n", self.ui.red)
 			print self.ui.color("#" * len(header), self.ui.magenta)
 			print self.ui.color("#" * len(header), self.ui.magenta)
 		######################### EDIT #############################
