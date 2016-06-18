@@ -17,9 +17,10 @@ import xml.etree.ElementTree
 ##### Inform RadiUID version here #####
 version = "dev2.0.0"
 
-##### Set default config file location #####
+##### Set some default configs #####
 etcconfigfile = '/etc/radiuid/radiuid.conf'
 extrastuff = '&type=user-id&vsys=vsys1&cmd='
+maxtimeout = 1440
 
 
 
@@ -232,13 +233,21 @@ class file_management(object):
 			nomultiplescheck = "pass" # Then no double periods or triple hyphens exist and the check passes
 		else:
 			result.append("No double-periods (..) or triple-hyphens (---) allowed in domain name")
+		##### 6. There is at least one period in the domain name #####
+		periodinnameregex = "\." # Match any instance of a period
+		periodinnamecheck = "fail"
+		if len(re.findall(periodinnameregex, domainname)) > 0: # If there is at least one period in the domain name...
+			periodinnamecheck = "pass"
+		else:
+			result.append("No period (.) found in domain name")
 		##### Make sure all checks are passed #####
 		if charactercheck == "pass":
 			if maxlengthcheck == "pass":
 				if firstlastcheck == "pass":
 					if beginendhyphencheck == "pass":
 						if nomultiplescheck == "pass":
-							result[0] = "pass" # Set the result to "pass"
+							if periodinnamecheck == "pass":
+								result[0] = "pass" # Set the result to "pass"
 		return result
 	##### Simple two-choice logic method to pick a preferred input over another #####
 	##### Used to decide whether to use the radiuid.conf file in the 'etc' location, or the one in the local working directory #####
@@ -1390,8 +1399,10 @@ class command_line_interpreter(object):
 			print "\n - set radiuslogpath <directory path>  |  Example: 'set radiuslogpath /var/log/radius/radacct/'\n"
 		elif arguments == "set userdomain" or arguments == "set userdomain ?":
 			print "\n - set userdomain <domain name>  |  Example: 'set userdomain domain.com'\n"
+		elif arguments == "set timeout" or arguments == "set timeout ?":
+			print "\n - set timeout <minutes>  |  Example: 'set timeout 60'\n"
 		##### SET LOGFILE #####
-		elif self.cat_list(sys.argv[1:3]) == "set logfile" and len(re.findall("^(\/*)", sys.argv[3], flags=0)) > 0:
+		elif self.cat_list(sys.argv[1:3]) == "set logfile" and len(re.findall("^(\/*)", sys.argv[3])) > 0:
 			self.filemgmt.logwriter("cli", "##### COMMAND '" + arguments + "' ISSUED FROM CLI BY USER '" + self.imum.currentuser()+ "' #####")
 			header = "########################## EXECUTING COMMAND: " + arguments + " ##########################"
 			print self.ui.color(header, self.ui.magenta)
@@ -1405,13 +1416,14 @@ class command_line_interpreter(object):
 						print self.ui.color(time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + "****************ERROR: " + error + "****************", self.ui.red)
 				elif pathcheck[0] == "pass":
 					newlogfiledir = self.filemgmt.strip_filepath(sys.argv[3])[0]
-					print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " +"****************Making sure directory: "+ newlogfiledir + " exists****************\n"
+					print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " +"****************Making sure directory: "+ newlogfiledir + " exists...creating if not****************\n"
 					os.system('mkdir -p ' + newlogfiledir)
 					try:
 						self.filemgmt.write_file(sys.argv[3], "***********Logfile created via RadiUID command by " + self.imum.currentuser() + "***********\n")
-						print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " +"Changing <logfile> configuration element to :\n"
 						self.filemgmt.change_config_item('logfile', sys.argv[3])
+						print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " +"****************Writing config change to: "+ configfile + "****************\n"
 						self.filemgmt.save_config()
+						print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " +"<logfile> configuration element changed to :\n"
 						self.filemgmt.show_config_item('logfile')
 					except IOError:
 						print self.ui.color(time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + "****************ERROR: One of the directory names already exists as a file or vice-versa****************\n", self.ui.red)
@@ -1422,7 +1434,7 @@ class command_line_interpreter(object):
 			print self.ui.color("#" * len(header), self.ui.magenta)
 			print self.ui.color("#" * len(header), self.ui.magenta)
 		##### SET RADIUSLOGPATH #####
-		elif self.cat_list(sys.argv[1:3]) == "set radiuslogpath" and len(re.findall("^(\/*)", sys.argv[3], flags=0)) > 0:
+		elif self.cat_list(sys.argv[1:3]) == "set radiuslogpath" and len(re.findall("^(\/*)", sys.argv[3])) > 0:
 			self.filemgmt.logwriter("cli", "##### COMMAND '" + arguments + "' ISSUED FROM CLI BY USER '" + self.imum.currentuser()+ "' #####")
 			header = "########################## EXECUTING COMMAND: " + arguments + " ##########################"
 			print self.ui.color(header, self.ui.magenta)
@@ -1440,7 +1452,9 @@ class command_line_interpreter(object):
 					if pathexists == "no":
 						print self.ui.color(time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + "****************WARNING: Directory path doesn't exist. You may need to install FreeRADIUS****************\n", self.ui.yellow)
 					self.filemgmt.change_config_item('radiuslogpath', sys.argv[3])
+					print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " +"****************Writing config change to: "+ configfile + "****************\n"
 					self.filemgmt.save_config()
+					print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " +"<radiuslogpath> configuration element changed to :\n"
 					self.filemgmt.show_config_item('radiuslogpath')
 				if self.filemgmt.get_globalconfig_item('radiuslogpath') == sys.argv[3]:
 					print self.ui.color("Success!", self.ui.green)
@@ -1449,7 +1463,7 @@ class command_line_interpreter(object):
 			print self.ui.color("#" * len(header), self.ui.magenta)
 			print self.ui.color("#" * len(header), self.ui.magenta)
 		##### SET USERDOMAIN #####
-		elif self.cat_list(sys.argv[1:3]) == "set userdomain" and len(re.findall("^(.*)", sys.argv[3], flags=0)) > 0:
+		elif self.cat_list(sys.argv[1:3]) == "set userdomain" and len(re.findall("^(.*)", sys.argv[3])) > 0:
 			self.filemgmt.logwriter("cli", "##### COMMAND '" + arguments + "' ISSUED FROM CLI BY USER '" + self.imum.currentuser()+ "' #####")
 			header = "########################## EXECUTING COMMAND: " + arguments + " ##########################"
 			print self.ui.color(header, self.ui.magenta)
@@ -1462,14 +1476,43 @@ class command_line_interpreter(object):
 					for error in domaincheck[1:]:
 						print "\n" + self.ui.color(time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + "****************ERROR: " + error + "****************\n", self.ui.red)
 				elif domaincheck[0] == "pass":
-					print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " +"****************Changing userdomain to: "+ sys.argv[3] + "****************\n"
 					self.filemgmt.change_config_item('userdomain', sys.argv[3])
+					print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " +"****************Writing config change to: "+ configfile + "****************\n"
 					self.filemgmt.save_config()
+					print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " +"<userdomain> configuration element changed to :\n"
 					self.filemgmt.show_config_item('userdomain')
 				if self.filemgmt.get_globalconfig_item('userdomain') == sys.argv[3]:
 					print self.ui.color("Success!", self.ui.green)
 				else:
 					print self.ui.color("Something Went Wrong!", self.ui.red)
+			print self.ui.color("#" * len(header), self.ui.magenta)
+			print self.ui.color("#" * len(header), self.ui.magenta)
+		##### SET TIMEOUT #####
+		elif self.cat_list(sys.argv[1:3]) == "set timeout" and len(re.findall("[0-9A-Za-z]", sys.argv[3])) > 0:
+			self.filemgmt.logwriter("cli", "##### COMMAND '" + arguments + "' ISSUED FROM CLI BY USER '" + self.imum.currentuser()+ "' #####")
+			header = "########################## EXECUTING COMMAND: " + arguments + " ##########################"
+			print self.ui.color(header, self.ui.magenta)
+			print self.ui.color("#" * len(header), self.ui.magenta)
+			try:
+				timeoutval = int(sys.argv[3])
+				if timeoutval == 0:
+					print "\n" + self.ui.color(time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + "****************ERROR: Timeout value must be a number between 1 and 1440****************\n", self.ui.red)
+				elif int(self.filemgmt.get_globalconfig_item('timeout')) == timeoutval:
+					print self.ui.color("\n" + time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + "****************Entered value is the same as current value****************\n", self.ui.green)
+				elif timeoutval > maxtimeout:
+					print "\n" + self.ui.color(time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + "****************ERROR: Timeout cannot exceed 1440 minutes (24 hours)****************\n", self.ui.red)
+				else:
+					self.filemgmt.change_config_item('timeout', sys.argv[3])
+					print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " +"****************Writing config change to: "+ configfile + "****************\n"
+					self.filemgmt.save_config()
+					print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " +"<timeout> configuration element changed to :\n"
+					self.filemgmt.show_config_item('timeout')
+					if self.filemgmt.get_globalconfig_item('timeout') == sys.argv[3]:
+						print self.ui.color("Success!", self.ui.green)
+					else:
+						print self.ui.color("Something Went Wrong!", self.ui.red)
+			except ValueError:
+				print "\n" + self.ui.color(time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + "****************ERROR: Timeout value must be a number between 1 and 1440****************\n", self.ui.red)
 			print self.ui.color("#" * len(header), self.ui.magenta)
 			print self.ui.color("#" * len(header), self.ui.magenta)
 		######################### TAIL #############################
