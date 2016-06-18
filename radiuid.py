@@ -507,18 +507,21 @@ class file_management(object):
 			else:
 				target.tail = "\n\t\t" # add formatting if this is NOT the last target being added (to indent the next '<target>' properly)
 			##### Add the different elements for the target #####
-			hostname = xml.etree.ElementTree.SubElement(target, 'hostname')
-			hostname.text = item['hostname']
-			hostname.tail = "\n\t\t\t"
-			username = xml.etree.ElementTree.SubElement(target, 'username')
-			username.text = item['username']
-			username.tail = "\n\t\t\t"
-			password = xml.etree.ElementTree.SubElement(target, 'password')
-			password.text = item['password']
-			password.tail = "\n\t\t\t"
-			version = xml.etree.ElementTree.SubElement(target, 'version')
-			version.text = item['version']
-			version.tail = "\n\t\t"
+			try:
+				hostname = xml.etree.ElementTree.SubElement(target, 'hostname')
+				hostname.text = item['hostname']
+				hostname.tail = "\n\t\t\t"
+				username = xml.etree.ElementTree.SubElement(target, 'username')
+				username.text = item['username']
+				username.tail = "\n\t\t\t"
+				password = xml.etree.ElementTree.SubElement(target, 'password')
+				password.text = item['password']
+				password.tail = "\n\t\t\t"
+				version = xml.etree.ElementTree.SubElement(target, 'version')
+				version.text = item['version']
+				version.tail = "\n\t\t"
+			except KeyError:
+				nothing = None
 			numtargets = numtargets - 1 # decrement the target counter for proper formatting on last target
 			##### Remove temporary variables #####
 			del hostname
@@ -651,6 +654,18 @@ class data_processing(object):
 			newdict[k] = v
 		self.filemgmt.logwriter("normal", "Dictionary values merged into one dictionary")
 		return newdict
+	##### Search an ordered list of values for a list of search queries and return the indices for the locations of the queries #####
+	##### Input is a list of search queries and the list of data to search through #####
+	##### Output is a dictionary with found queries as keys and indices as the vals #####
+	def find_index_in_list(self, querylist, listinput):
+		result = {} # Initialize result as a dictionary
+		for query in querylist: # For each search query, we run through the list once
+			indexpointer = 0 # Start the indexpointer at the 0 index for this search of the list
+			for entry in listinput:	# For each entry in the list...
+				if query == entry:	# If the query value is the same as this entry in the list
+					result.update({query: indexpointer}) # Add the query (key) and index location of where it was found
+				indexpointer = indexpointer + 1 # Then update the indexpointer 
+		return result
 
 
 
@@ -889,14 +904,19 @@ class imu_methods(object):
 		else:
 			print self.ui.color("~~~ Changed setting to: " + newsetting, self.ui.yellow)
 		return newsetting
-	##### Check that legit CIDR block was entered #####
-	##### Used to check IP blocks entered into the wizard for configuration of FreeRADIUS #####
-	def cidr_checker(self, cidr_ip_block):
-		check = re.search("^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\/(?:[0-9]|1[0-9]|2[0-9]|3[0-2]?)$", cidr_ip_block)
+	##### Check that legit IP address or CIDR block was entered #####
+	##### The mode of "cidr" or "address" is entered as the first arg. Input is second arg and is a string of the IPv4 address or CIDR block. #####
+	##### Result is a simple string containing "pass" or "fail" #####
+	def ip_checker(self, iptype, ip_block):
+		if iptype == "address":
+			ipregex = "^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$"
+		elif iptype == "cidr":
+			ipregex = "^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\/(?:[0-9]|1[0-9]|2[0-9]|3[0-2]?)$"
+		check = re.search(ipregex, ip_block)
 		if check is None:
-			result = "no"
+			result = "fail"
 		else:
-			result = "yes"
+			result = "pass"
 		return result
 	##### Create dictionary with client IP and shared password entries for FreeRADIUS server #####
 	##### Used to ask questions during install about IP blocks and shared secret to use for FreeRADIUS server #####
@@ -911,10 +931,10 @@ class imu_methods(object):
 				self.ui.color('\n>>>>> Enter the IP subnet to use for recognition of RADIUS accounting sources: [' + addipexample + ']:', self.ui.cyan))
 			if goround == "":
 				goround = addipexample
-			ipcheck = self.cidr_checker(goround)
-			if ipcheck == 'no':
+			ipcheck = self.ip_checker("cidr",goround)
+			if ipcheck == 'fail':
 				print self.ui.color("~~~ Nope. Give me a legit CIDR block...", self.ui.red)
-			elif ipcheck == 'yes':
+			elif ipcheck == 'pass':
 				addips.append(goround)
 				print self.ui.color("~~~ Added " + goround + " to list\n", self.ui.yellow)
 				keepchanging = self.ui.yesorno("Do you want to add another IP block to the list of trusted sources?")
@@ -1309,6 +1329,7 @@ class command_line_interpreter(object):
 		self.imu = installer_maintenance_utility()
 		self.imum = imu_methods()
 		self.filemgmt = file_management()
+		self.dp = data_processing()
 		####################################################
 	##### Create str sentence out of list seperated by spaces and lowercase everything #####
 	##### Used for recognizing arguments when running RadiUID from the CLI #####
@@ -1400,11 +1421,11 @@ class command_line_interpreter(object):
 					print self.ui.color("\n\n********** FREERADIUS IS CURRENTLY NOT RUNNING **********\n\n", self.ui.yellow)
 		######################### SET #############################
 		elif arguments == "set" or arguments == "set ?":
-			print "\n - set logfile <file path>              |     Set the RadiUID logfile path"
-			print " - set radiuslogpath <directory path>   |     Set the path used to find FreeRADIUS accounting log files"
-			print " - set userdomain <domain name>         |     Set the domain name prepended to User-ID mappings"
-			print " - set timeout <minutes>                |     Set the timeout (in minutes) for User-ID mappings sent to the firewall targets"
-			print " - set target [parameters]              |     Set configuration elements for existing to new firewall targets\n"
+			print "\n - set logfile <file path>             |     Set the RadiUID logfile path"
+			print " - set radiuslogpath <directory path>  |     Set the path used to find FreeRADIUS accounting log files"
+			print " - set userdomain <domain name>        |     Set the domain name prepended to User-ID mappings"
+			print " - set timeout <minutes>               |     Set the timeout (in minutes) for User-ID mappings sent to the firewall targets"
+			print " - set target <hostname> [parameters]  |     Set configuration elements for existing or new firewall targets\n"
 		elif arguments == "set logfile" or arguments == "set logfile ?":
 			print "\n - set logfile <file path>  |  Example: 'set logfile /etc/radiuid/radiuid.log'\n"
 		elif arguments == "set radiuslogpath" or arguments == "set radiuslogpath ?":
@@ -1413,6 +1434,12 @@ class command_line_interpreter(object):
 			print "\n - set userdomain <domain name>  |  Example: 'set userdomain domain.com'\n"
 		elif arguments == "set timeout" or arguments == "set timeout ?":
 			print "\n - set timeout <minutes>  |  Example: 'set timeout 60'\n"
+		elif arguments == "set target" or arguments == "set target ?":
+			print "\n - set target <hostname> [parameters]  |  Parameters: (hostname <hostname> | username <username> | password <password> | version  <PAN-OS version #>)"
+			print "                                       |              "
+			print "                                       |  Examples:   'set target 192.168.1.1 username admin'"
+			print "                                       |              'set target pan1.domain.com password P@s$w0rd'"
+			print "                                       |              'set target 10.0.0.10 username admin password P@ssword version 6\n"
 		##### SET LOGFILE #####
 		elif self.cat_list(sys.argv[1:3]) == "set logfile" and len(re.findall("^(\/*)", sys.argv[3])) > 0:
 			self.filemgmt.logwriter("cli", "##### COMMAND '" + arguments + "' ISSUED FROM CLI BY USER '" + self.imum.currentuser()+ "' #####")
@@ -1525,6 +1552,52 @@ class command_line_interpreter(object):
 						print self.ui.color("Something Went Wrong!", self.ui.red)
 			except ValueError:
 				print "\n" + self.ui.color(time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + "****************ERROR: Timeout value must be a number between 1 and 1440****************\n", self.ui.red)
+			print self.ui.color("#" * len(header), self.ui.magenta)
+			print self.ui.color("#" * len(header), self.ui.magenta)
+		##### SET TARGET #####
+		elif self.cat_list(sys.argv[1:3]) == "set target" and len(re.findall("[0-9A-Za-z]", sys.argv[3])) > 0:
+			self.filemgmt.logwriter("cli", "##### COMMAND '" + arguments + "' ISSUED FROM CLI BY USER '" + self.imum.currentuser()+ "' #####")
+			header = "########################## EXECUTING COMMAND: " + arguments + " ##########################"
+			print self.ui.color(header, self.ui.magenta)
+			print self.ui.color("#" * len(header), self.ui.magenta)
+			## Check Input Hostname ##
+			inputcheck = "fail"
+			if self.imum.ip_checker("address", sys.argv[3]) == "pass":
+				print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " +"****************Hostname " + sys.argv[3] + " looks like legit IPv4 address****************\n"
+				inputcheck = "pass"
+			else:
+				print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " +"****************Hostname " + sys.argv[3] + " looks like a domain name****************\n"
+				domaincheck = self.filemgmt.check_domainname(sys.argv[3])
+				if domaincheck[0] == "fail":
+					for error in domaincheck[1:]:
+						print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " +"****************There seem to be some problems with this domain name****************\n"
+						print self.ui.color(time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + "****************ERROR: " + error + "****************\n", self.ui.red)
+				elif domaincheck[0] == "pass":
+					inputcheck = "pass"
+					print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " +"****************Domain name looks valid****************\n"
+			if inputcheck == "fail":
+				status = "fail"
+			elif inputcheck == "pass":
+				status = "pass"
+				## Compile params ##
+				targetparams = {'hostname': sys.argv[3]}
+				searchqueries = ['username', 'password', 'version']
+				cliparams = sys.argv[4:]
+				targetindices = self.dp.find_index_in_list(searchqueries, cliparams)
+				for key in targetindices:
+					try:
+						targetparams.update({key: cliparams[targetindices[key] + 1]})
+					except IndexError:
+						print "\n" + self.ui.color(time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + "****************WARNING: You didn't enter the value for " + key + "****************\n", self.ui.yellow)
+				print targetparams
+				self.filemgmt.add_targets([targetparams])
+				print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " +"****************Writing config change to: "+ configfile + "****************\n"
+				self.filemgmt.save_config()
+				self.filemgmt.show_config_item('targets')
+			if inputcheck == "pass":
+				print self.ui.color("Success!", self.ui.green)
+			else:
+				print self.ui.color("Something Went Wrong!", self.ui.red)
 			print self.ui.color("#" * len(header), self.ui.magenta)
 			print self.ui.color("#" * len(header), self.ui.magenta)
 		######################### TAIL #############################
