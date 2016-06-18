@@ -413,42 +413,48 @@ class file_management(object):
 			##### Suck config values into a dictionary #####
 			configdict = self.tinyxml2dict_starter()
 			##### Publish individual global settings values variables in main namespace #####
-			logfile = configdict['globalsettings']['paths']['logfile']
-			self.logwriter("normal", "***********INITIAL WRITE TO THE LOG FILE: " + logfile + "...***********")
-			self.logwriter("normal", "***********INITIALIZING VARIABLES FROM CONFIG FILE...***********")
-			self.logwriter("normal", "Initialized variable:" "\t" + "logfile" + "\t\t\t\t" + "with value:" + "\t" + self.ui.color(logfile, self.ui.green))
-			radiuslogpath = configdict['globalsettings']['paths']['radiuslogpath']
-			self.logwriter("normal", "Initialized variable:" "\t" + "radiuslogpath" + "\t\t\t" + "with value:" + "\t" + self.ui.color(radiuslogpath, self.ui.green))
-			ipaddressterm = configdict['globalsettings']['searchterms']['ipaddressterm']
-			self.logwriter("normal", "Initialized variable:" "\t" + "ipaddressterm" + "\t\t\t" + "with value:" + "\t" + self.ui.color(ipaddressterm, self.ui.green))
-			usernameterm = configdict['globalsettings']['searchterms']['usernameterm']
-			self.logwriter("normal", "Initialized variable:" "\t" + "usernameterm" + "\t\t\t" + "with value:" + "\t" + self.ui.color(usernameterm, self.ui.green))
-			delineatorterm = configdict['globalsettings']['searchterms']['delineatorterm']
-			self.logwriter("normal", "Initialized variable:" "\t" + "delineatorterm" + "\t\t\t" + "with value:" + "\t" + self.ui.color(delineatorterm, self.ui.green))
-			userdomain = configdict['globalsettings']['uidsettings']['userdomain']
-			self.logwriter("normal", "Initialized variable:" "\t" + "userdomain" + "\t\t\t" + "with value:" + "\t" + self.ui.color(userdomain, self.ui.green))
-			timeout = configdict['globalsettings']['uidsettings']['timeout']
-			self.logwriter("normal", "Initialized variable:" "\t" + "timeout" + "\t\t\t\t" + "with value:" + "\t" + self.ui.color(timeout, self.ui.green))
-			##### Publish list of firewall targets into main namespace #####
-			self.logwriter("normal", "***********INITIALIZING TARGETS...***********")
-			targets = configdict['targets']['target']
-			if type(targets) != type([]):
-				targets = [targets]
-			for target in targets:
-				self.logwriter("normal", self.ui.color("[IMPORTED]", self.ui.cyan) + "   HOSTNAME: " + self.ui.color(target['hostname'], self.ui.green) + "\t\tUSERNAME: " + self.ui.color(target['username'], self.ui.green) + "\t\tPASSWORD: " + self.ui.color(target['password'], self.ui.green) + "\t\tVERSION: " + self.ui.color(target['version'], self.ui.green))
+			try:
+				logfile = configdict['globalsettings']['paths']['logfile']
+				self.logwriter("normal", "***********INITIAL WRITE TO THE LOG FILE: " + logfile + "...***********")
+				self.logwriter("normal", "***********INITIALIZING VARIABLES FROM CONFIG FILE...***********")
+				self.logwriter("normal", "Initialized variable:" "\t" + "logfile" + "\t\t\t\t" + "with value:" + "\t" + self.ui.color(logfile, self.ui.green))
+				radiuslogpath = configdict['globalsettings']['paths']['radiuslogpath']
+				self.logwriter("normal", "Initialized variable:" "\t" + "radiuslogpath" + "\t\t\t" + "with value:" + "\t" + self.ui.color(radiuslogpath, self.ui.green))
+				ipaddressterm = configdict['globalsettings']['searchterms']['ipaddressterm']
+				self.logwriter("normal", "Initialized variable:" "\t" + "ipaddressterm" + "\t\t\t" + "with value:" + "\t" + self.ui.color(ipaddressterm, self.ui.green))
+				usernameterm = configdict['globalsettings']['searchterms']['usernameterm']
+				self.logwriter("normal", "Initialized variable:" "\t" + "usernameterm" + "\t\t\t" + "with value:" + "\t" + self.ui.color(usernameterm, self.ui.green))
+				delineatorterm = configdict['globalsettings']['searchterms']['delineatorterm']
+				self.logwriter("normal", "Initialized variable:" "\t" + "delineatorterm" + "\t\t\t" + "with value:" + "\t" + self.ui.color(delineatorterm, self.ui.green))
+				userdomain = configdict['globalsettings']['uidsettings']['userdomain']
+				self.logwriter("normal", "Initialized variable:" "\t" + "userdomain" + "\t\t\t" + "with value:" + "\t" + self.ui.color(userdomain, self.ui.green))
+				timeout = configdict['globalsettings']['uidsettings']['timeout']
+				self.logwriter("normal", "Initialized variable:" "\t" + "timeout" + "\t\t\t\t" + "with value:" + "\t" + self.ui.color(timeout, self.ui.green))
+				##### Publish list of firewall targets into main namespace #####
+				self.logwriter("normal", "***********INITIALIZING TARGETS...***********")
+				targets = configdict['targets']['target']
+				if type(targets) != type([]):
+					targets = [targets]
+				for target in targets:
+					self.logwriter("normal", self.ui.color("[IMPORTED]", self.ui.cyan) + "   HOSTNAME: " + self.ui.color(target['hostname'], self.ui.green) + "\t\tUSERNAME: " + self.ui.color(target['username'], self.ui.green) + "\t\tPASSWORD: " + self.ui.color(target['password'], self.ui.green) + "\t\tVERSION: " + self.ui.color(target['version'], self.ui.green))
+			except KeyError:
+				print "\n" + self.ui.color(time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + "****************WARNING: Could not import some important settings****************\n", self.ui.yellow)
 		if mode == 'quiet':
 			##### Suck config values into a dictionary #####
 			configdict = self.tinyxml2dict_starter()
 			##### Publish individual global settings values variables in main namespace #####
-			logfile = configdict['globalsettings']['paths']['logfile']
-			radiuslogpath = configdict['globalsettings']['paths']['radiuslogpath']
-			userdomain = configdict['globalsettings']['uidsettings']['userdomain']
-			timeout = configdict['globalsettings']['uidsettings']['timeout']
-			ipaddressterm = configdict['globalsettings']['searchterms']['ipaddressterm']
-			usernameterm = configdict['globalsettings']['searchterms']['usernameterm']
-			delineatorterm = configdict['globalsettings']['searchterms']['delineatorterm']
-			##### Publish list of firewall targets into main namespace #####
-			targets = configdict['targets']['target']
+			try:
+				logfile = configdict['globalsettings']['paths']['logfile']
+				radiuslogpath = configdict['globalsettings']['paths']['radiuslogpath']
+				userdomain = configdict['globalsettings']['uidsettings']['userdomain']
+				timeout = configdict['globalsettings']['uidsettings']['timeout']
+				ipaddressterm = configdict['globalsettings']['searchterms']['ipaddressterm']
+				usernameterm = configdict['globalsettings']['searchterms']['usernameterm']
+				delineatorterm = configdict['globalsettings']['searchterms']['delineatorterm']
+				##### Publish list of firewall targets into main namespace #####
+				targets = configdict['targets']['target']
+			except KeyError:
+				return "WARNING: Could not import some important settings"
 	##### Show XML formatted configuration item #####
 	def show_config_item(self, itemname):
 		for value in self.root.iter(itemname):
@@ -1528,13 +1534,33 @@ class command_line_interpreter(object):
 			print self.ui.color("#" * len(header), self.ui.magenta)
 		######################### CLEAR #############################
 		elif arguments == "clear" or arguments == "clear ?":
-			print "\n - clear log         |     Delete the content in the log file\n"
+			print "\n - clear log                       |     Delete the content in the log file"
+			print " - clear target (<target> | all)     |     Delete one or all firewall targets in the config file\n"
+		elif arguments == "clear target" or arguments == "clear target ?":
+			print "\n - clear target (<target> | all)  |  Examples: 'clear target 192.168.1.1'"
+			print "                                  |            'clear target pan1.domain.com'"
+			print "                                  |            'clear target all'\n"
 		elif arguments == "clear log":
 			print self.ui.color("********************* You are about to clear out the RadiUID log file... (" + logfile + ") ********************", self.ui.yellow)
 			raw_input("Hit CTRL-C to quit. Hit ENTER to continue\n>>>>>")
 			os.system("rm -f "+ logfile)
 			self.filemgmt.write_file(logfile, "***********Logfile cleared via RadiUID command by " + self.imum.currentuser() + "***********\n")
 			print self.ui.color("********************* Cleared logfile: " + logfile + " ********************", self.ui.yellow)
+		elif arguments == "clear target all":
+			self.filemgmt.logwriter("cli", "##### COMMAND '" + arguments + "' ISSUED FROM CLI BY USER '" + self.imum.currentuser()+ "' #####")
+			header = "########################## EXECUTING COMMAND: " + arguments + " ##########################"
+			print self.ui.color(header, self.ui.magenta)
+			print self.ui.color("#" * len(header), self.ui.magenta)
+			if self.filemgmt.get_globalconfig_item('target') == None:
+				print "\n" + self.ui.color(time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + "****************ERROR: No targets currently exist in config****************\n", self.ui.red)
+			else:
+				print "\n" + time.strftime("%Y-%m-%d %H:%M:%S") + ":   " +"****************Deleting configuration items: ****************\n"
+				self.filemgmt.show_config_item('targets')
+				self.filemgmt.clear_targets()
+				print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " +"****************Writing config change to: "+ configfile + "****************\n"
+				self.filemgmt.save_config()
+			print self.ui.color("#" * len(header), self.ui.magenta)
+			print self.ui.color("#" * len(header), self.ui.magenta)
 		######################### EDIT #############################
 		elif arguments == "edit" or arguments == "edit ?":
 			print "\n - edit config      |     Edit the RadiUID config file"
@@ -1744,37 +1770,38 @@ class command_line_interpreter(object):
 			print self.ui.color("###############################################################################################\n\n", self.ui.magenta)
 			print self.ui.color(" - Usage if installed: ", self.ui.white) + self.ui.color("radiuid [arguments]", self.ui.cyan) + "\n"
 			print self.ui.color(" - Usage if NOT installed: ", self.ui.white) + self.ui.color("python radiuid.py [arguments]", self.ui.cyan) + "\n"
-			print "--------------------------------------------------------------------------------------------------------------"
-			print "       ARGUMENTS           |                             DESCRIPTIONS"
-			print "--------------------------------------------------------------------------------------------------------------\n"
-			print " - run                     |     Run the RadiUID main program in shell mode begin pushing User-ID information"
-			print "--------------------------------------------------------------------------------------------------------------\n"
-			print " - install                 |     Run the RadiUID Install/Maintenance Utility"
-			print "--------------------------------------------------------------------------------------------------------------\n"
-			print " - show log                |     Show the RadiUID log file"
-			print " - show run                |     Show the RadiUID config file"
-			print " - show config             |     Show the RadiUID config file"
-			print " - show clients            |     Show the FreeRADIUS client config file"
-			print " - show status             |     Show the RadiUID and FreeRADIUS service statuses"
-			print "--------------------------------------------------------------------------------------------------------------\n"
-			print " - set logfile             |     Set the RadiUID logfile path"
-			print " - set radiuslogpath       |     Set the path used to find FreeRADIUS accounting log files"
-			print " - set userdomain          |     Set the domain name prepended to User-ID mappings"
-			print " - set timeout             |     Set the timeout (in minutes) for User-ID mappings sent to the firewall targets"
-			print " - set target [parameters] |     Set configuration elements for existing to new firewall targets"
-			print "--------------------------------------------------------------------------------------------------------------\n"
-			print " - tail log                |     Watch the RadiUID log file in real time"
-			print "--------------------------------------------------------------------------------------------------------------\n"
-			print " - clear log               |     Delete the content in the log file"
-			print "--------------------------------------------------------------------------------------------------------------\n"
-			print " - edit config             |     Edit the RadiUID config file"
-			print " - edit clients            |     Edit list of client IPs for FreeRADIUS"
-			print "--------------------------------------------------------------------------------------------------------------\n"
-			print " - service [parameters]    |     Control the RadiUID and FreeRADIUS system services"
-			print "                           |     Usage: radiuid service (radiuid | freeradius | all) (start | stop | restart)"
-			print "--------------------------------------------------------------------------------------------------------------\n"
-			print " - version                 |     Show the current version of RadiUID and FreeRADIUS"
-			print "--------------------------------------------------------------------------------------------------------------\n"
+			print "-----------------------------------------------------------------------------------------------------------------------"
+			print "             ARGUMENTS            |                             DESCRIPTIONS"
+			print "-----------------------------------------------------------------------------------------------------------------------\n"
+			print " - run                            |     Run the RadiUID main program in shell mode begin pushing User-ID information"
+			print "-----------------------------------------------------------------------------------------------------------------------\n"
+			print " - install                        |     Run the RadiUID Install/Maintenance Utility"
+			print "-----------------------------------------------------------------------------------------------------------------------\n"
+			print " - show log                       |     Show the RadiUID log file"
+			print " - show run                       |     Show the RadiUID config file"
+			print " - show config                    |     Show the RadiUID config file"
+			print " - show clients                   |     Show the FreeRADIUS client config file"
+			print " - show status                    |     Show the RadiUID and FreeRADIUS service statuses"
+			print "-----------------------------------------------------------------------------------------------------------------------\n"
+			print " - set logfile                    |     Set the RadiUID logfile path"
+			print " - set radiuslogpath              |     Set the path used to find FreeRADIUS accounting log files"
+			print " - set userdomain                 |     Set the domain name prepended to User-ID mappings"
+			print " - set timeout                    |     Set the timeout (in minutes) for User-ID mappings sent to the firewall targets"
+			print " - set target [parameters]        |     Set configuration elements for existing or new firewall targets"
+			print "-----------------------------------------------------------------------------------------------------------------------\n"
+			print " - tail log                       |     Watch the RadiUID log file in real time"
+			print "-----------------------------------------------------------------------------------------------------------------------\n"
+			print " - clear log                      |     Delete the content in the log file"
+			print " - clear target (<target> | all)  |     Delete one or all firewall targets in the config file"
+			print "-----------------------------------------------------------------------------------------------------------------------\n"
+			print " - edit config                    |     Edit the RadiUID config file"
+			print " - edit clients                   |     Edit list of client IPs for FreeRADIUS"
+			print "-----------------------------------------------------------------------------------------------------------------------\n"
+			print " - service [parameters]           |     Control the RadiUID and FreeRADIUS system services"
+			print "                                  |     Usage: radiuid service (radiuid | freeradius | all) (start | stop | restart)"
+			print "-----------------------------------------------------------------------------------------------------------------------\n"
+			print " - version                        |     Show the current version of RadiUID and FreeRADIUS"
+			print "-----------------------------------------------------------------------------------------------------------------------\n"
 			print self.ui.color("###############################################################################################", self.ui.magenta)
 			print self.ui.color("###############################################################################################", self.ui.magenta)
 
