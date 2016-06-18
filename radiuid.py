@@ -160,28 +160,86 @@ class file_management(object):
 		resultlist.append(filepath)
 		resultlist.append(filename)
 		return resultlist
-	##### Check a file or directory path for illegal patterns/characters and for required patterns #####
+	##### Check a Unix/Linux file or directory path for illegal patterns/characters and for required patterns #####
 	##### The inputtype arg can be "dir" or "file" (depending on if the input is a file path or a directory path). The input arg is a str of the file or dir path #####
-	##### The returned data is a list of two strings where result[0] equals either "good" or "bad" and list[1] equals the error message if input is determined to be bad ####
-	def check_path(self, inputtype, input):
+	##### The returned data is a list of strings where result[0] equals either "pass" or "fail" and result[1:] equals the error message(s) if input is determined to be bad ####
+	def check_path(self, pathtype, path):
+		result = ['pass'] # set initial result as "pass"
 		regexblacklistdict = {"space character": " ", "double forward slash (//)": "\/\/", 'double quote (")': '"', "single quote (')": "'", "pipe character (|)": "\|", "double period (..)": "\.\.", "comma (,)": ",", "exclamation point (!)": "!", "grave accent(`)": "`", "ampersand (&)": "&", "asterisk (*)": "\*", "left parenthesis [(]": "\(", "right parenthesis [)]": "\)"} # Set common blacklist characters and patterns with keys as friendly names and values as the regex patterns
 		regexrequiredict = {"begins with /":"^\/"} # Set common required patterns with keys as friendly names and values as the regex patterns
-		if inputtype == "dir": # if the input type is "dir"
+		if pathtype == "dir": # if the path type is "dir"
 			regexrequiredict.update({"ends with /": "\/$"}) # add additional patterns to requirements dict
-		elif inputtype == "file": # if the input type is "file"
+		elif pathtype == "file": # if the path type is "file"
 			regexblacklistdict.update({"ends with /": "\/$"}) # add additional patterns to blacklist dict
-		result = ['good', 'error message here'] # set initial result as "good"
 		for key in regexblacklistdict: # For every entry in the blacklist dict
-			if len(re.findall(regexblacklistdict[key], input)) > 0: # If a pattern from the blacklist dict is matched in the input data
-				result[0] = 'bad' # Set the result to bad
-				result[1] = "Pattern Not Allowed: " + key # Set the error message in the result with the matched bad pattern/character
-				return result # Return bad result and error message
+			if len(re.findall(regexblacklistdict[key], path)) > 0: # If a pattern from the blacklist dict is matched in the path data
+				result[0] = 'fail' # Set the result to fail
+				result.append("Pattern Not Allowed: " + key) # Append an error message to a failed result
 		for key in regexrequiredict: # For every entry in the requirement dict
-			if len(re.findall(regexrequiredict[key], input)) == 0: # If the pattern is not found in the input
-				result[0] = 'bad' # Set the result to bad
-				result[1] = "Pattern Required: " + key # Set the error message in the result with the matched bad pattern/character
-				return result # Return bad result and error message
-		return result # If the input makes it through the gauntlet, return the good news
+			if len(re.findall(regexrequiredict[key], path)) == 0: # If the pattern is not found in the path
+				result[0] = 'fail' # Set the result to fail
+				result.append("Pattern Required: " + key) # Append an error message to a failed result
+		return result
+	##### Check that input is a legal fully qualified domain name (FQDN) #####
+	##### The input is a str of the FQDN #####
+	##### The returned data is a list of strings where result[0] equals either "pass" or "fail" and result[1:] equals the error message(s) if input is determined to be bad ####
+	def check_domainname(self, domainname):
+		result = ["fail"] # Start with a failed result
+		##### 1. Check that only legal characters are in name (RFC883 and RFC952) #####
+		characterregex = "^[a-zA-Z0-9\-\.]+$" # A list of the valid domain-name characters in a domain name
+		charactercheck = "fail" # Check starts as failed and is passed if the conditional is met
+		for entry in re.findall(characterregex, domainname): # For each string in the list returned by re.findall
+			if entry == domainname: # If one of the strings in the returned list equals the full domainname string
+				charactercheck = "pass" # Then all its characters are legal and it passes the check
+		if charactercheck == "fail": # If the check failed
+			result.append("Illegal character found. Only a-z, A-Z, 0-9, period (.), and hyphen (-) allowed.") # Append an error message to the result
+		##### 2. Check the Length Restrictions: 63 max char per label, 253 max total (RFC1035) #####
+		maxlengthcheck = "fail"
+		if len(domainname) <= 253: # If total length of domain name is 253 char or less
+			labelcheck = {'passlength': 0, 'faillength': 0} # Start a tally of passed and failed labels
+			for label in domainname.split("."): # Split the domain into its labels and for each label
+				if len(label) <= 63: # If the individual label is less than or equal to 63 characters...
+					labelcheck['passlength'] = labelcheck['passlength'] + 1 # Add it as a passed label in the tally
+				else: # If it is longer than 63 characters
+					labelcheck['faillength'] = labelcheck['faillength'] + 1 # Add it as a failed label in the tally
+					result.append("Label: " + label + " exceeds max label length of 63 characters")
+			if labelcheck['faillength'] == 0: # If there are NOT any failed labels in the tally
+				maxlengthcheck = "pass" # Then all labels are passed and the check passes
+		else:
+			result.append("Total domain name length exceeds max length (253 characters)")
+		##### 3. Check that first and last character are not a hyphen or period #####
+		firstcharregex = "^[a-zA-Z0-9]" # Match a first character of upper or lower A-Z and any digit (no hyphens or periods)
+		lastcharregex = "[a-zA-Z0-9]$" # Match a last character of upper or lower A-Z and any digit (no hyphens or periods)
+		firstlastcheck = "fail"
+		if len(re.findall(firstcharregex, domainname)) > 0: # If the first characters produces a match
+			if len(re.findall(lastcharregex, domainname)) > 0: # And the last characters produces a match
+				firstlastcheck = "pass" # Then first and last characters are legal and the check passes
+			else:
+				result.append("First and last character in domain must be alphanumeric")
+		else:
+			result.append("First and last character in domain must be alphanumeric")
+		##### 4. Check that no labels begin or end with hyphens (https://www.icann.org/news/announcement-2000-01-07-en) #####
+		beginendhyphenregex = "\.\-|\-\." # Match any instance where a hyphen follows a period or vice-versa
+		beginendhyphencheck = "fail"
+		if len(re.findall(beginendhyphenregex, domainname)) == 0: # If the regex does NOT make a match anywhere
+			beginendhyphencheck = "pass" # Then no names begin with a hyphen and the check passes
+		else:
+			result.append("Each label in the domain name must begin and end with an alphanumeric character. No hyphens")
+		##### 5. No double periods or triple-hyphens exist (RFC5891 for double-hyphens) #####
+		nomultiplesregex = "\.\.|\-\-\-" # Match any instance where a double period (..) or a triple hyphen (---) exist
+		nomultiplescheck = "fail"
+		if len(re.findall(nomultiplesregex, domainname)) == 0: # If the regex does NOT make a match anywhere
+			nomultiplescheck = "pass" # Then no double periods or triple hyphens exist and the check passes
+		else:
+			result.append("No double-periods (..) or triple-hyphens (---) allowed in domain name")
+		##### Make sure all checks are passed #####
+		if charactercheck == "pass":
+			if maxlengthcheck == "pass":
+				if firstlastcheck == "pass":
+					if beginendhyphencheck == "pass":
+						if nomultiplescheck == "pass":
+							result[0] = "pass" # Set the result to "pass"
+		return result
 	##### Simple two-choice logic method to pick a preferred input over another #####
 	##### Used to decide whether to use the radiuid.conf file in the 'etc' location, or the one in the local working directory #####
 	def file_chooser(self, firstchoice, secondchoice):
@@ -1261,7 +1319,7 @@ class command_line_interpreter(object):
 			print " - show run         |     Show the RadiUID config file"
 			print " - show config      |     Show the RadiUID config file"
 			print " - show clients     |     Show the FreeRADIUS client config file"
-			print " - show status      |     Show the RadiUID and FreeRADIUS service statuses"
+			print " - show status      |     Show the RadiUID and FreeRADIUS service statuses\n"
 		elif arguments == "show log":
 			self.filemgmt.logwriter("cli", "##### COMMAND '" + arguments + "' ISSUED FROM CLI BY USER '" + self.imum.currentuser()+ "' #####")
 			configfile = self.filemgmt.find_config("quiet")
@@ -1327,31 +1385,91 @@ class command_line_interpreter(object):
 			print " - set timeout <minutes>                |     Set the timeout (in minutes) for User-ID mappings sent to the firewall targets"
 			print " - set target [parameters]              |     Set configuration elements for existing to new firewall targets\n"
 		elif arguments == "set logfile" or arguments == "set logfile ?":
-			print "\n - set logfile <path>  |  Example: 'radiuid set logfile /etc/radiuid/radiuid.log'\n"
+			print "\n - set logfile <file path>  |  Example: 'set logfile /etc/radiuid/radiuid.log'\n"
+		elif arguments == "set radiuslogpath" or arguments == "set radiuslogpath ?":
+			print "\n - set radiuslogpath <directory path>  |  Example: 'set radiuslogpath /var/log/radius/radacct/'\n"
+		elif arguments == "set userdomain" or arguments == "set userdomain ?":
+			print "\n - set userdomain <domain name>  |  Example: 'set userdomain domain.com'\n"
+		##### SET LOGFILE #####
 		elif self.cat_list(sys.argv[1:3]) == "set logfile" and len(re.findall("^(\/*)", sys.argv[3], flags=0)) > 0:
 			self.filemgmt.logwriter("cli", "##### COMMAND '" + arguments + "' ISSUED FROM CLI BY USER '" + self.imum.currentuser()+ "' #####")
 			header = "########################## EXECUTING COMMAND: " + arguments + " ##########################"
 			print self.ui.color(header, self.ui.magenta)
 			print self.ui.color("#" * len(header), self.ui.magenta)
-			pathcheck = self.filemgmt.check_path("file",sys.argv[3])
-			if pathcheck[0] == "bad":
-				print self.ui.color(time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + "****************ERROR: " + pathcheck[1] + "****************", self.ui.red)
-			elif pathcheck[0] == "good":
-				newlogfiledir = self.filemgmt.strip_filepath(sys.argv[3])[0]
-				print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " +"****************Making sure directory: "+ newlogfiledir + " exists****************\n"
-				os.system('mkdir -p ' + newlogfiledir)
-				try:
-					self.filemgmt.write_file(sys.argv[3], "***********Logfile created via RadiUID command by " + self.imum.currentuser() + "***********\n")
-					print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " +"Changing <logfile> configuration element to :\n"
-					self.filemgmt.change_config_item('logfile', sys.argv[3])
-					self.filemgmt.save_config()
-					self.filemgmt.show_config_item('logfile')
-				except IOError:
-					print self.ui.color(time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + "****************ERROR: One of the directory names already exists as a file or vice-versa****************", self.ui.red)
 			if self.filemgmt.get_globalconfig_item('logfile') == sys.argv[3]:
-				print self.ui.color("Success!", self.ui.green)
+				print self.ui.color("\n" + time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + "****************Entered value is the same as current value****************\n", self.ui.green)
 			else:
-				print self.ui.color("Something Went Wrong!", self.ui.red)
+				pathcheck = self.filemgmt.check_path("file",sys.argv[3])
+				if pathcheck[0] == "fail":
+					for error in pathcheck[1:]:
+						print self.ui.color(time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + "****************ERROR: " + error + "****************", self.ui.red)
+				elif pathcheck[0] == "pass":
+					newlogfiledir = self.filemgmt.strip_filepath(sys.argv[3])[0]
+					print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " +"****************Making sure directory: "+ newlogfiledir + " exists****************\n"
+					os.system('mkdir -p ' + newlogfiledir)
+					try:
+						self.filemgmt.write_file(sys.argv[3], "***********Logfile created via RadiUID command by " + self.imum.currentuser() + "***********\n")
+						print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " +"Changing <logfile> configuration element to :\n"
+						self.filemgmt.change_config_item('logfile', sys.argv[3])
+						self.filemgmt.save_config()
+						self.filemgmt.show_config_item('logfile')
+					except IOError:
+						print self.ui.color(time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + "****************ERROR: One of the directory names already exists as a file or vice-versa****************\n", self.ui.red)
+				if self.filemgmt.get_globalconfig_item('logfile') == sys.argv[3]:
+					print self.ui.color("Success!", self.ui.green)
+				else:
+					print self.ui.color("Something Went Wrong!", self.ui.red)
+			print self.ui.color("#" * len(header), self.ui.magenta)
+			print self.ui.color("#" * len(header), self.ui.magenta)
+		##### SET RADIUSLOGPATH #####
+		elif self.cat_list(sys.argv[1:3]) == "set radiuslogpath" and len(re.findall("^(\/*)", sys.argv[3], flags=0)) > 0:
+			self.filemgmt.logwriter("cli", "##### COMMAND '" + arguments + "' ISSUED FROM CLI BY USER '" + self.imum.currentuser()+ "' #####")
+			header = "########################## EXECUTING COMMAND: " + arguments + " ##########################"
+			print self.ui.color(header, self.ui.magenta)
+			print self.ui.color("#" * len(header), self.ui.magenta)
+			if self.filemgmt.get_globalconfig_item('radiuslogpath') == sys.argv[3]:
+				print self.ui.color("\n" + time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + "****************Entered value is the same as current value****************\n", self.ui.green)
+			else:
+				pathcheck = self.filemgmt.check_path("dir",sys.argv[3])
+				if pathcheck[0] == "fail":
+					for error in pathcheck[1:]:
+						print self.ui.color(time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + "****************ERROR: " + error + "****************", self.ui.red)
+				elif pathcheck[0] == "pass":
+					print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " +"****************Making sure directory: "+ sys.argv[3] + " exists****************\n"
+					pathexists = self.filemgmt.file_exists(sys.argv[3])
+					if pathexists == "no":
+						print self.ui.color(time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + "****************WARNING: Directory path doesn't exist. You may need to install FreeRADIUS****************\n", self.ui.yellow)
+					self.filemgmt.change_config_item('radiuslogpath', sys.argv[3])
+					self.filemgmt.save_config()
+					self.filemgmt.show_config_item('radiuslogpath')
+				if self.filemgmt.get_globalconfig_item('radiuslogpath') == sys.argv[3]:
+					print self.ui.color("Success!", self.ui.green)
+				else:
+					print self.ui.color("Something Went Wrong!", self.ui.red)
+			print self.ui.color("#" * len(header), self.ui.magenta)
+			print self.ui.color("#" * len(header), self.ui.magenta)
+		##### SET USERDOMAIN #####
+		elif self.cat_list(sys.argv[1:3]) == "set userdomain" and len(re.findall("^(.*)", sys.argv[3], flags=0)) > 0:
+			self.filemgmt.logwriter("cli", "##### COMMAND '" + arguments + "' ISSUED FROM CLI BY USER '" + self.imum.currentuser()+ "' #####")
+			header = "########################## EXECUTING COMMAND: " + arguments + " ##########################"
+			print self.ui.color(header, self.ui.magenta)
+			print self.ui.color("#" * len(header), self.ui.magenta)
+			if self.filemgmt.get_globalconfig_item('userdomain') == sys.argv[3]:
+				print self.ui.color("\n" + time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + "****************Entered value is the same as current value****************\n", self.ui.green)
+			else:
+				domaincheck = self.filemgmt.check_domainname(sys.argv[3])
+				if domaincheck[0] == "fail":
+					for error in domaincheck[1:]:
+						print "\n" + self.ui.color(time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + "****************ERROR: " + error + "****************\n", self.ui.red)
+				elif domaincheck[0] == "pass":
+					print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " +"****************Changing userdomain to: "+ sys.argv[3] + "****************\n"
+					self.filemgmt.change_config_item('userdomain', sys.argv[3])
+					self.filemgmt.save_config()
+					self.filemgmt.show_config_item('userdomain')
+				if self.filemgmt.get_globalconfig_item('userdomain') == sys.argv[3]:
+					print self.ui.color("Success!", self.ui.green)
+				else:
+					print self.ui.color("Something Went Wrong!", self.ui.red)
 			print self.ui.color("#" * len(header), self.ui.magenta)
 			print self.ui.color("#" * len(header), self.ui.magenta)
 		######################### TAIL #############################
@@ -1581,7 +1699,8 @@ class command_line_interpreter(object):
 		else:
 			print self.ui.color("\n\n\n########################## Below are the supported RadiUID Commands: ##########################", self.ui.magenta)
 			print self.ui.color("###############################################################################################\n\n", self.ui.magenta)
-			print self.ui.color(" - Usage: radiuid [arguments]", self.ui.cyan) + "\n"
+			print self.ui.color(" - Usage if installed: ", self.ui.white) + self.ui.color("radiuid [arguments]", self.ui.cyan) + "\n"
+			print self.ui.color(" - Usage if NOT installed: ", self.ui.white) + self.ui.color("python radiuid.py [arguments]", self.ui.cyan) + "\n"
 			print "--------------------------------------------------------------------------------------------------------------"
 			print "       ARGUMENTS           |                             DESCRIPTIONS"
 			print "--------------------------------------------------------------------------------------------------------------\n"
@@ -1612,7 +1731,9 @@ class command_line_interpreter(object):
 			print "                           |     Usage: radiuid service (radiuid | freeradius | all) (start | stop | restart)"
 			print "--------------------------------------------------------------------------------------------------------------\n"
 			print " - version                 |     Show the current version of RadiUID and FreeRADIUS"
-			print "--------------------------------------------------------------------------------------------------------------\n\n\n"
+			print "--------------------------------------------------------------------------------------------------------------\n"
+			print self.ui.color("###############################################################################################", self.ui.magenta)
+			print self.ui.color("###############################################################################################", self.ui.magenta)
 
 
 if __name__ == "__main__":
