@@ -497,17 +497,34 @@ class file_management(object):
 		else:
 			targets = self.root.findall('.//targets')[0] # if <target> XML elements do already exist
 			lasttarget = self.root.findall('.//target')[len(self.root.findall('.//target')) - 1] # mount the last existing <target> element as variable
-			lasttarget.tail = "\n\t\t" # adjust formatting on tail of last </target> element
+			lasttarget.tail = "\n\t" # adjust formatting on tail of last </target> element
 		numtargets = len(targetlist) # check number of targets being added so last one's tail can be formatted differently
 		for item in targetlist:
-			target = xml.etree.ElementTree.SubElement(targets, 'target') # mount new target element as variable
-			target.text = "\n\t\t\t" # add some formatting to indent the upcoming <hostname> element properly
-			if numtargets == 1: # add different tail formatting if this is the last 'target' element entry
-				target.tail = "\n\t" # add formatting if this is the last target being added (to indent the '</targets>' properly)
+			targetalreadyexists = False
+			for existingtarget in self.root.findall('.//target'):
+				for parameter in existingtarget:
+					if item["hostname"] == parameter.text:
+						targetalreadyexists = True
+						target = existingtarget
+			if targetalreadyexists:
+				#print "targetexists"
+				item.pop("hostname")
+				for param in item:
+					#print param
+					for existingparam in target:
+						#print existingparam.tag,existingparam.text
+						if existingparam.tag == param:
+							print existingparam,existingparam.tag,existingparam.text
+							print item[param]
+							existingparam.text = item[param]
 			else:
-				target.tail = "\n\t\t" # add formatting if this is NOT the last target being added (to indent the next '<target>' properly)
-			##### Add the different elements for the target #####
-			try:
+				target = xml.etree.ElementTree.SubElement(targets, 'target') # mount new target element as variable
+				target.text = "\n\t\t\t" # add some formatting to indent the upcoming <hostname> element properly
+				if numtargets == 1: # add different tail formatting if this is the last 'target' element entry
+					target.tail = "\n\t" # add formatting if this is the last target being added (to indent the '</targets>' properly)
+				else:
+					target.tail = "\n\t\t" # add formatting if this is NOT the last target being added (to indent the next '<target>' properly)
+				##### Add the different elements for the target #####
 				hostname = xml.etree.ElementTree.SubElement(target, 'hostname')
 				hostname.text = item['hostname']
 				hostname.tail = "\n\t\t\t"
@@ -520,14 +537,13 @@ class file_management(object):
 				version = xml.etree.ElementTree.SubElement(target, 'version')
 				version.text = item['version']
 				version.tail = "\n\t\t"
-			except KeyError:
-				nothing = None
+				##### Remove temporary variables #####
+				del hostname
+				del username
+				del password
+				del version
 			numtargets = numtargets - 1 # decrement the target counter for proper formatting on last target
-			##### Remove temporary variables #####
-			del hostname
-			del username
-			del password
-			del version
+			del targetalreadyexists
 			del target
 		del numtargets
 	##### Remove specific list of targets from config #####
