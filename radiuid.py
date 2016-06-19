@@ -185,69 +185,65 @@ class file_management(object):
 	##### The input is a str of the FQDN #####
 	##### The returned data is a list of strings where result[0] equals either "pass" or "fail" and result[1:] equals the error message(s) if input is determined to be bad ####
 	def check_domainname(self, domainname):
-		result = ["fail"] # Start with a failed result
+		result = {"status": "pass", "messages": []} # Start with a passing result
 		##### 1. Check that only legal characters are in name (RFC883 and RFC952) #####
 		characterregex = "^[a-zA-Z0-9\-\.]+$" # A list of the valid domain-name characters in a domain name
-		charactercheck = "fail" # Check starts as failed and is passed if the conditional is met
 		for entry in re.findall(characterregex, domainname): # For each string in the list returned by re.findall
 			if entry == domainname: # If one of the strings in the returned list equals the full domainname string
 				charactercheck = "pass" # Then all its characters are legal and it passes the check
+				result["messages"].append({"OK": "No illegal characters found"}) # Append a message to the result
 		if charactercheck == "fail": # If the check failed
-			result.append("Illegal character found. Only a-z, A-Z, 0-9, period (.), and hyphen (-) allowed.") # Append an error message to the result
+			result["messages"].append({"FATAL": "Illegal character found. Only a-z, A-Z, 0-9, period (.), and hyphen (-) allowed."})
 		##### 2. Check the Length Restrictions: 63 max char per label, 253 max total (RFC1035) #####
-		maxlengthcheck = "fail"
 		if len(domainname) <= 253: # If total length of domain name is 253 char or less
+			result["messages"].append({"OK": "Domain total length is good"})
 			labelcheck = {'passlength': 0, 'faillength': 0} # Start a tally of passed and failed labels
 			for label in domainname.split("."): # Split the domain into its labels and for each label
 				if len(label) <= 63: # If the individual label is less than or equal to 63 characters...
 					labelcheck['passlength'] = labelcheck['passlength'] + 1 # Add it as a passed label in the tally
 				else: # If it is longer than 63 characters
 					labelcheck['faillength'] = labelcheck['faillength'] + 1 # Add it as a failed label in the tally
-					result.append("Label: " + label + " exceeds max label length of 63 characters")
+					result["messages"].append({"FATAL": "Label: " + label + " exceeds max label length of 63 characters"})
 			if labelcheck['faillength'] == 0: # If there are NOT any failed labels in the tally
 				maxlengthcheck = "pass" # Then all labels are passed and the check passes
-		else:
-			result.append("Total domain name length exceeds max length (253 characters)")
 		##### 3. Check that first and last character are not a hyphen or period #####
 		firstcharregex = "^[a-zA-Z0-9]" # Match a first character of upper or lower A-Z and any digit (no hyphens or periods)
 		lastcharregex = "[a-zA-Z0-9]$" # Match a last character of upper or lower A-Z and any digit (no hyphens or periods)
-		firstlastcheck = "fail"
 		if len(re.findall(firstcharregex, domainname)) > 0: # If the first characters produces a match
+			result["messages"].append({"OK": "Domain first character is legal"})
 			if len(re.findall(lastcharregex, domainname)) > 0: # And the last characters produces a match
+				result["messages"].append({"OK": "Domain last character is legal"})
 				firstlastcheck = "pass" # Then first and last characters are legal and the check passes
 			else:
-				result.append("First and last character in domain must be alphanumeric")
+				result["messages"].append({"FATAL": "First and last character in domain must be alphanumeric"})
 		else:
-			result.append("First and last character in domain must be alphanumeric")
+			result["messages"].append({"FATAL": "First and last character in domain must be alphanumeric"})
 		##### 4. Check that no labels begin or end with hyphens (https://www.icann.org/news/announcement-2000-01-07-en) #####
 		beginendhyphenregex = "\.\-|\-\." # Match any instance where a hyphen follows a period or vice-versa
-		beginendhyphencheck = "fail"
 		if len(re.findall(beginendhyphenregex, domainname)) == 0: # If the regex does NOT make a match anywhere
+			result["messages"].append({"OK": "No labels begin or end with hyphens"})
 			beginendhyphencheck = "pass" # Then no names begin with a hyphen and the check passes
 		else:
-			result.append("Each label in the domain name must begin and end with an alphanumeric character. No hyphens")
+			result["messages"].append({"FATAL": "Each label in the domain name must begin and end with an alphanumeric character. No hyphens"})
 		##### 5. No double periods or triple-hyphens exist (RFC5891 for double-hyphens) #####
 		nomultiplesregex = "\.\.|\-\-\-" # Match any instance where a double period (..) or a triple hyphen (---) exist
-		nomultiplescheck = "fail"
 		if len(re.findall(nomultiplesregex, domainname)) == 0: # If the regex does NOT make a match anywhere
+			result["messages"].append({"OK": "No double periods or triple hyphens found"})
 			nomultiplescheck = "pass" # Then no double periods or triple hyphens exist and the check passes
 		else:
-			result.append("No double-periods (..) or triple-hyphens (---) allowed in domain name")
+			result["messages"].append({"FATAL": "No double-periods (..) or triple-hyphens (---) allowed in domain name"})
 		##### 6. There is at least one period in the domain name #####
 		periodinnameregex = "\." # Match any instance of a period
-		periodinnamecheck = "fail"
 		if len(re.findall(periodinnameregex, domainname)) > 0: # If there is at least one period in the domain name...
 			periodinnamecheck = "pass"
+			result["messages"].append({"OK": "At least one period found in the domain name"})
 		else:
-			result.append("No period (.) found in domain name")
+			result["messages"].append({"WARNING": "No period (.) found in domain name. FQDNs are preferred but not required."})
 		##### Make sure all checks are passed #####
-		if charactercheck == "pass":
-			if maxlengthcheck == "pass":
-				if firstlastcheck == "pass":
-					if beginendhyphencheck == "pass":
-						if nomultiplescheck == "pass":
-							if periodinnamecheck == "pass":
-								result[0] = "pass" # Set the result to "pass"
+		for listentry in result["messages"]:
+			for key in listentry:
+				if key == "FATAL":
+					result["status"] = "fail"
 		return result
 	##### Simple two-choice logic method to pick a preferred input over another #####
 	##### Used to decide whether to use the radiuid.conf file in the 'etc' location, or the one in the local working directory #####
@@ -1543,13 +1539,19 @@ class command_line_interpreter(object):
 				print self.ui.color("\n" + time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + "****************Entered value is the same as current value****************\n", self.ui.green)
 			else:
 				domaincheck = self.filemgmt.check_domainname(sys.argv[3])
-				if domaincheck[0] == "fail":
-					for error in domaincheck[1:]:
-						print "\n" + self.ui.color(time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + "****************ERROR: " + error + "****************\n", self.ui.red)
-				elif domaincheck[0] == "pass":
+				if domaincheck["status"] == "fail":
+					for message in domaincheck["messages"]:
+						if message.keys()[0] == "FATAL":
+							print "\n" + self.ui.color(time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + "****************" + message.keys()[0] + ": " + message.values()[0] + "****************\n", self.ui.red)
+						elif message.keys()[0] == "WARNING":
+							print "\n" + self.ui.color(time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + "****************" + message.keys()[0] + ": " + message.values()[0] + "****************\n", self.ui.yellow)
+				elif domaincheck["status"] == "pass":
+					for message in domaincheck["messages"]:
+						if message.keys()[0] == "WARNING":
+							print "\n" + self.ui.color(time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + "****************" + message.keys()[0] + ": " + message.values()[0] + "****************\n", self.ui.yellow)
 					self.filemgmt.change_config_item('userdomain', sys.argv[3])
 					print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " +"****************Writing config change to: "+ configfile + "****************\n"
-					self.filemgmt.save_config()
+					#self.filemgmt.save_config()
 					print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " +"<userdomain> configuration element changed to :\n"
 					self.filemgmt.show_config_item('userdomain')
 				if self.filemgmt.get_globalconfig_item('userdomain') == sys.argv[3]:
