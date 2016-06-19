@@ -484,68 +484,84 @@ class file_management(object):
 	def change_config_item(self, itemname, newvalue):
 		for value in self.root.iter(itemname):
 			value.text = newvalue
-	##### Add target firewalls to XML configuration elements #####
-	##### Method accepts a list of dictionaries which contain the standard 4 elements for a firewall target #####
+	##### Add or edit target firewalls in XML configuration elements #####
+	##### Input is a list of dictionaries which contain any number of parameters for a firewall target, but a hostname parameter is required #####
 	##### Method will detect if the 'targets' element already exists and will create it if it doesn't #####
+	##### Result is a dictionary where keys are the hostnames of the processed targets with messages in the values #####
 	def add_targets(self, targetlist):
-		if len(self.root.findall('.//target')) == 0: # if <target> XML elements do not exist
-			for item in self.root.iter('globalsettings'): # adjust tail of 'globalsettings' element for formatting purposes
-				item.tail = '\n\t' # formatting added to tail of </globalsettings> element
-			targets = xml.etree.ElementTree.SubElement(self.root, 'targets') # mount new <targets> element as variable
-			targets.text = "\n\t\t" # add some formatting for upcoming <target> element
-			targets.tail = "\n" # add formatting to end for the </config> element
-		else:
-			targets = self.root.findall('.//targets')[0] # if <target> XML elements do already exist
-			lasttarget = self.root.findall('.//target')[len(self.root.findall('.//target')) - 1] # mount the last existing <target> element as variable
-			lasttarget.tail = "\n\t" # adjust formatting on tail of last </target> element
-		numtargets = len(targetlist) # check number of targets being added so last one's tail can be formatted differently
-		for item in targetlist:
-			targetalreadyexists = False
-			for existingtarget in self.root.findall('.//target'):
-				for parameter in existingtarget:
-					if item["hostname"] == parameter.text:
-						targetalreadyexists = True
-						target = existingtarget
-			if targetalreadyexists:
-				#print "targetexists"
-				item.pop("hostname")
-				for param in item:
-					#print param
-					for existingparam in target:
-						#print existingparam.tag,existingparam.text
-						if existingparam.tag == param:
-							print existingparam,existingparam.tag,existingparam.text
-							print item[param]
-							existingparam.text = item[param]
-			else:
+		result = {} # Initialize Result
+		if len(self.root.findall('.//target')) == 0: # If <target> XML elements do not exist
+			targets = xml.etree.ElementTree.SubElement(self.root, 'targets') # Mount new <targets> element as variable
+		targets = self.root.findall('.//targets')[0] # Mount targets element as targets
+		for targetitem in targetlist: # For each dict entry in the target list input as an arg...
+			currenttargethostname = targetitem["hostname"]
+			result[currenttargethostname] = {"status": "processing", "messages": []} # Create a new key in the result for this targetitem
+			##### Does this target already exist, or do we need to create it new? #####
+			targetalreadyexists = False # Initialize variable to determine if the target already exists
+			for existingtarget in self.root.findall('.//target'): # For each existing target object in a list (empty list returned if none found)
+				for parameter in existingtarget: # For each parameter in the existing target entry
+					if targetitem["hostname"] == parameter.text: # If the hostname of the target to be edited matches this existing targets hostname...
+						targetalreadyexists = True # Then set the targetalreadyexists value as True
+						target = existingtarget # And mount the existing target (where the hostname matched) as target
+			##### If the target to be edited exists already #####
+			if targetalreadyexists: # If target exists..
+				result[currenttargethostname]["messages"].append("Editing existing target") # Create feedback message
+				targetitem.pop("hostname") # Remove the 'hostname' parameter from the list of edits to be made
+				#### Make edits to already existing parameters first #####
+				for parameter in list(targetitem): # For each of the parameters to be edited for the current target to be edited..
+					for existingparameter in target: # And for each existing parameter in the existing target
+						if existingparameter.tag == parameter: # If the parameter to be edited matches an existing parameter in the existing target...
+							result[currenttargethostname]["messages"].append("Changed existing <" + parameter + "> parameter from '" + existingparameter.text + "' to '" + targetitem[parameter] + "'") # Create feedback message
+							existingparameter.text = targetitem[parameter] # Edit the value of the parameter in place
+							del targetitem[parameter] # Then delete this parameter edit from the list
+				##### Then create the not-yet-existing parameters and set the appropriately #####
+				if targetitem > 0: # If there are parameter edits which didn't yet exist
+					for parameter in targetitem: # For each of those parameter edits
+						currentelement = xml.etree.ElementTree.SubElement(target, parameter) # Create the parameter in the target element
+						currentelement.text = targetitem[parameter] # Set the value of the parameter
+						result[currenttargethostname]["messages"].append("Created new <" + parameter + "> parameter with value '" + targetitem[parameter] + "'") # Create feedback message
+			else: # If target doesn't yet exist
 				target = xml.etree.ElementTree.SubElement(targets, 'target') # mount new target element as variable
-				target.text = "\n\t\t\t" # add some formatting to indent the upcoming <hostname> element properly
-				if numtargets == 1: # add different tail formatting if this is the last 'target' element entry
-					target.tail = "\n\t" # add formatting if this is the last target being added (to indent the '</targets>' properly)
-				else:
-					target.tail = "\n\t\t" # add formatting if this is NOT the last target being added (to indent the next '<target>' properly)
+				result[currenttargethostname]["messages"].append("Created new target") # Create feedback message
 				##### Add the different elements for the target #####
-				hostname = xml.etree.ElementTree.SubElement(target, 'hostname')
-				hostname.text = item['hostname']
-				hostname.tail = "\n\t\t\t"
-				username = xml.etree.ElementTree.SubElement(target, 'username')
-				username.text = item['username']
-				username.tail = "\n\t\t\t"
-				password = xml.etree.ElementTree.SubElement(target, 'password')
-				password.text = item['password']
-				password.tail = "\n\t\t\t"
-				version = xml.etree.ElementTree.SubElement(target, 'version')
-				version.text = item['version']
-				version.tail = "\n\t\t"
-				##### Remove temporary variables #####
-				del hostname
-				del username
-				del password
-				del version
-			numtargets = numtargets - 1 # decrement the target counter for proper formatting on last target
+				hostname = xml.etree.ElementTree.SubElement(target, 'hostname') # Create and mount the hostname parameter for the target
+				hostname.text = targetitem['hostname'] # Set the hostname parameter value for the target
+				del hostname # Unmount the hostname parameter element
+				del targetitem['hostname'] # Remove the hostname parameter
+				for parameter in targetitem: # For each of the parameter edits
+					currentelement = xml.etree.ElementTree.SubElement(target, parameter) # Create the parameter in the target element
+					currentelement.text = targetitem[parameter] # Set the value of the parameter
+					result[currenttargethostname]["messages"].append("Created new <" + parameter + "> parameter with value '" + targetitem[parameter] + "'") # Create feedback message
 			del targetalreadyexists
 			del target
-		del numtargets
+			del currenttargethostname
+		del targets
+		##### Format Targets #####
+		globalsettings = self.root.findall('.//globalsettings')[0] # Mount the <globalsettings> element
+		globalsettings.tail = "\n\t" # Set the tail to properly indent "<targets>"
+		del globalsettings # Unmount the globalsettings element
+		targets = self.root.findall('.//targets')[0] # Mount the <targets> element
+		targets.text = "\n\t\t" # Set proper indent for first child <target> element
+		targets.tail = "\n" # Set proper indent for ending </config> element
+		targetpointer = len(targets.getchildren()) # Get the number of child <target> elements
+		for target in targets.getchildren(): # For each <target> element in <targets>
+			target.text = "\n\t\t\t" # Set the indent of the first parameter
+			parameterpointer = len(target.getchildren()) # Get the number of child parameter elements
+			for parameter in target.getchildren(): # For each parameter element
+				if parameterpointer == 1: # If this is the last parameter in the target
+					parameter.tail = "\n\t\t" # Set smaller indent
+				else: # If this is NOT the last parameter in the target
+					parameter.tail = "\n\t\t\t" # Set larger indent
+					parameterpointer = parameterpointer - 1 # And subtract one from the pointer
+			if targetpointer == 1: # If this is the last target in targets
+				target.tail = "\n\t" # Set smaller indent
+			else: # If this is NOT the last target in targets
+				target.tail = "\n\t\t" # Set larger indent
+				targetpointer = targetpointer - 1 # And subtract one from the pointer
+		del targets
+		del parameterpointer
+		del targetpointer
+		return result
 	##### Remove specific list of targets from config #####
 	##### Method accepts a list of dictionaries which contain at least the hostname key/value pair of the target #####
 	def remove_targets(self, targetlist):
@@ -1605,8 +1621,9 @@ class command_line_interpreter(object):
 						targetparams.update({key: cliparams[targetindices[key] + 1]})
 					except IndexError:
 						print "\n" + self.ui.color(time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + "****************WARNING: You didn't enter the value for " + key + "****************\n", self.ui.yellow)
-				print targetparams
-				self.filemgmt.add_targets([targetparams])
+				results = self.filemgmt.add_targets([targetparams])
+				for message in results[sys.argv[3]]["messages"]:
+					print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " +"****************"+ message + "****************\n"
 				print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " +"****************Writing config change to: "+ configfile + "****************\n"
 				self.filemgmt.save_config()
 				self.filemgmt.show_config_item('targets')
