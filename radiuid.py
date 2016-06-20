@@ -152,14 +152,19 @@ class file_management(object):
 			return result
 	##### Take filepath and give back directory path and filename in list where list[0] is directory path, list[1] is filename #####
 	def strip_filepath(self, filepath):
-		nestedlist = re.findall("^(.+)/([^/]+)$", filepath)
-		templist = nestedlist[0]
-		tempfilepath = templist[0]
-		filepath = self.directory_slash_add(tempfilepath)
-		filename = templist[1]
-		resultlist = []
-		resultlist.append(filepath)
-		resultlist.append(filename)
+		nestedlist = re.findall("^(.+)/([^/]+)$", filepath) # Split filepath into a tuple where tuple[0] is the dir name and tuple[1] is the filename
+		if len(nestedlist) > 0: # If the regex returns a tuple, then process the path
+			templist = nestedlist[0]
+			tempfilepath = templist[0]
+			filepath = self.directory_slash_add(tempfilepath) # Add the / at the end of the directory path
+			filename = templist[1]
+			resultlist = [] # Put path info into list for return
+			resultlist.append(filepath)
+			resultlist.append(filename)
+		else: # If nothing is returned from regex search, then file is in root dir
+			resultlist = []
+			resultlist.append("/") # Add root dir as directory path
+			resultlist.append(filepath.replace("/", "")) # Remove / from filepath and set that as file name
 		return resultlist
 	##### Check a Unix/Linux file or directory path for illegal patterns/characters and for required patterns #####
 	##### The inputtype arg can be "dir" or "file" (depending on if the input is a file path or a directory path). The input arg is a str of the file or dir path #####
@@ -1551,7 +1556,7 @@ class command_line_interpreter(object):
 							print "\n" + self.ui.color(time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + "****************" + message.keys()[0] + ": " + message.values()[0] + "****************\n", self.ui.yellow)
 					self.filemgmt.change_config_item('userdomain', sys.argv[3])
 					print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " +"****************Writing config change to: "+ configfile + "****************\n"
-					#self.filemgmt.save_config()
+					self.filemgmt.save_config()
 					print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " +"<userdomain> configuration element changed to :\n"
 					self.filemgmt.show_config_item('userdomain')
 				if self.filemgmt.get_globalconfig_item('userdomain') == sys.argv[3]:
