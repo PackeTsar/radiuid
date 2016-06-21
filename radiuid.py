@@ -250,6 +250,35 @@ class file_management(object):
 				if key == "FATAL":
 					result["status"] = "fail"
 		return result
+	def check_userpass(self, inputtype, userorpassinput):
+		result = {"status": "fail", "messages": []} # Start with a failed result
+		if inputtype == "user":
+			characterregex = "^[a-zA-Z0-9_]+$" # A list of the valid username characters
+			for entry in re.findall(characterregex, userorpassinput): # For each string in the list returned by re.findall
+				if entry == userorpassinput: # If one of the strings in the returned list equals the full domainname string
+					result["status"] = "pass" # Then all its characters are legal and it passes the check
+					result["messages"].append({"OK": "No illegal characters found in username"}) # Append a message to the result
+			if len(re.findall(characterregex, userorpassinput)) == 0:
+				result["status"] = "fail" # Then all its characters are legal and it passes the check
+				result["messages"].append({"FATAL": "Illegal characters found in username. Valid characters are alphanimeric and underscore (_)"}) # Append a message to the result
+		elif inputtype == "password":
+			characterregex = "\&|\<|\>" # A list of the invalid password characters
+			if len(re.findall(characterregex, userorpassinput)) > 0: # For each string in the list returned by re.findall
+				result["status"] = "fail"
+				result["messages"].append({"FATAL": "Illegal characters found in password. Characters '&', '<', and '>' are not allowed "}) # Append a message to the result
+			else:
+				result["status"] = "pass" # Then all its characters are legal and it passes the check
+				result["messages"].append({"OK": "No illegal characters found in password"}) # Append a message to the result
+		return result
+	def check_version(self, inputversion):
+		result = {"status": "fail", "messages": []} # Start with a failed result
+		if inputversion == "6" or inputversion == "7":
+			result["status"] = "pass"
+			result["messages"].append({"OK": "Version is allowed"})
+		else:
+			result["status"] = "fail"
+			result["messages"].append({"FATAL": "Only versions 6 and 7 allowed"})
+		return result
 	##### Simple two-choice logic method to pick a preferred input over another #####
 	##### Used to decide whether to use the radiuid.conf file in the 'etc' location, or the one in the local working directory #####
 	def file_chooser(self, firstchoice, secondchoice):
@@ -402,6 +431,7 @@ class file_management(object):
 	##### Publish all settings to variables in the global namespace for use by other processes #####
 	##### All variables are set to strings with the exception of the targets, which is a list of dictionary items #####
 	def publish_config(self, mode):
+		global configdict
 		global radiuslogpath
 		global logfile
 		global userdomain
@@ -459,23 +489,82 @@ class file_management(object):
 			except KeyError:
 				return "WARNING: Could not import some important settings"
 	##### Show XML formatted configuration item #####
-	def show_config_item(self, itemname):
-		for value in self.root.iter(itemname):
-			xmldata = xml.etree.ElementTree.tostring(value, encoding="us-ascii", method="xml")
-			regexnewline = "\n.*[a-z]"
-			newline = re.findall(regexnewline, xmldata, flags=0)
-			if len(newline) > 0:
-				regexlastline = ".*</%s>" % itemname
-				#print regexlastline
-				regexlastelement = "</%s>" % itemname
-				lastline = re.findall(regexlastline, xmldata, flags=0)[0]
-				#print lastline
-				lastelement = re.findall(regexlastelement, xmldata, flags=0)[0]
-				#print lastelement
-				indent = lastline.replace(lastelement, "")
-				print indent + xmldata
-			else:
-				print "\t\t" + xmldata
+	#def show_config_item(self, itemname):
+	#	for value in self.root.iter(itemname):
+	#		xmldata = xml.etree.ElementTree.tostring(value, encoding="us-ascii", method="xml")
+	#		regexnewline = "\n.*[a-z]"
+	#		newline = re.findall(regexnewline, xmldata, flags=0)
+	#		if len(newline) > 0:
+	#			regexlastline = ".*</%s>" % itemname
+	#			#print regexlastline
+	#			regexlastelement = "</%s>" % itemname
+	#			lastline = re.findall(regexlastline, xmldata, flags=0)[0]
+	#			#print lastline
+	#			lastelement = re.findall(regexlastelement, xmldata, flags=0)[0]
+	#			#print lastelement
+	#			indent = lastline.replace(lastelement, "")
+	#			print indent + xmldata
+	#		else:
+	#			print "\t\t" + xmldata
+	##### Show formatted configuration item #####
+	def show_config_item(self, mode, itemname):
+		if mode == "xml":
+			for value in self.root.iter(itemname):
+				xmldata = xml.etree.ElementTree.tostring(value, encoding="us-ascii", method="xml")
+				regexnewline = "\n.*[a-z]"
+				newline = re.findall(regexnewline, xmldata, flags=0)
+				if len(newline) > 0:
+					regexlastline = ".*</%s>" % itemname
+					#print regexlastline
+					regexlastelement = "</%s>" % itemname
+					lastline = re.findall(regexlastline, xmldata, flags=0)[0]
+					#print lastline
+					lastelement = re.findall(regexlastelement, xmldata, flags=0)[0]
+					#print lastelement
+					indent = lastline.replace(lastelement, "")
+					print indent + xmldata
+				else:
+					print "\t\t" + xmldata
+		elif mode == "set":
+			rawtargetsetlist = []
+			for target in targets:
+				setparams = ""
+				for param in target:
+					if param != "hostname":
+						setparams = setparams + param + " " + target[param] + " "
+				rawtargetsetlist.append("set target " + target["hostname"] + " " + setparams)
+			#### Compile set commands for uninstalled and installed CLI format ####
+			uninstalledsettargets = ""
+			for settarget in rawtargetsetlist:
+				uninstalledsettargets = uninstalledsettargets + "python radiuid.py " + settarget + "\n!\n"
+			installedsettargets = ""
+			for settarget in rawtargetsetlist:
+				installedsettargets = installedsettargets + "radiuid " + settarget + "\n!\n"	
+			uninstalledsetcommands = \
+				"python radiuid.py set radiuslogpath " + radiuslogpath + "\n!\n"\
+				"python radiuid.py set logfile " + logfile + "\n!\n"\
+				"python radiuid.py set userdomain " + userdomain + "\n!\n"\
+				"python radiuid.py set timeout " + timeout + "\n!\n"
+			installedsetcommands = \
+				"radiuid set radiuslogpath " + radiuslogpath + "\n!\n"\
+				"radiuid set logfile " + logfile + "\n!\n"\
+				"radiuid set userdomain " + userdomain + "\n!\n"\
+				"radiuid set timeout " + timeout + "\n!\n"
+			uninstalledhead = "\n"\
+				"###########################################################\n"\
+				"#### Set Commands to use when RadiUID is NOT installed ####\n"\
+				"###########################################################\n"
+			installedhead = "\n"\
+				"#######################################################\n"\
+				"#### Set Commands to use when RadiUID is installed ####\n"\
+				"#######################################################\n"
+			#### Compile all set commands for different formats ####
+			uninstalledtext = uninstalledhead + "!\n" + uninstalledsetcommands + "!\npython radiuid.py clear target all\n!\n" + uninstalledsettargets + "!\n!\n###########################################################\n###########################################################\n"
+			installedtext = installedhead + "!\n" + installedsetcommands + "!\nradiuid clear target all\n!\n" + installedsettargets + "!\n!\n#######################################################\n#######################################################\n"
+			compiledtext = uninstalledtext + "\n\n\n" + installedtext
+			print compiledtext
+			return compiledtext
+
 	##### Pull individual configuration item and return to calling function #####
 	def get_globalconfig_item(self, elementname):
 		for value in self.root.iter(elementname):
@@ -1287,7 +1376,7 @@ class installer_maintenance_utility(object):
 				self.filemgmt.clear_targets()
 				self.filemgmt.add_targets(newtargets)
 				##### Show Config #####
-				self.filemgmt.show_config_item('config')
+				self.filemgmt.show_config_item('xml', 'config')
 				print "\n\n\n"
 			#########################################################################
 			###Pushing settings to .conf file with the code below
@@ -1377,6 +1466,10 @@ class command_line_interpreter(object):
 	######################### RadiUID Command Interpreter #############################
 	def interpreter(self):
 		arguments = self.cat_list(sys.argv[1:])
+		if "radiuid.py" in sys.argv[0]:
+			runcmd = "python " + sys.argv[0]
+		else:
+			runcmd = "radiuid"
 		self.filemgmt.initialize_config('quiet')
 		self.filemgmt.publish_config('quiet')
 		global configfile
@@ -1390,11 +1483,11 @@ class command_line_interpreter(object):
 			self.imu.im_utility()
 		######################### SHOW #############################
 		elif arguments == "show" or arguments == "show ?":
-			print "\n - show log         |     Show the RadiUID log file"
-			print " - show run         |     Show the RadiUID config file"
-			print " - show config      |     Show the RadiUID config file"
-			print " - show clients     |     Show the FreeRADIUS client config file"
-			print " - show status      |     Show the RadiUID and FreeRADIUS service statuses\n"
+			print "\n - show log                |     Show the RadiUID log file"
+			print " - show run (xml | set)    |     Show the RadiUID configuration in XML (default) format or as set commands"
+			print " - show config (xml | set) |     Show the RadiUID configuration in XML (default) format or as set commands"
+			print " - show clients            |     Show the FreeRADIUS client config file"
+			print " - show status             |     Show the RadiUID and FreeRADIUS service statuses\n"
 		elif arguments == "show log":
 			self.filemgmt.logwriter("cli", "##### COMMAND '" + arguments + "' ISSUED FROM CLI BY USER '" + self.imum.currentuser()+ "' #####")
 			configfile = self.filemgmt.find_config("quiet")
@@ -1404,12 +1497,22 @@ class command_line_interpreter(object):
 			os.system("more " + logfile)
 			print self.ui.color("#" * len(header), self.ui.magenta)
 			print self.ui.color("#" * len(header), self.ui.magenta)
-		elif arguments == "show run" or arguments == "show config":
+		elif arguments == "show run set" or arguments == "show config set":
 			self.filemgmt.logwriter("cli", "##### COMMAND '" + arguments + "' ISSUED FROM CLI BY USER '" + self.imum.currentuser()+ "' #####")
+			print self.ui.color("NOTE:", self.ui.cyan) + "  Use command '" + self.ui.color(runcmd + " show config xml", self.ui.green) + "' to see configuration in XML format\n"
 			header = "########################## OUTPUT FROM FILE " + configfile + " ##########################"
 			print self.ui.color(header, self.ui.magenta)
 			print self.ui.color("#" * len(header), self.ui.magenta)
-			self.filemgmt.show_config_item('config')
+			self.filemgmt.show_config_item('set', 'config')
+			print self.ui.color("#" * len(header), self.ui.magenta)
+			print self.ui.color("#" * len(header), self.ui.magenta)
+		elif arguments == "show run" or arguments == "show run xml" or arguments == "show config" or arguments == "show config xml":
+			self.filemgmt.logwriter("cli", "##### COMMAND '" + arguments + "' ISSUED FROM CLI BY USER '" + self.imum.currentuser()+ "' #####")
+			print self.ui.color("NOTE:", self.ui.cyan) + "  Use command '" + self.ui.color(runcmd + " show config set", self.ui.green) + "' to see configuration in form of CLI commands\n"
+			header = "########################## OUTPUT FROM FILE " + configfile + " ##########################"
+			print self.ui.color(header, self.ui.magenta)
+			print self.ui.color("#" * len(header), self.ui.magenta)
+			self.filemgmt.show_config_item('xml', 'config')
 			print self.ui.color("#" * len(header), self.ui.magenta)
 			print self.ui.color("#" * len(header), self.ui.magenta)
 		elif arguments == "show clients":
@@ -1496,7 +1599,7 @@ class command_line_interpreter(object):
 						print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " +"****************Writing config change to: "+ configfile + "****************\n"
 						self.filemgmt.save_config()
 						print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " +"<logfile> configuration element changed to :\n"
-						self.filemgmt.show_config_item('logfile')
+						self.filemgmt.show_config_item('xml', 'logfile')
 					except IOError:
 						print self.ui.color(time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + "****************ERROR: One of the directory names already exists as a file or vice-versa****************\n", self.ui.red)
 				if self.filemgmt.get_globalconfig_item('logfile') == sys.argv[3]:
@@ -1527,7 +1630,7 @@ class command_line_interpreter(object):
 					print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " +"****************Writing config change to: "+ configfile + "****************\n"
 					self.filemgmt.save_config()
 					print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " +"<radiuslogpath> configuration element changed to :\n"
-					self.filemgmt.show_config_item('radiuslogpath')
+					self.filemgmt.show_config_item('xml', 'radiuslogpath')
 				if self.filemgmt.get_globalconfig_item('radiuslogpath') == sys.argv[3]:
 					print self.ui.color("Success!", self.ui.green)
 				else:
@@ -1558,7 +1661,7 @@ class command_line_interpreter(object):
 					print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " +"****************Writing config change to: "+ configfile + "****************\n"
 					self.filemgmt.save_config()
 					print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " +"<userdomain> configuration element changed to :\n"
-					self.filemgmt.show_config_item('userdomain')
+					self.filemgmt.show_config_item('xml', 'userdomain')
 				if self.filemgmt.get_globalconfig_item('userdomain') == sys.argv[3]:
 					print self.ui.color("Success!", self.ui.green)
 				else:
@@ -1584,7 +1687,7 @@ class command_line_interpreter(object):
 					print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " +"****************Writing config change to: "+ configfile + "****************\n"
 					self.filemgmt.save_config()
 					print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " +"<timeout> configuration element changed to :\n"
-					self.filemgmt.show_config_item('timeout')
+					self.filemgmt.show_config_item('xml', 'timeout')
 					if self.filemgmt.get_globalconfig_item('timeout') == sys.argv[3]:
 						print self.ui.color("Success!", self.ui.green)
 					else:
@@ -1599,44 +1702,109 @@ class command_line_interpreter(object):
 			header = "########################## EXECUTING COMMAND: " + arguments + " ##########################"
 			print self.ui.color(header, self.ui.magenta)
 			print self.ui.color("#" * len(header), self.ui.magenta)
+			keepgoing = "yes"
+			##########################
 			## Check Input Hostname ##
-			inputcheck = "fail"
+			##########################
+			inputcheck = {}
 			if self.imum.ip_checker("address", sys.argv[3]) == "pass":
 				print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " +"****************Hostname " + sys.argv[3] + " looks like legit IPv4 address****************\n"
-				inputcheck = "pass"
+				inputcheck.update({"hostnamecheck": "pass"})
 			else:
 				print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " +"****************Hostname " + sys.argv[3] + " looks like a domain name****************\n"
 				domaincheck = self.filemgmt.check_domainname(sys.argv[3])
-				if domaincheck[0] == "fail":
-					for error in domaincheck[1:]:
-						print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " +"****************There seem to be some problems with this domain name****************\n"
-						print self.ui.color(time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + "****************ERROR: " + error + "****************\n", self.ui.red)
-				elif domaincheck[0] == "pass":
-					inputcheck = "pass"
-					print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " +"****************Domain name looks valid****************\n"
-			if inputcheck == "fail":
-				status = "fail"
-			elif inputcheck == "pass":
+				if domaincheck["status"] == "fail":
+					for message in domaincheck["messages"]:
+						if message.keys()[0] == "FATAL":
+							print "\n" + self.ui.color(time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + "****************" + message.keys()[0] + ": " + message.values()[0] + "****************\n", self.ui.red)
+						elif message.keys()[0] == "WARNING":
+							print "\n" + self.ui.color(time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + "****************" + message.keys()[0] + ": " + message.values()[0] + "****************\n", self.ui.yellow)
+					inputcheck.update({"hostnamecheck": "fail"})
+				elif domaincheck["status"] == "pass":
+					for message in domaincheck["messages"]:
+						if message.keys()[0] == "WARNING":
+							print "\n" + self.ui.color(time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + "****************" + message.keys()[0] + ": " + message.values()[0] + "****************\n", self.ui.yellow)
+					inputcheck.update({"hostnamecheck": "pass"})
+			##############################
+			## Check other input values ##
+			##############################
+			## Compile arguments ##
+			targetparams = {'hostname': sys.argv[3]}
+			searchqueries = ['username', 'password', 'version']
+			cliparams = sys.argv[4:]
+			targetindices = self.dp.find_index_in_list(searchqueries, cliparams)
+			for key in targetindices:
+				try:
+					targetparams.update({key: cliparams[targetindices[key] + 1]})
+				except IndexError:
+					print "\n" + self.ui.color(time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + "****************WARNING: You didn't enter the value for " + key + "****************\n", self.ui.yellow)
+			## Check inputs ##
+			try:
+				usercheck = self.filemgmt.check_userpass("user", targetparams["username"])
+				if usercheck["status"] == "fail":
+					for message in usercheck["messages"]:
+						if message.keys()[0] == "FATAL":
+							print "\n" + self.ui.color(time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + "****************" + message.keys()[0] + ": " + message.values()[0] + "****************\n", self.ui.red)
+						elif message.keys()[0] == "WARNING":
+							print "\n" + self.ui.color(time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + "****************" + message.keys()[0] + ": " + message.values()[0] + "****************\n", self.ui.yellow)
+					inputcheck.update({"usercheck": "fail"})
+				else:
+					for message in usercheck["messages"]:
+						if message.keys()[0] == "WARNING":
+							print "\n" + self.ui.color(time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + "****************" + message.keys()[0] + ": " + message.values()[0] + "****************\n", self.ui.yellow)
+					inputcheck.update({"usercheck": "pass"})
+			except KeyError:
+				null = None
+			try:
+				passwordcheck = self.filemgmt.check_userpass("password", targetparams["password"])
+				if passwordcheck["status"] == "fail":
+					for message in passwordcheck["messages"]:
+						if message.keys()[0] == "FATAL":
+							print "\n" + self.ui.color(time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + "****************" + message.keys()[0] + ": " + message.values()[0] + "****************\n", self.ui.red)
+						elif message.keys()[0] == "WARNING":
+							print "\n" + self.ui.color(time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + "****************" + message.keys()[0] + ": " + message.values()[0] + "****************\n", self.ui.yellow)
+					inputcheck.update({"passwordcheck": "fail"})
+				else:
+					for message in passwordcheck["messages"]:
+						if message.keys()[0] == "WARNING":
+							print "\n" + self.ui.color(time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + "****************" + message.keys()[0] + ": " + message.values()[0] + "****************\n", self.ui.yellow)
+					inputcheck.update({"passwordcheck": "pass"})
+			except KeyError:
+				null = None
+			try:
+				versioncheck = self.filemgmt.check_version(targetparams["version"])
+				if versioncheck["status"] == "fail":
+					for message in versioncheck["messages"]:
+						if message.keys()[0] == "FATAL":
+							print "\n" + self.ui.color(time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + "****************" + message.keys()[0] + ": " + message.values()[0] + "****************\n", self.ui.red)
+						elif message.keys()[0] == "WARNING":
+							print "\n" + self.ui.color(time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + "****************" + message.keys()[0] + ": " + message.values()[0] + "****************\n", self.ui.yellow)
+					inputcheck.update({"versioncheck": "fail"})
+				else:
+					for message in versioncheck["messages"]:
+						if message.keys()[0] == "WARNING":
+							print "\n" + self.ui.color(time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + "****************" + message.keys()[0] + ": " + message.values()[0] + "****************\n", self.ui.yellow)
+					inputcheck.update({"versioncheck": "pass"})
+			except KeyError:
+				null = None
+			###########################################
+			## Eval input checks and continue or not ##
+			###########################################
+			applysettings = "yes"
+			for check in inputcheck.values():
+				if check == "fail":
+					applysettings = "no"
+			if applysettings == "yes":
 				status = "pass"
-				## Compile params ##
-				targetparams = {'hostname': sys.argv[3]}
-				searchqueries = ['username', 'password', 'version']
-				cliparams = sys.argv[4:]
-				targetindices = self.dp.find_index_in_list(searchqueries, cliparams)
-				for key in targetindices:
-					try:
-						targetparams.update({key: cliparams[targetindices[key] + 1]})
-					except IndexError:
-						print "\n" + self.ui.color(time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + "****************WARNING: You didn't enter the value for " + key + "****************\n", self.ui.yellow)
 				results = self.filemgmt.add_targets([targetparams])
 				for message in results[sys.argv[3]]["messages"]:
 					print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " +"****************"+ message + "****************\n"
 				print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " +"****************Writing config change to: "+ configfile + "****************\n"
 				self.filemgmt.save_config()
-				self.filemgmt.show_config_item('targets')
-			if inputcheck == "pass":
+				self.filemgmt.show_config_item('xml', 'targets')
+			if applysettings == "yes":
 				print self.ui.color("Success!", self.ui.green)
-			else:
+			elif applysettings == "no":
 				print self.ui.color("Something Went Wrong!", self.ui.red)
 			print self.ui.color("#" * len(header), self.ui.magenta)
 			print self.ui.color("#" * len(header), self.ui.magenta)
@@ -1676,7 +1844,7 @@ class command_line_interpreter(object):
 				print "\n" + self.ui.color(time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + "****************ERROR: No targets currently exist in config****************\n", self.ui.red)
 			else:
 				print "\n" + time.strftime("%Y-%m-%d %H:%M:%S") + ":   " +"****************Deleting configuration items: ****************\n"
-				self.filemgmt.show_config_item('targets')
+				self.filemgmt.show_config_item('xml', 'targets')
 				self.filemgmt.clear_targets()
 				print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " +"****************Writing config change to: "+ configfile + "****************\n"
 				self.filemgmt.save_config()
@@ -1929,8 +2097,8 @@ class command_line_interpreter(object):
 			print " - install                        |     Run the RadiUID Install/Maintenance Utility"
 			print "-----------------------------------------------------------------------------------------------------------------------\n"
 			print " - show log                       |     Show the RadiUID log file"
-			print " - show run                       |     Show the RadiUID config file"
-			print " - show config                    |     Show the RadiUID config file"
+			print " - show run (xml | set)           |     Show the RadiUID configuration in XML (default) format or as set commands"
+			print " - show config (xml | set)        |     Show the RadiUID configuration in XML (default) format or as set commands"
 			print " - show clients                   |     Show the FreeRADIUS client config file"
 			print " - show status                    |     Show the RadiUID and FreeRADIUS service statuses"
 			print "-----------------------------------------------------------------------------------------------------------------------\n"
