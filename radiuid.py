@@ -279,6 +279,59 @@ class file_management(object):
 			result["status"] = "fail"
 			result["messages"].append({"FATAL": "Only versions 6 and 7 allowed"})
 		return result
+	def check_targets(self, targetdict):
+		result = {}
+		for target in targetdict:
+			result.update({target["hostname"]: {"status": "working"}})
+			##### Check hostname #####
+			result[target["hostname"]].update({"hostnamecheck": {"status": "working", "messages": []}})
+			if self.ip_checker("address", target["hostname"]) == "pass":
+				result[target["hostname"]]["hostnamecheck"]["status"] = "pass"
+				result[target["hostname"]]["hostnamecheck"]["messages"].append({"OK": "Target hostname is valid IPv4 address"})
+			else:
+				result[target["hostname"]]["hostnamecheck"] = self.check_domainname(target["hostname"])
+			##### Check Username and Password #####
+			try:
+				result[target["hostname"]].update({"usernamecheck": self.check_userpass("user", target["username"])})
+			except KeyError:
+				result[target["hostname"]].update({"usernamecheck": {"status": "fail", "messages": [{"FATAL": "<username> parameter does not exist for this target"}]}})
+			try:
+				result[target["hostname"]].update({"passwordcheck": self.check_userpass("password", target["password"])})
+			except KeyError:
+				result[target["hostname"]].update({"passwordcheck": {"status": "fail", "messages": [{"FATAL": "<password> parameter does not exist for this target"}]}})
+			##### Check Version #####
+			try:
+				result[target["hostname"]].update({"versioncheck": self.check_version(target["version"])})
+			except KeyError:
+				result[target["hostname"]].update({"versioncheck": {"status": "fail", "messages": [{"FATAL": "<version> parameter does not exist for this target"}]}})
+			##### Read Results #####
+			warnings = 0
+			for check in result[target["hostname"]].keys():
+				if check != "status":
+					if result[target["hostname"]][check]["status"] == "fail":
+						result[target["hostname"]]["status"] = "fail"
+						break
+					elif result[target["hostname"]][check]["status"] == "warning":
+						warnings = warnings + 1
+					elif result[target["hostname"]][check]["status"] == "pass":
+						result[target["hostname"]]["status"] = "pass"
+			if warnings > 0:
+				result[target["hostname"]]["status"] = "warning"
+		return result
+	##### Check that legit IP address or CIDR block was entered #####
+	##### The mode of "cidr" or "address" is entered as the first arg. Input is second arg and is a string of the IPv4 address or CIDR block. #####
+	##### Result is a simple string containing "pass" or "fail" #####
+	def ip_checker(self, iptype, ip_block):
+		if iptype == "address":
+			ipregex = "^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$"
+		elif iptype == "cidr":
+			ipregex = "^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\/(?:[0-9]|1[0-9]|2[0-9]|3[0-2]?)$"
+		check = re.search(ipregex, ip_block)
+		if check is None:
+			result = "fail"
+		else:
+			result = "pass"
+		return result
 	##### Simple two-choice logic method to pick a preferred input over another #####
 	##### Used to decide whether to use the radiuid.conf file in the 'etc' location, or the one in the local working directory #####
 	def file_chooser(self, firstchoice, secondchoice):
@@ -488,27 +541,9 @@ class file_management(object):
 					targets = [targets]
 			except KeyError:
 				return "WARNING: Could not import some important settings"
-	##### Show XML formatted configuration item #####
-	#def show_config_item(self, itemname):
-	#	for value in self.root.iter(itemname):
-	#		xmldata = xml.etree.ElementTree.tostring(value, encoding="us-ascii", method="xml")
-	#		regexnewline = "\n.*[a-z]"
-	#		newline = re.findall(regexnewline, xmldata, flags=0)
-	#		if len(newline) > 0:
-	#			regexlastline = ".*</%s>" % itemname
-	#			#print regexlastline
-	#			regexlastelement = "</%s>" % itemname
-	#			lastline = re.findall(regexlastline, xmldata, flags=0)[0]
-	#			#print lastline
-	#			lastelement = re.findall(regexlastelement, xmldata, flags=0)[0]
-	#			#print lastelement
-	#			indent = lastline.replace(lastelement, "")
-	#			print indent + xmldata
-	#		else:
-	#			print "\t\t" + xmldata
 	##### Show formatted configuration item #####
-	def show_config_item(self, mode, itemname):
-		if mode == "xml":
+	def show_config_item(self, mainmode, submode, itemname):
+		if mainmode == "xml":
 			for value in self.root.iter(itemname):
 				xmldata = xml.etree.ElementTree.tostring(value, encoding="us-ascii", method="xml")
 				regexnewline = "\n.*[a-z]"
@@ -525,45 +560,44 @@ class file_management(object):
 					print indent + xmldata
 				else:
 					print "\t\t" + xmldata
-		elif mode == "set":
+		elif mainmode == "set":
+			if submode == "installed":
+				prepend = "radiuid"
+				header = "\n"\
+					"#######################################################\n"\
+					"#### Set Commands to use when RadiUID is installed ####\n"\
+					"#######################################################\n"
+			elif submode == "uninstalled":
+				prepend = "python radiuid.py"
+				header = "\n"\
+					"###########################################################\n"\
+					"#### Set Commands to use when RadiUID is NOT installed ####\n"\
+					"###########################################################\n"
+			elif submode == "auto":
+				prepend = runcmd
+				header = "\n"\
+					"##################################################\n"\
+					"#### Set Commands to use to configure RadiUID ####\n"\
+					"##################################################\n"
 			rawtargetsetlist = []
 			for target in targets:
 				setparams = ""
 				for param in target:
 					if param != "hostname":
 						setparams = setparams + param + " " + target[param] + " "
-				rawtargetsetlist.append("set target " + target["hostname"] + " " + setparams)
+				rawtargetsetlist.append(" set target " + target["hostname"] + " " + setparams)
 			#### Compile set commands for uninstalled and installed CLI format ####
-			uninstalledsettargets = ""
+			settargets = ""
 			for settarget in rawtargetsetlist:
-				uninstalledsettargets = uninstalledsettargets + "python radiuid.py " + settarget + "\n!\n"
-			installedsettargets = ""
-			for settarget in rawtargetsetlist:
-				installedsettargets = installedsettargets + "radiuid " + settarget + "\n!\n"	
-			uninstalledsetcommands = \
-				"python radiuid.py set radiuslogpath " + radiuslogpath + "\n!\n"\
-				"python radiuid.py set logfile " + logfile + "\n!\n"\
-				"python radiuid.py set userdomain " + userdomain + "\n!\n"\
-				"python radiuid.py set timeout " + timeout + "\n!\n"
-			installedsetcommands = \
-				"radiuid set radiuslogpath " + radiuslogpath + "\n!\n"\
-				"radiuid set logfile " + logfile + "\n!\n"\
-				"radiuid set userdomain " + userdomain + "\n!\n"\
-				"radiuid set timeout " + timeout + "\n!\n"
-			uninstalledhead = "\n"\
-				"###########################################################\n"\
-				"#### Set Commands to use when RadiUID is NOT installed ####\n"\
-				"###########################################################\n"
-			installedhead = "\n"\
-				"#######################################################\n"\
-				"#### Set Commands to use when RadiUID is installed ####\n"\
-				"#######################################################\n"
+				settargets = settargets + prepend + settarget + "\n!\n"
+			setcommands = \
+				"" + prepend + " set radiuslogpath " + radiuslogpath + "\n!\n"\
+				"" + prepend + " set logfile " + logfile + "\n!\n"\
+				"" + prepend + " set userdomain " + userdomain + "\n!\n"\
+				"" + prepend + " set timeout " + timeout + "\n!\n"
 			#### Compile all set commands for different formats ####
-			uninstalledtext = uninstalledhead + "!\n" + uninstalledsetcommands + "!\npython radiuid.py clear target all\n!\n" + uninstalledsettargets + "!\n!\n###########################################################\n###########################################################\n"
-			installedtext = installedhead + "!\n" + installedsetcommands + "!\nradiuid clear target all\n!\n" + installedsettargets + "!\n!\n#######################################################\n#######################################################\n"
-			compiledtext = uninstalledtext + "\n\n\n" + installedtext
-			print compiledtext
-			return compiledtext
+			textconfig = header + "!\n" + setcommands + "!\n" + prepend + " clear target all\n!\n" + settargets + "!\n!\n###########################################################\n###########################################################\n"
+			return textconfig
 
 	##### Pull individual configuration item and return to calling function #####
 	def get_globalconfig_item(self, elementname):
@@ -1026,20 +1060,6 @@ class imu_methods(object):
 		else:
 			print self.ui.color("~~~ Changed setting to: " + newsetting, self.ui.yellow)
 		return newsetting
-	##### Check that legit IP address or CIDR block was entered #####
-	##### The mode of "cidr" or "address" is entered as the first arg. Input is second arg and is a string of the IPv4 address or CIDR block. #####
-	##### Result is a simple string containing "pass" or "fail" #####
-	def ip_checker(self, iptype, ip_block):
-		if iptype == "address":
-			ipregex = "^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$"
-		elif iptype == "cidr":
-			ipregex = "^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\/(?:[0-9]|1[0-9]|2[0-9]|3[0-2]?)$"
-		check = re.search(ipregex, ip_block)
-		if check is None:
-			result = "fail"
-		else:
-			result = "pass"
-		return result
 	##### Create dictionary with client IP and shared password entries for FreeRADIUS server #####
 	##### Used to ask questions during install about IP blocks and shared secret to use for FreeRADIUS server #####
 	def freeradius_create_changes(self):
@@ -1053,7 +1073,7 @@ class imu_methods(object):
 				self.ui.color('\n>>>>> Enter the IP subnet to use for recognition of RADIUS accounting sources: [' + addipexample + ']:', self.ui.cyan))
 			if goround == "":
 				goround = addipexample
-			ipcheck = self.ip_checker("cidr",goround)
+			ipcheck = self.filemgmt.ip_checker("cidr",goround)
 			if ipcheck == 'fail':
 				print self.ui.color("~~~ Nope. Give me a legit CIDR block...", self.ui.red)
 			elif ipcheck == 'pass':
@@ -1376,7 +1396,7 @@ class installer_maintenance_utility(object):
 				self.filemgmt.clear_targets()
 				self.filemgmt.add_targets(newtargets)
 				##### Show Config #####
-				self.filemgmt.show_config_item('xml', 'config')
+				self.filemgmt.show_config_item('xml', "none", 'config')
 				print "\n\n\n"
 			#########################################################################
 			###Pushing settings to .conf file with the code below
@@ -1466,6 +1486,7 @@ class command_line_interpreter(object):
 	######################### RadiUID Command Interpreter #############################
 	def interpreter(self):
 		arguments = self.cat_list(sys.argv[1:])
+		global runcmd
 		if "radiuid.py" in sys.argv[0]:
 			runcmd = "python " + sys.argv[0]
 		else:
@@ -1476,6 +1497,23 @@ class command_line_interpreter(object):
 		######################### RUN #############################
 		if arguments == "run":
 			self.radiuid.looper()
+		######################### DEBUG #############################
+		elif arguments == "debug":
+			print targets
+			print "\n\n"
+			checkdict = self.filemgmt.check_targets(targets)
+			print checkdict
+			print "\n\n\n"
+			for target in checkdict:
+				if checkdict[target]["status"] == "pass":
+					print "Target " + target + " is good"
+				elif checkdict[target]["status"] == "warning" or checkdict[target]["status"] == "fail":
+					for check in checkdict[target]:
+						if check != "status":
+							for message in checkdict[target][check]["messages"]:
+								if message.keys()[0] != "OK":
+									print target + ": " + message.keys()[0] + ": " + message.values()[0]
+			print "\n\n\n"
 		######################### INSTALL #############################
 		elif arguments == "install":
 			self.filemgmt.logwriter("quiet", "##### COMMAND '" + arguments + "' ISSUED FROM CLI BY USER '" + self.imum.currentuser()+ "' #####")
@@ -1503,7 +1541,7 @@ class command_line_interpreter(object):
 			header = "########################## OUTPUT FROM FILE " + configfile + " ##########################"
 			print self.ui.color(header, self.ui.magenta)
 			print self.ui.color("#" * len(header), self.ui.magenta)
-			self.filemgmt.show_config_item('set', 'config')
+			print self.filemgmt.show_config_item('set', "auto", 'config')
 			print self.ui.color("#" * len(header), self.ui.magenta)
 			print self.ui.color("#" * len(header), self.ui.magenta)
 		elif arguments == "show run" or arguments == "show run xml" or arguments == "show config" or arguments == "show config xml":
@@ -1512,7 +1550,7 @@ class command_line_interpreter(object):
 			header = "########################## OUTPUT FROM FILE " + configfile + " ##########################"
 			print self.ui.color(header, self.ui.magenta)
 			print self.ui.color("#" * len(header), self.ui.magenta)
-			self.filemgmt.show_config_item('xml', 'config')
+			self.filemgmt.show_config_item('xml', "none", 'config')
 			print self.ui.color("#" * len(header), self.ui.magenta)
 			print self.ui.color("#" * len(header), self.ui.magenta)
 		elif arguments == "show clients":
@@ -1599,7 +1637,7 @@ class command_line_interpreter(object):
 						print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " +"****************Writing config change to: "+ configfile + "****************\n"
 						self.filemgmt.save_config()
 						print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " +"<logfile> configuration element changed to :\n"
-						self.filemgmt.show_config_item('xml', 'logfile')
+						self.filemgmt.show_config_item('xml', "none", 'logfile')
 					except IOError:
 						print self.ui.color(time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + "****************ERROR: One of the directory names already exists as a file or vice-versa****************\n", self.ui.red)
 				if self.filemgmt.get_globalconfig_item('logfile') == sys.argv[3]:
@@ -1630,7 +1668,7 @@ class command_line_interpreter(object):
 					print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " +"****************Writing config change to: "+ configfile + "****************\n"
 					self.filemgmt.save_config()
 					print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " +"<radiuslogpath> configuration element changed to :\n"
-					self.filemgmt.show_config_item('xml', 'radiuslogpath')
+					self.filemgmt.show_config_item('xml', "none", 'radiuslogpath')
 				if self.filemgmt.get_globalconfig_item('radiuslogpath') == sys.argv[3]:
 					print self.ui.color("Success!", self.ui.green)
 				else:
@@ -1661,7 +1699,7 @@ class command_line_interpreter(object):
 					print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " +"****************Writing config change to: "+ configfile + "****************\n"
 					self.filemgmt.save_config()
 					print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " +"<userdomain> configuration element changed to :\n"
-					self.filemgmt.show_config_item('xml', 'userdomain')
+					self.filemgmt.show_config_item('xml', "none", 'userdomain')
 				if self.filemgmt.get_globalconfig_item('userdomain') == sys.argv[3]:
 					print self.ui.color("Success!", self.ui.green)
 				else:
@@ -1687,7 +1725,7 @@ class command_line_interpreter(object):
 					print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " +"****************Writing config change to: "+ configfile + "****************\n"
 					self.filemgmt.save_config()
 					print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " +"<timeout> configuration element changed to :\n"
-					self.filemgmt.show_config_item('xml', 'timeout')
+					self.filemgmt.show_config_item('xml', "none", 'timeout')
 					if self.filemgmt.get_globalconfig_item('timeout') == sys.argv[3]:
 						print self.ui.color("Success!", self.ui.green)
 					else:
@@ -1707,7 +1745,7 @@ class command_line_interpreter(object):
 			## Check Input Hostname ##
 			##########################
 			inputcheck = {}
-			if self.imum.ip_checker("address", sys.argv[3]) == "pass":
+			if self.filemgmt.ip_checker("address", sys.argv[3]) == "pass":
 				print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " +"****************Hostname " + sys.argv[3] + " looks like legit IPv4 address****************\n"
 				inputcheck.update({"hostnamecheck": "pass"})
 			else:
@@ -1801,7 +1839,7 @@ class command_line_interpreter(object):
 					print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " +"****************"+ message + "****************\n"
 				print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " +"****************Writing config change to: "+ configfile + "****************\n"
 				self.filemgmt.save_config()
-				self.filemgmt.show_config_item('xml', 'targets')
+				self.filemgmt.show_config_item('xml', "none", 'targets')
 			if applysettings == "yes":
 				print self.ui.color("Success!", self.ui.green)
 			elif applysettings == "no":
@@ -1844,7 +1882,7 @@ class command_line_interpreter(object):
 				print "\n" + self.ui.color(time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + "****************ERROR: No targets currently exist in config****************\n", self.ui.red)
 			else:
 				print "\n" + time.strftime("%Y-%m-%d %H:%M:%S") + ":   " +"****************Deleting configuration items: ****************\n"
-				self.filemgmt.show_config_item('xml', 'targets')
+				self.filemgmt.show_config_item('xml', "none", 'targets')
 				self.filemgmt.clear_targets()
 				print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " +"****************Writing config change to: "+ configfile + "****************\n"
 				self.filemgmt.save_config()
@@ -2087,8 +2125,8 @@ class command_line_interpreter(object):
 		else:
 			print self.ui.color("\n\n\n########################## Below are the supported RadiUID Commands: ##########################", self.ui.magenta)
 			print self.ui.color("###############################################################################################\n\n", self.ui.magenta)
-			print self.ui.color(" - Usage if installed: ", self.ui.white) + self.ui.color("radiuid [arguments]", self.ui.cyan) + "\n"
-			print self.ui.color(" - Usage if NOT installed: ", self.ui.white) + self.ui.color("python radiuid.py [arguments]", self.ui.cyan) + "\n"
+			print self.ui.color(" - Usage if installed: ", self.ui.white) + self.ui.color("radiuid [arguments]", self.ui.green) + "\n"
+			print self.ui.color(" - Usage if NOT installed: ", self.ui.white) + self.ui.color("python radiuid.py [arguments]", self.ui.green) + "\n"
 			print "-----------------------------------------------------------------------------------------------------------------------"
 			print "             ARGUMENTS            |                             DESCRIPTIONS"
 			print "-----------------------------------------------------------------------------------------------------------------------\n"
