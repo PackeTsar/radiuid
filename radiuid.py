@@ -1543,10 +1543,22 @@ class command_line_interpreter(object):
 		######################### SHOW #############################
 		elif arguments == "show" or arguments == "show ?":
 			print "\n - show log                |     Show the RadiUID log file"
-			print " - show run (xml | set)    |     Show the RadiUID configuration in XML (default) format or as set commands"
-			print " - show config (xml | set) |     Show the RadiUID configuration in XML (default) format or as set commands"
+			print " - show run (xml | set)    |     Show the RadiUID configuration in XML format (default) or as set commands"
+			print " - show config (xml | set) |     Show the RadiUID configuration in XML format (default) or as set commands"
 			print " - show clients            |     Show the FreeRADIUS client config file"
 			print " - show status             |     Show the RadiUID and FreeRADIUS service statuses\n"
+		elif arguments == "show config ?":
+			print "\n - show config (xml | set)  |   Show the RadiUID configuration in XML format (default) or as set commands"
+			print "                            |  "
+			print "                            |   Examples: 'show config'"
+			print "                            |             'show config xml'"
+			print "                            |             'show config set'\n"
+		elif arguments == "show run ?":
+			print "\n - show run (xml | set)  |   Show the RadiUID configuration in XML format (default) or as set commands"
+			print "                         |  "
+			print "                         |   Examples: 'show run'"
+			print "                         |             'show run xml'"
+			print "                         |             'show run set'\n"
 		elif arguments == "show log":
 			self.filemgmt.logwriter("cli", "##### COMMAND '" + arguments + "' ISSUED FROM CLI BY USER '" + self.imum.currentuser()+ "' #####")
 			configfile = self.filemgmt.find_config("quiet")
@@ -2159,8 +2171,8 @@ class command_line_interpreter(object):
 			print " - install                        |     Run the RadiUID Install/Maintenance Utility"
 			print "-----------------------------------------------------------------------------------------------------------------------\n"
 			print " - show log                       |     Show the RadiUID log file"
-			print " - show run (xml | set)           |     Show the RadiUID configuration in XML (default) format or as set commands"
-			print " - show config (xml | set)        |     Show the RadiUID configuration in XML (default) format or as set commands"
+			print " - show run (xml | set)           |     Show the RadiUID configuration in XML format (default) or as set commands"
+			print " - show config (xml | set)        |     Show the RadiUID configuration in XML format (default) or as set commands"
 			print " - show clients                   |     Show the FreeRADIUS client config file"
 			print " - show status                    |     Show the RadiUID and FreeRADIUS service statuses"
 			print "-----------------------------------------------------------------------------------------------------------------------\n"
