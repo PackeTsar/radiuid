@@ -318,6 +318,33 @@ class file_management(object):
 			if warnings > 0:
 				result[target["hostname"]]["status"] = "warning"
 		return result
+	def scrub_targets(self, mainmode, submode):
+		if mainmode == "noisy":
+			checkdict = self.check_targets(targets)
+			for target in checkdict:
+				if checkdict[target]["status"] == "pass":
+					#self.logwriter("normal", "***********TARGET " + target + " settings verified***********")
+					none = None
+				else:
+					for check in checkdict[target]:
+						if check != "status":
+							for message in checkdict[target][check]["messages"]:
+								if message.keys()[0] == "WARNING":
+									self.logwriter("normal", self.ui.color("***********TARGET " + target + ": " + message.keys()[0] + ": " + message.values()[0] + " ***********", self.ui.yellow))
+								elif message.keys()[0] == "FATAL":
+									self.logwriter("normal", self.ui.color("***********TARGET " + target + ": " + message.keys()[0] + ": " + message.values()[0] + " ***********", self.ui.red))
+				if submode == "scrub":
+					if checkdict[target]["status"] == "fail":
+						targetindex = 0
+						for badtarget in targets:
+							if badtarget["hostname"] == target:
+								self.logwriter("normal", self.ui.color("***********Excluding " + target + " from loaded firewall targets***********", self.ui.red))
+								targets.pop(targetindex)
+							else:
+								targetindex += 1
+				elif submode == "report":
+					if checkdict[target]["status"] == "fail":
+							self.logwriter("normal", self.ui.color("***********Target " + target + " configuration is incomplete***********", self.ui.red))
 	##### Check that legit IP address or CIDR block was entered #####
 	##### The mode of "cidr" or "address" is entered as the first arg. Input is second arg and is a string of the IPv4 address or CIDR block. #####
 	##### Result is a simple string containing "pass" or "fail" #####
@@ -955,6 +982,9 @@ class radiuid_main_process(object):
 	##### This method runs once during the initial startup of the program #####
 	def initialize(self):
 		print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + "***********MAIN PROGRAM INITIALIZATION KICKED OFF...***********" + "\n"
+		##### Scrub targets for any which have incomplete settings in the 'target' variable #####
+		self.filemgmt.logwriter("normal", "***********CHECKING TARGETS FOR INCOMPLETE OR INCORRECT CONFIGS***********")
+		self.filemgmt.scrub_targets("noisy", "scrub")
 		##### Initial log entry and help for anybody starting the .py program without first installing it #####
 		self.filemgmt.logwriter("normal", "***********RADIUID INITIALIZING... IF PROGRAM FAULTS NOW, MAKE SURE YOU SUCCESSFULLY RAN THE INSTALLER ('python radiuid.py install')***********")
 		##### Explicitly pull PAN key now and store API key in the main namespace #####
@@ -1501,18 +1531,9 @@ class command_line_interpreter(object):
 		elif arguments == "debug":
 			print targets
 			print "\n\n"
-			checkdict = self.filemgmt.check_targets(targets)
-			print checkdict
-			print "\n\n\n"
-			for target in checkdict:
-				if checkdict[target]["status"] == "pass":
-					print "Target " + target + " is good"
-				elif checkdict[target]["status"] == "warning" or checkdict[target]["status"] == "fail":
-					for check in checkdict[target]:
-						if check != "status":
-							for message in checkdict[target][check]["messages"]:
-								if message.keys()[0] != "OK":
-									print target + ": " + message.keys()[0] + ": " + message.values()[0]
+			self.filemgmt.scrub_targets("noisy", "report")
+			print "\n\n"
+			print targets
 			print "\n\n\n"
 		######################### INSTALL #############################
 		elif arguments == "install":
@@ -1840,6 +1861,9 @@ class command_line_interpreter(object):
 				print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " +"****************Writing config change to: "+ configfile + "****************\n"
 				self.filemgmt.save_config()
 				self.filemgmt.show_config_item('xml', "none", 'targets')
+				#### Republish config/targets and run targets through scrubber #####
+				self.filemgmt.publish_config('quiet')
+				self.filemgmt.scrub_targets("noisy", "report")
 			if applysettings == "yes":
 				print self.ui.color("Success!", self.ui.green)
 			elif applysettings == "no":
