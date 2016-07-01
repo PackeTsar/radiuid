@@ -1502,6 +1502,7 @@ class command_line_interpreter(object):
 		self.imum = imu_methods()
 		self.filemgmt = file_management()
 		self.dp = data_processing()
+		self.pafi = palo_alto_firewall_interaction()
 		####################################################
 	##### Create str sentence out of list seperated by spaces and lowercase everything #####
 	##### Used for recognizing arguments when running RadiUID from the CLI #####
@@ -1517,6 +1518,7 @@ class command_line_interpreter(object):
 	def interpreter(self):
 		arguments = self.cat_list(sys.argv[1:])
 		global runcmd
+		global targets
 		if "radiuid.py" in sys.argv[0]:
 			runcmd = "python " + sys.argv[0]
 		else:
@@ -1890,10 +1892,49 @@ class command_line_interpreter(object):
 			print "                                         |              'push pan1.domain.com jsmith 172.30.50.100'"
 			print "                                         |              'push all jsmith 172.30.50.100'"
 			print "                                         |              \n"
-		elif sys.argv[1] == "push" and len(re.findall("[0-9A-Za-z]", sys.argv[2])) > 0:
+		elif self.cat_list(sys.argv[1:2]) == "push" and len(re.findall("[0-9A-Za-z]", sys.argv[2])) > 0:
 			self.filemgmt.logwriter("cli", "##### COMMAND '" + arguments + "' ISSUED FROM CLI BY USER '" + self.imum.currentuser()+ "' #####")
 			header = "########################## EXECUTING COMMAND: " + arguments + " ##########################"
 			print self.ui.color(header, self.ui.magenta)
+			print self.ui.color("#" * len(header), self.ui.magenta)
+			keepgoing = "yes"
+			pushuser = "yes"
+			##### Check target hostname against config and check for necessary parameters #####
+			if len(sys.argv[3:5]) != 2:
+				self.filemgmt.logwriter("cli", self.ui.color("********************* ERROR: Some parameters are missing. Use '", self.ui.red) + self.ui.color(runcmd + " push ?", self.ui.cyan) + self.ui.color("' to see proper use and examples.********************", self.ui.red))
+				pushuser = "no"
+				keepgoing = "no"
+			if keepgoing == "yes":
+				if sys.argv[2].lower() != "all":
+					keepgoing = "no"
+					for target in targets:
+						if target['hostname'] == sys.argv[2]:
+							keepgoing = "yes"
+							targets = [target]
+					if keepgoing == "no":
+						self.filemgmt.logwriter("cli", self.ui.color("********************* ERROR: Target ", self.ui.red) + self.ui.color(sys.argv[2], self.ui.cyan) + self.ui.color(" does not exist in config. Please configure it.********************", self.ui.red))
+						pushuser = "no"
+			##### Check parameters for proper data and report errors #####
+			if keepgoing == "yes":
+				usercheck = self.filemgmt.check_userpass("user", sys.argv[3])
+				if usercheck["status"] != "pass":
+					for message in usercheck["messages"]:
+						if message.keys()[0] == "FATAL":
+							self.filemgmt.logwriter("cli", self.ui.color("****************" + message.keys()[0] + ": " + message.values()[0] + "****************", self.ui.red))
+							pushuser = "no"
+						elif message.keys()[0] == "WARNING":
+							self.filemgmt.logwriter("cli", self.ui.color("****************" + message.keys()[0] + ": " + message.values()[0] + "****************\n", self.ui.yellow))
+				if self.filemgmt.ip_checker("address", sys.argv[4]) != "pass":
+					self.filemgmt.logwriter("cli", self.ui.color("****************FATAL: Bad IP Address****************", self.ui.red))
+					pushuser = "no"
+				if pushuser == "yes":
+					pankey = self.pafi.pull_api_key(targets)
+					self.pafi.push_uids({sys.argv[4]: sys.argv[3]}, [])
+			if pushuser == "yes":
+				print self.ui.color("Success!", self.ui.green)
+			elif pushuser == "no":
+				print self.ui.color("Something Went Wrong!", self.ui.red)
+			print self.ui.color("#" * len(header), self.ui.magenta)
 			print self.ui.color("#" * len(header), self.ui.magenta)
 		######################### TAIL #############################
 		elif arguments == "tail" or arguments == "tail ?":
