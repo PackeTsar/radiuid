@@ -81,7 +81,69 @@ class user_interface(object):
 				answer = "yes"
 				return answer
 			else:
-				print self.color("'Yes' or 'No' dude...", self.red)			
+				print self.color("'Yes' or 'No' dude...", self.red)
+	##### Create a table of data from a list of dictionaries where the key in each dict is the header and the val is the column value #####
+	##### The tabledata input is the list of dictionaries and the column order is an ordered list of how the columns should be displayed #####
+	##### The output is a printable table with automatically spaced columns, centered headers and values #####
+	def make_table(self, columnorder, tabledata):
+		##### Set seperators and spacers #####
+		tablewrap = "#" # The character used to wrap the table
+		headsep = "=" # The character used to seperate the headers from the table values
+		columnsep = "|" # The character used to seperate each value in the table
+		columnspace = "  " # The amount of space between the largest value and its column seperator
+		##### Generate a dictionary which contains the length of the longest value or head in each column #####
+		datalengthdict = {} # Create the dictionary for storing the longest values
+		for columnhead in columnorder: # For each column in the columnorder input
+			datalengthdict.update({columnhead: len(columnhead)}) # Create a key in the length dict with a value which is the length of the header
+		for row in tabledata: # For each row entry in the tabledata list of dicts
+			for item in row: # For column entry in that row
+				if len(row[item]) > datalengthdict[item]: # If the length of this column entry is longer than the current longest entry
+					datalengthdict[item] = len(row[item]) # Then change the value of entry
+		##### Calculate total table width #####
+		totalwidth = 0 # Initialize at 0
+		for columnwidth in datalengthdict: # For each of the longest column values
+			totalwidth += datalengthdict[columnwidth] # Add them all up into the totalwidth variable
+		totalwidth += len(columnorder) * len(columnspace) * 2 # Account for double spaces on each side of each column value
+		totalwidth += len(columnorder) - 1 # Account for seperators for each row entry minus 1
+		totalwidth += 2 # Account for start and end characters for each row
+		##### Build Header #####
+		result = tablewrap * totalwidth + "\n" + tablewrap # Initialize the result with the top header, line break, and beginning of header line
+		columnqty = len(columnorder) # Count number of columns
+		for columnhead in columnorder: # For each column header value
+			spacing = {"before": 0, "after": 0} # Initialize the before and after spacing for that header value before the columnsep
+			spacing["before"] = (datalengthdict[columnhead] - len(columnhead)) / 2 # Calculate the before spacing
+			spacing["after"] = (datalengthdict[columnhead] - len(columnhead)) - spacing["before"] # Calculate the after spacing
+			result += columnspace + spacing["before"] * " " + columnhead + spacing["after"] * " " + columnspace # Add the header entry with spacing
+			if columnqty > 1: # If this is not the last entry
+				result += columnsep # Append a column seperator
+			del spacing # Remove the spacing variable so it can be used again
+			columnqty -= 1 # Remove 1 from the counter to keep track of when we hit the last column
+		del columnqty # Remove the column spacing variable so it can be used again
+		result += tablewrap + "\n" + tablewrap + headsep * (totalwidth - 2) + tablewrap + "\n" # Add bottom wrapper to header
+		##### Build table contents #####
+		result += tablewrap # Add the first wrapper of the value table
+		for row in tabledata: # For each row (dict) in the tabledata input
+			columnqty = len(columnorder) # Set a column counter so we can detect the last entry in this row
+			for column in columnorder: # For each value in this row, but using the correct order from column order
+				spacing = {"before": 0, "after": 0} # Initialize the before and after spacing for that header value before the columnsep
+				spacing["before"] = (datalengthdict[column] - len(row[column])) / 2 # Calculate the before spacing
+				spacing["after"] = (datalengthdict[column] - len(row[column])) - spacing["before"] # Calculate the after spacing
+				result += columnspace + spacing["before"] * " " + row[column] + spacing["after"] * " " + columnspace # Add the entry to the row with spacing
+				if columnqty == 1: # If this is the last entry in this row
+					result += tablewrap + "\n" + tablewrap # Add the wrapper, a line break, and start the next row
+				else: # If this is not the last entry in the row
+					result += columnsep # Add a column seperator
+				del spacing # Remove the spacing settings for this entry 
+				columnqty -= 1 # Keep count of how many row values are left so we know when we hit the last one
+		result += tablewrap * (totalwidth - 1) # When all rows are complete, wrap the table with a trailer
+		return result
+	##### Add an indent to any string data #####
+	##### Input is the indent you want to use and the data you want to indent #####
+	##### Output is the inputdata indented with the indent #####
+	def indenter(self, indent, inputdata):
+		result = indent + inputdata # Prepend the indent to the first line
+		result = result.replace("\n", "\n" + indent) # Add an indent to each new line
+		return result		
 	##### Print out this ridiculous text-o-graph #####
 	##### It took me like an hour to draw and I couldn't stand to just not use it #####
 	def packetsar(self):
@@ -546,8 +608,6 @@ class file_management(object):
 				targets = configdict['targets']['target']
 				if type(targets) != type([]):
 					targets = [targets]
-				for target in targets:
-					self.logwriter("normal", self.ui.color("[IMPORTED]", self.ui.cyan) + "   HOSTNAME: " + self.ui.color(target['hostname'], self.ui.green) + "\t\tUSERNAME: " + self.ui.color(target['username'], self.ui.green) + "\t\tPASSWORD: " + self.ui.color(target['password'], self.ui.green) + "\t\tVERSION: " + self.ui.color(target['version'], self.ui.green))
 			except KeyError:
 				print self.ui.color(time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + "****************WARNING: Could not import some important settings****************\n", self.ui.yellow)
 		if mode == 'quiet':
@@ -778,6 +838,7 @@ class file_management(object):
 
 
 
+
 #########################################################################
 ########################## DATA PROCESSING CLASS ########################
 #########################################################################
@@ -985,6 +1046,8 @@ class radiuid_main_process(object):
 		##### Scrub targets for any which have incomplete settings in the 'target' variable #####
 		self.filemgmt.logwriter("normal", "***********CHECKING TARGETS FOR INCOMPLETE OR INCORRECT CONFIGS***********")
 		self.filemgmt.scrub_targets("noisy", "scrub")
+		self.filemgmt.logwriter("normal", "***********LOADED THE BELOW TARGETS***********")
+		self.filemgmt.logwriter("normal", "\n" + self.ui.indenter("\t\t\t", self.ui.make_table(["hostname", "username", "password", "version"], targets)))
 		##### Initial log entry and help for anybody starting the .py program without first installing it #####
 		self.filemgmt.logwriter("normal", "***********RADIUID INITIALIZING... IF PROGRAM FAULTS NOW, MAKE SURE YOU SUCCESSFULLY RAN THE INSTALLER ('python radiuid.py install')***********")
 		##### Explicitly pull PAN key now and store API key in the main namespace #####
@@ -1532,11 +1595,6 @@ class command_line_interpreter(object):
 		######################### DEBUG #############################
 		elif arguments == "debug":
 			print targets
-			print "\n\n"
-			self.filemgmt.scrub_targets("noisy", "report")
-			print "\n\n"
-			print targets
-			print "\n\n\n"
 		######################### INSTALL #############################
 		elif arguments == "install":
 			self.filemgmt.logwriter("quiet", "##### COMMAND '" + arguments + "' ISSUED FROM CLI BY USER '" + self.imum.currentuser()+ "' #####")
