@@ -86,6 +86,9 @@ class user_interface(object):
 	##### The tabledata input is the list of dictionaries and the column order is an ordered list of how the columns should be displayed #####
 	##### The output is a printable table with automatically spaced columns, centered headers and values #####
 	def make_table(self, columnorder, tabledata):
+		##### Check and fix input type #####
+		if type(tabledata) != type([]): # If tabledata is not a list
+			tabledata = [tabledata] # Nest it in a list
 		##### Set seperators and spacers #####
 		tablewrap = "#" # The character used to wrap the table
 		headsep = "=" # The character used to seperate the headers from the table values
@@ -816,7 +819,7 @@ class file_management(object):
 		f.close()
 	##### Basic XML to Dict converter used to pull configuration info from the config file #####
 	def tinyxml2dict(self, node):
-		if "\n" not in node.text:
+		if len(node.getchildren()) == 0:
 			result = node.text
 		else:
 			result = dict()
@@ -986,7 +989,7 @@ class palo_alto_firewall_interaction(object):
 	#######################################################
 	##### Function to pull API key from firewall to be used for REST HTTP calls #####
 	##### Used during initialization of the RadiUID main process to generate the API key #####
-	def pull_api_key(self, targetlist):
+	def pull_api_key(self, mode, targetlist):
 		if type(targetlist) != type([]):
 			self.filemgmt.logwriter("normal", self.ui.color('ERROR: API Key function requires a list as input' + '\n', self.ui.red))
 			quit()
@@ -995,14 +998,17 @@ class palo_alto_firewall_interaction(object):
 			encodedpassword = urllib.quote_plus(target['password'])
 			url = 'https://' + target['hostname'] + '/api/?type=keygen&user=' + encodedusername + '&password=' + encodedpassword
 			response = urllib2.urlopen(url).read()
-			self.filemgmt.logwriter("normal", "Pulling API key using PAN from " + target['hostname'] + " using credentials: " + target['username'] + "\\" + target['password'])
+			if mode == "noisy":
+				self.filemgmt.logwriter("normal", "Pulling API key using PAN from " + target['hostname'] + " using credentials: " + target['username'] + "\\" + target['password'])
 			if 'success' in response:
-				self.filemgmt.logwriter("normal", self.ui.color(response, self.ui.green))
+				if mode == "noisy":
+					self.filemgmt.logwriter("normal", self.ui.color(response, self.ui.green))
 				stripped1 = response.replace("<response status = 'success'><result><key>", "")
 				stripped2 = stripped1.replace("</key></result></response>", "")
 				pankey = stripped2
 				target['apikey'] = pankey
-				self.filemgmt.logwriter("normal", "Added 'apikey': " + pankey + " attribute to host: " + target['hostname'])
+				if mode == "noisy":
+					self.filemgmt.logwriter("normal", "Added 'apikey': " + pankey + " attribute to host: " + target['hostname'])
 			else:
 				self.filemgmt.logwriter("normal", self.ui.color('ERROR: Username\\password failed. Please re-enter in config file...' + '\n', self.ui.red))
 				quit()
@@ -1019,6 +1025,13 @@ class palo_alto_firewall_interaction(object):
 				response = urllib2.urlopen(eachurl).read()
 				self.filemgmt.logwriter("normal", self.ui.color(response, self.ui.green) + "\n")
 		self.filemgmt.remove_files(filelist)
+	def pull_uids (self, targetlist):
+		encodedcall = "&type=op&cmd=" + urllib.quote_plus("<show><user><ip-user-mapping><all></all></ip-user-mapping></user></show>")
+		result = {}
+		for target in targetlist:
+			url = 'https://' + target['hostname'] + '/api/?key=' + target['apikey'] + encodedcall
+			result.update({target['hostname']: urllib2.urlopen(url).read()})
+		return result
 
 
 
@@ -1053,7 +1066,7 @@ class radiuid_main_process(object):
 		##### Explicitly pull PAN key now and store API key in the main namespace #####
 		self.filemgmt.logwriter("normal", "***********************************CONNECTING TO PALO ALTO FIREWALL TO EXTRACT THE API KEY...***********************************")
 		self.filemgmt.logwriter("normal", "********************IF PROGRAM FREEZES/FAILS RIGHT NOW, THEN THERE IS LIKELY A COMMUNICATION PROBLEM WITH THE FIREWALL********************")
-		pankey = self.pafi.pull_api_key(targets)
+		pankey = self.pafi.pull_api_key("noisy", targets)
 		self.filemgmt.logwriter("normal", "*******************************************CONFIG FILE SETTINGS INITIALIZED*******************************************")
 		self.filemgmt.logwriter("normal", "***********************************RADIUID SERVER STARTING WITH INITIALIZED VARIABLES...******************************")
 	##### RadiUID looper method which initializes the namespace with config variables and loops the main RadiUID program #####
@@ -1594,7 +1607,16 @@ class command_line_interpreter(object):
 			self.radiuid.looper()
 		######################### DEBUG #############################
 		elif arguments == "debug":
-			print targets
+			self.filemgmt.initialize_config("quiet")
+			self.filemgmt.publish_config("quiet")
+			self.filemgmt.scrub_targets("noisy", "scrub")
+			pankey = self.pafi.pull_api_key("quiet", targets)
+			uidxmldict = self.pafi.pull_uids(targets)
+			for uidset in uidxmldict:
+				currentuidset = xml.etree.ElementTree.fromstring(uidxmldict[uidset])
+				print "************" + uidset + "************"
+				print self.ui.make_table(["ip", "user",  'type', 'idle_timeout', 'timeout', 'vsys'], self.filemgmt.tinyxml2dict(currentuidset)['result']['entry'])
+				print "\n\n"
 		######################### INSTALL #############################
 		elif arguments == "install":
 			self.filemgmt.logwriter("quiet", "##### COMMAND '" + arguments + "' ISSUED FROM CLI BY USER '" + self.imum.currentuser()+ "' #####")
@@ -1602,11 +1624,12 @@ class command_line_interpreter(object):
 			self.imu.im_utility()
 		######################### SHOW #############################
 		elif arguments == "show" or arguments == "show ?":
-			print "\n - show log                |     Show the RadiUID log file"
-			print " - show run (xml | set)    |     Show the RadiUID configuration in XML format (default) or as set commands"
-			print " - show config (xml | set) |     Show the RadiUID configuration in XML format (default) or as set commands"
-			print " - show clients            |     Show the FreeRADIUS client config file"
-			print " - show status             |     Show the RadiUID and FreeRADIUS service statuses\n"
+			print "\n - show log                        |     Show the RadiUID log file"
+			print " - show run (xml | set)            |     Show the RadiUID configuration in XML format (default) or as set commands"
+			print " - show config (xml | set)         |     Show the RadiUID configuration in XML format (default) or as set commands"
+			print " - show clients                    |     Show the FreeRADIUS client config file"
+			print " - show status                     |     Show the RadiUID and FreeRADIUS service statuses"
+			print " - show mappings (<target> | all)  |     Show the current IP-to-User mappings of one or all targets\n"
 		elif arguments == "show config ?":
 			print "\n - show config (xml | set)  |   Show the RadiUID configuration in XML format (default) or as set commands"
 			print "                            |  "
@@ -1619,6 +1642,12 @@ class command_line_interpreter(object):
 			print "                         |   Examples: 'show run'"
 			print "                         |             'show run xml'"
 			print "                         |             'show run set'\n"
+		elif arguments == "show mappings" or arguments == "show mappings ?":
+			print "\n - show mappings (<target> | all)  |   Show the current IP-to-User mappings of one or all targets"
+			print "                                   |  "
+			print "                                   |   Examples: 'show mappings 192.168.1.1'"
+			print "                                   |             'show mappings pan1.domain.com'"
+			print "                                   |             'show mappings all'\n"
 		elif arguments == "show log":
 			self.filemgmt.logwriter("cli", "##### COMMAND '" + arguments + "' ISSUED FROM CLI BY USER '" + self.imum.currentuser()+ "' #####")
 			configfile = self.filemgmt.find_config("quiet")
@@ -1686,6 +1715,44 @@ class command_line_interpreter(object):
 					print self.ui.color("\n\n********** FREERADIUS IS CURRENTLY RUNNING **********\n\n", self.ui.green)
 				elif checkservice == "no":
 					print self.ui.color("\n\n********** FREERADIUS IS CURRENTLY NOT RUNNING **********\n\n", self.ui.yellow)
+		elif self.cat_list(sys.argv[1:3]) == "show mappings" and re.findall("^[0-9A-Za-z]", sys.argv[3]) > 0:
+			self.filemgmt.logwriter("cli", "##### COMMAND '" + arguments + "' ISSUED FROM CLI BY USER '" + self.imum.currentuser()+ "' #####")
+			header = "########################## EXECUTING COMMAND: " + arguments + " ##########################"
+			print self.ui.color(header, self.ui.magenta)
+			print self.ui.color("#" * len(header), self.ui.magenta)
+			keepgoing = "yes"
+			pulluids = "yes"
+			##### Check target hostname against config and check for necessary parameters #####
+			if keepgoing == "yes":
+				if sys.argv[3].lower() != "all":
+					keepgoing = "no"
+					for target in targets:
+						if target['hostname'] == sys.argv[3]:
+							keepgoing = "yes"
+							targets = [target]
+					if keepgoing == "no":
+						self.filemgmt.logwriter("cli", self.ui.color("********************* ERROR: Target ", self.ui.red) + self.ui.color(sys.argv[3], self.ui.cyan) + self.ui.color(" does not exist in config. Please configure it.********************", self.ui.red))
+						pulluids = "no"
+			##### Check parameters for proper data and report errors #####
+			if keepgoing == "yes":
+				self.filemgmt.scrub_targets("noisy", "scrub") # Scrub the targets for any bad configs
+				pankey = self.pafi.pull_api_key("quiet", targets) # Pull the API keys for each target
+				uidxmldict = self.pafi.pull_uids(targets) # Pull the mappings for each target
+				print "\n\n"
+				for uidset in uidxmldict:
+					currentuidset = xml.etree.ElementTree.fromstring(uidxmldict[uidset])
+					print "************" + uidset + "************"
+					if type(self.filemgmt.tinyxml2dict(currentuidset)['result']) != type({}):
+						print "\n" + self.ui.color("************No current mappings************", self.ui.yellow)
+					else:
+						print self.ui.make_table(["ip", "user",  'type', 'idle_timeout', 'timeout', 'vsys'], self.filemgmt.tinyxml2dict(currentuidset)['result']['entry'])
+					print "\n\n"
+			if pulluids == "yes":
+				print self.ui.color("Success!", self.ui.green)
+			elif pulluids == "no":
+				print self.ui.color("Something Went Wrong!", self.ui.red)
+			print self.ui.color("#" * len(header), self.ui.magenta)
+			print self.ui.color("#" * len(header), self.ui.magenta)
 		######################### SET #############################
 		elif arguments == "set" or arguments == "set ?":
 			print "\n - set logfile <file path>             |     Set the RadiUID logfile path"
@@ -1986,7 +2053,7 @@ class command_line_interpreter(object):
 					self.filemgmt.logwriter("cli", self.ui.color("****************FATAL: Bad IP Address****************", self.ui.red))
 					pushuser = "no"
 				if pushuser == "yes":
-					pankey = self.pafi.pull_api_key(targets)
+					pankey = self.pafi.pull_api_key("noisy", targets)
 					self.pafi.push_uids({sys.argv[4]: sys.argv[3]}, [])
 			if pushuser == "yes":
 				print self.ui.color("Success!", self.ui.green)
@@ -2287,6 +2354,7 @@ class command_line_interpreter(object):
 			print " - show config (xml | set)                |     Show the RadiUID configuration in XML format (default) or as set commands"
 			print " - show clients                           |     Show the FreeRADIUS client config file"
 			print " - show status                            |     Show the RadiUID and FreeRADIUS service statuses"
+			print " - show mappings (<target> | all)         |     Show the current IP-to-User mappings of one or all targets"
 			print "-------------------------------------------------------------------------------------------------------------------------------\n"
 			print " - set logfile                            |     Set the RadiUID logfile path"
 			print " - set radiuslogpath                      |     Set the path used to find FreeRADIUS accounting log files"
