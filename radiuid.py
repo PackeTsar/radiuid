@@ -17,9 +17,10 @@ import xml.etree.ElementTree
 ##### Inform RadiUID version here #####
 version = "dev2.0.0"
 
-##### Set default config file location #####
+##### Set some default configs #####
 etcconfigfile = '/etc/radiuid/radiuid.conf'
 extrastuff = '&type=user-id&vsys=vsys1&cmd='
+maxtimeout = 1440
 
 
 
@@ -80,7 +81,69 @@ class user_interface(object):
 				answer = "yes"
 				return answer
 			else:
-				print self.color("'Yes' or 'No' dude...", self.red)			
+				print self.color("'Yes' or 'No' dude...", self.red)
+	##### Create a table of data from a list of dictionaries where the key in each dict is the header and the val is the column value #####
+	##### The tabledata input is the list of dictionaries and the column order is an ordered list of how the columns should be displayed #####
+	##### The output is a printable table with automatically spaced columns, centered headers and values #####
+	def make_table(self, columnorder, tabledata):
+		##### Set seperators and spacers #####
+		tablewrap = "#" # The character used to wrap the table
+		headsep = "=" # The character used to seperate the headers from the table values
+		columnsep = "|" # The character used to seperate each value in the table
+		columnspace = "  " # The amount of space between the largest value and its column seperator
+		##### Generate a dictionary which contains the length of the longest value or head in each column #####
+		datalengthdict = {} # Create the dictionary for storing the longest values
+		for columnhead in columnorder: # For each column in the columnorder input
+			datalengthdict.update({columnhead: len(columnhead)}) # Create a key in the length dict with a value which is the length of the header
+		for row in tabledata: # For each row entry in the tabledata list of dicts
+			for item in row: # For column entry in that row
+				if len(row[item]) > datalengthdict[item]: # If the length of this column entry is longer than the current longest entry
+					datalengthdict[item] = len(row[item]) # Then change the value of entry
+		##### Calculate total table width #####
+		totalwidth = 0 # Initialize at 0
+		for columnwidth in datalengthdict: # For each of the longest column values
+			totalwidth += datalengthdict[columnwidth] # Add them all up into the totalwidth variable
+		totalwidth += len(columnorder) * len(columnspace) * 2 # Account for double spaces on each side of each column value
+		totalwidth += len(columnorder) - 1 # Account for seperators for each row entry minus 1
+		totalwidth += 2 # Account for start and end characters for each row
+		##### Build Header #####
+		result = tablewrap * totalwidth + "\n" + tablewrap # Initialize the result with the top header, line break, and beginning of header line
+		columnqty = len(columnorder) # Count number of columns
+		for columnhead in columnorder: # For each column header value
+			spacing = {"before": 0, "after": 0} # Initialize the before and after spacing for that header value before the columnsep
+			spacing["before"] = (datalengthdict[columnhead] - len(columnhead)) / 2 # Calculate the before spacing
+			spacing["after"] = (datalengthdict[columnhead] - len(columnhead)) - spacing["before"] # Calculate the after spacing
+			result += columnspace + spacing["before"] * " " + columnhead + spacing["after"] * " " + columnspace # Add the header entry with spacing
+			if columnqty > 1: # If this is not the last entry
+				result += columnsep # Append a column seperator
+			del spacing # Remove the spacing variable so it can be used again
+			columnqty -= 1 # Remove 1 from the counter to keep track of when we hit the last column
+		del columnqty # Remove the column spacing variable so it can be used again
+		result += tablewrap + "\n" + tablewrap + headsep * (totalwidth - 2) + tablewrap + "\n" # Add bottom wrapper to header
+		##### Build table contents #####
+		result += tablewrap # Add the first wrapper of the value table
+		for row in tabledata: # For each row (dict) in the tabledata input
+			columnqty = len(columnorder) # Set a column counter so we can detect the last entry in this row
+			for column in columnorder: # For each value in this row, but using the correct order from column order
+				spacing = {"before": 0, "after": 0} # Initialize the before and after spacing for that header value before the columnsep
+				spacing["before"] = (datalengthdict[column] - len(row[column])) / 2 # Calculate the before spacing
+				spacing["after"] = (datalengthdict[column] - len(row[column])) - spacing["before"] # Calculate the after spacing
+				result += columnspace + spacing["before"] * " " + row[column] + spacing["after"] * " " + columnspace # Add the entry to the row with spacing
+				if columnqty == 1: # If this is the last entry in this row
+					result += tablewrap + "\n" + tablewrap # Add the wrapper, a line break, and start the next row
+				else: # If this is not the last entry in the row
+					result += columnsep # Add a column seperator
+				del spacing # Remove the spacing settings for this entry 
+				columnqty -= 1 # Keep count of how many row values are left so we know when we hit the last one
+		result += tablewrap * (totalwidth - 1) # When all rows are complete, wrap the table with a trailer
+		return result
+	##### Add an indent to any string data #####
+	##### Input is the indent you want to use and the data you want to indent #####
+	##### Output is the inputdata indented with the indent #####
+	def indenter(self, indent, inputdata):
+		result = indent + inputdata # Prepend the indent to the first line
+		result = result.replace("\n", "\n" + indent) # Add an indent to each new line
+		return result		
 	##### Print out this ridiculous text-o-graph #####
 	##### It took me like an hour to draw and I couldn't stand to just not use it #####
 	def packetsar(self):
@@ -151,15 +214,213 @@ class file_management(object):
 			return result
 	##### Take filepath and give back directory path and filename in list where list[0] is directory path, list[1] is filename #####
 	def strip_filepath(self, filepath):
-		nestedlist = re.findall("^(.+)/([^/]+)$", filepath)
-		templist = nestedlist[0]
-		tempfilepath = templist[0]
-		filepath = self.directory_slash_add(tempfilepath)
-		filename = templist[1]
-		resultlist = []
-		resultlist.append(filepath)
-		resultlist.append(filename)
+		nestedlist = re.findall("^(.+)/([^/]+)$", filepath) # Split filepath into a tuple where tuple[0] is the dir name and tuple[1] is the filename
+		if len(nestedlist) > 0: # If the regex returns a tuple, then process the path
+			templist = nestedlist[0]
+			tempfilepath = templist[0]
+			filepath = self.directory_slash_add(tempfilepath) # Add the / at the end of the directory path
+			filename = templist[1]
+			resultlist = [] # Put path info into list for return
+			resultlist.append(filepath)
+			resultlist.append(filename)
+		else: # If nothing is returned from regex search, then file is in root dir
+			resultlist = []
+			resultlist.append("/") # Add root dir as directory path
+			resultlist.append(filepath.replace("/", "")) # Remove / from filepath and set that as file name
 		return resultlist
+	##### Check a Unix/Linux file or directory path for illegal patterns/characters and for required patterns #####
+	##### The inputtype arg can be "dir" or "file" (depending on if the input is a file path or a directory path). The input arg is a str of the file or dir path #####
+	##### The returned data is a list of strings where result[0] equals either "pass" or "fail" and result[1:] equals the error message(s) if input is determined to be bad ####
+	def check_path(self, pathtype, path):
+		result = ['pass'] # set initial result as "pass"
+		regexblacklistdict = {"space character": " ", "double forward slash (//)": "\/\/", 'double quote (")': '"', "single quote (')": "'", "pipe character (|)": "\|", "double period (..)": "\.\.", "comma (,)": ",", "exclamation point (!)": "!", "grave accent(`)": "`", "ampersand (&)": "&", "asterisk (*)": "\*", "left parenthesis [(]": "\(", "right parenthesis [)]": "\)"} # Set common blacklist characters and patterns with keys as friendly names and values as the regex patterns
+		regexrequiredict = {"begins with /":"^\/"} # Set common required patterns with keys as friendly names and values as the regex patterns
+		if pathtype == "dir": # if the path type is "dir"
+			regexrequiredict.update({"ends with /": "\/$"}) # add additional patterns to requirements dict
+		elif pathtype == "file": # if the path type is "file"
+			regexblacklistdict.update({"ends with /": "\/$"}) # add additional patterns to blacklist dict
+		for key in regexblacklistdict: # For every entry in the blacklist dict
+			if len(re.findall(regexblacklistdict[key], path)) > 0: # If a pattern from the blacklist dict is matched in the path data
+				result[0] = 'fail' # Set the result to fail
+				result.append("Pattern Not Allowed: " + key) # Append an error message to a failed result
+		for key in regexrequiredict: # For every entry in the requirement dict
+			if len(re.findall(regexrequiredict[key], path)) == 0: # If the pattern is not found in the path
+				result[0] = 'fail' # Set the result to fail
+				result.append("Pattern Required: " + key) # Append an error message to a failed result
+		return result
+	##### Check that input is a legal fully qualified domain name (FQDN) #####
+	##### The input is a str of the FQDN #####
+	##### The returned data is a list of strings where result[0] equals either "pass" or "fail" and result[1:] equals the error message(s) if input is determined to be bad ####
+	def check_domainname(self, domainname):
+		result = {"status": "pass", "messages": []} # Start with a passing result
+		##### 1. Check that only legal characters are in name (RFC883 and RFC952) #####
+		characterregex = "^[a-zA-Z0-9\-\.]+$" # A list of the valid domain-name characters in a domain name
+		for entry in re.findall(characterregex, domainname): # For each string in the list returned by re.findall
+			if entry == domainname: # If one of the strings in the returned list equals the full domainname string
+				charactercheck = "pass" # Then all its characters are legal and it passes the check
+				result["messages"].append({"OK": "No illegal characters found"}) # Append a message to the result
+		if charactercheck == "fail": # If the check failed
+			result["messages"].append({"FATAL": "Illegal character found. Only a-z, A-Z, 0-9, period (.), and hyphen (-) allowed."})
+		##### 2. Check the Length Restrictions: 63 max char per label, 253 max total (RFC1035) #####
+		if len(domainname) <= 253: # If total length of domain name is 253 char or less
+			result["messages"].append({"OK": "Domain total length is good"})
+			labelcheck = {'passlength': 0, 'faillength': 0} # Start a tally of passed and failed labels
+			for label in domainname.split("."): # Split the domain into its labels and for each label
+				if len(label) <= 63: # If the individual label is less than or equal to 63 characters...
+					labelcheck['passlength'] = labelcheck['passlength'] + 1 # Add it as a passed label in the tally
+				else: # If it is longer than 63 characters
+					labelcheck['faillength'] = labelcheck['faillength'] + 1 # Add it as a failed label in the tally
+					result["messages"].append({"FATAL": "Label: " + label + " exceeds max label length of 63 characters"})
+			if labelcheck['faillength'] == 0: # If there are NOT any failed labels in the tally
+				maxlengthcheck = "pass" # Then all labels are passed and the check passes
+		##### 3. Check that first and last character are not a hyphen or period #####
+		firstcharregex = "^[a-zA-Z0-9]" # Match a first character of upper or lower A-Z and any digit (no hyphens or periods)
+		lastcharregex = "[a-zA-Z0-9]$" # Match a last character of upper or lower A-Z and any digit (no hyphens or periods)
+		if len(re.findall(firstcharregex, domainname)) > 0: # If the first characters produces a match
+			result["messages"].append({"OK": "Domain first character is legal"})
+			if len(re.findall(lastcharregex, domainname)) > 0: # And the last characters produces a match
+				result["messages"].append({"OK": "Domain last character is legal"})
+				firstlastcheck = "pass" # Then first and last characters are legal and the check passes
+			else:
+				result["messages"].append({"FATAL": "First and last character in domain must be alphanumeric"})
+		else:
+			result["messages"].append({"FATAL": "First and last character in domain must be alphanumeric"})
+		##### 4. Check that no labels begin or end with hyphens (https://www.icann.org/news/announcement-2000-01-07-en) #####
+		beginendhyphenregex = "\.\-|\-\." # Match any instance where a hyphen follows a period or vice-versa
+		if len(re.findall(beginendhyphenregex, domainname)) == 0: # If the regex does NOT make a match anywhere
+			result["messages"].append({"OK": "No labels begin or end with hyphens"})
+			beginendhyphencheck = "pass" # Then no names begin with a hyphen and the check passes
+		else:
+			result["messages"].append({"FATAL": "Each label in the domain name must begin and end with an alphanumeric character. No hyphens"})
+		##### 5. No double periods or triple-hyphens exist (RFC5891 for double-hyphens) #####
+		nomultiplesregex = "\.\.|\-\-\-" # Match any instance where a double period (..) or a triple hyphen (---) exist
+		if len(re.findall(nomultiplesregex, domainname)) == 0: # If the regex does NOT make a match anywhere
+			result["messages"].append({"OK": "No double periods or triple hyphens found"})
+			nomultiplescheck = "pass" # Then no double periods or triple hyphens exist and the check passes
+		else:
+			result["messages"].append({"FATAL": "No double-periods (..) or triple-hyphens (---) allowed in domain name"})
+		##### 6. There is at least one period in the domain name #####
+		periodinnameregex = "\." # Match any instance of a period
+		if len(re.findall(periodinnameregex, domainname)) > 0: # If there is at least one period in the domain name...
+			periodinnamecheck = "pass"
+			result["messages"].append({"OK": "At least one period found in the domain name"})
+		else:
+			result["messages"].append({"WARNING": "No period (.) found in domain name. FQDNs are preferred but not required."})
+		##### Make sure all checks are passed #####
+		for listentry in result["messages"]:
+			for key in listentry:
+				if key == "FATAL":
+					result["status"] = "fail"
+		return result
+	def check_userpass(self, inputtype, userorpassinput):
+		result = {"status": "fail", "messages": []} # Start with a failed result
+		if inputtype == "user":
+			characterregex = "^[a-zA-Z0-9_]+$" # A list of the valid username characters
+			for entry in re.findall(characterregex, userorpassinput): # For each string in the list returned by re.findall
+				if entry == userorpassinput: # If one of the strings in the returned list equals the full domainname string
+					result["status"] = "pass" # Then all its characters are legal and it passes the check
+					result["messages"].append({"OK": "No illegal characters found in username"}) # Append a message to the result
+			if len(re.findall(characterregex, userorpassinput)) == 0:
+				result["status"] = "fail" # Then all its characters are legal and it passes the check
+				result["messages"].append({"FATAL": "Illegal characters found in username. Valid characters are alphanimeric and underscore (_)"}) # Append a message to the result
+		elif inputtype == "password":
+			characterregex = "\&|\<|\>" # A list of the invalid password characters
+			if len(re.findall(characterregex, userorpassinput)) > 0: # For each string in the list returned by re.findall
+				result["status"] = "fail"
+				result["messages"].append({"FATAL": "Illegal characters found in password. Characters '&', '<', and '>' are not allowed "}) # Append a message to the result
+			else:
+				result["status"] = "pass" # Then all its characters are legal and it passes the check
+				result["messages"].append({"OK": "No illegal characters found in password"}) # Append a message to the result
+		return result
+	def check_version(self, inputversion):
+		result = {"status": "fail", "messages": []} # Start with a failed result
+		if inputversion == "6" or inputversion == "7":
+			result["status"] = "pass"
+			result["messages"].append({"OK": "Version is allowed"})
+		else:
+			result["status"] = "fail"
+			result["messages"].append({"FATAL": "Only versions 6 and 7 allowed"})
+		return result
+	def check_targets(self, targetdict):
+		result = {}
+		for target in targetdict:
+			result.update({target["hostname"]: {"status": "working"}})
+			##### Check hostname #####
+			result[target["hostname"]].update({"hostnamecheck": {"status": "working", "messages": []}})
+			if self.ip_checker("address", target["hostname"]) == "pass":
+				result[target["hostname"]]["hostnamecheck"]["status"] = "pass"
+				result[target["hostname"]]["hostnamecheck"]["messages"].append({"OK": "Target hostname is valid IPv4 address"})
+			else:
+				result[target["hostname"]]["hostnamecheck"] = self.check_domainname(target["hostname"])
+			##### Check Username and Password #####
+			try:
+				result[target["hostname"]].update({"usernamecheck": self.check_userpass("user", target["username"])})
+			except KeyError:
+				result[target["hostname"]].update({"usernamecheck": {"status": "fail", "messages": [{"FATAL": "<username> parameter does not exist for this target"}]}})
+			try:
+				result[target["hostname"]].update({"passwordcheck": self.check_userpass("password", target["password"])})
+			except KeyError:
+				result[target["hostname"]].update({"passwordcheck": {"status": "fail", "messages": [{"FATAL": "<password> parameter does not exist for this target"}]}})
+			##### Check Version #####
+			try:
+				result[target["hostname"]].update({"versioncheck": self.check_version(target["version"])})
+			except KeyError:
+				result[target["hostname"]].update({"versioncheck": {"status": "fail", "messages": [{"FATAL": "<version> parameter does not exist for this target"}]}})
+			##### Read Results #####
+			warnings = 0
+			for check in result[target["hostname"]].keys():
+				if check != "status":
+					if result[target["hostname"]][check]["status"] == "fail":
+						result[target["hostname"]]["status"] = "fail"
+						break
+					elif result[target["hostname"]][check]["status"] == "warning":
+						warnings = warnings + 1
+					elif result[target["hostname"]][check]["status"] == "pass":
+						result[target["hostname"]]["status"] = "pass"
+			if warnings > 0:
+				result[target["hostname"]]["status"] = "warning"
+		return result
+	def scrub_targets(self, mainmode, submode):
+		if mainmode == "noisy":
+			checkdict = self.check_targets(targets)
+			for target in checkdict:
+				if checkdict[target]["status"] == "pass":
+					#self.logwriter("normal", "***********TARGET " + target + " settings verified***********")
+					none = None
+				else:
+					for check in checkdict[target]:
+						if check != "status":
+							for message in checkdict[target][check]["messages"]:
+								if message.keys()[0] == "WARNING":
+									self.logwriter("normal", self.ui.color("***********TARGET " + target + ": " + message.keys()[0] + ": " + message.values()[0] + " ***********", self.ui.yellow))
+								elif message.keys()[0] == "FATAL":
+									self.logwriter("normal", self.ui.color("***********TARGET " + target + ": " + message.keys()[0] + ": " + message.values()[0] + " ***********", self.ui.red))
+				if submode == "scrub":
+					if checkdict[target]["status"] == "fail":
+						targetindex = 0
+						for badtarget in targets:
+							if badtarget["hostname"] == target:
+								self.logwriter("normal", self.ui.color("***********Excluding " + target + " from loaded firewall targets***********", self.ui.red))
+								targets.pop(targetindex)
+							else:
+								targetindex += 1
+				elif submode == "report":
+					if checkdict[target]["status"] == "fail":
+							self.logwriter("normal", self.ui.color("***********Target " + target + " configuration is incomplete***********", self.ui.red))
+	##### Check that legit IP address or CIDR block was entered #####
+	##### The mode of "cidr" or "address" is entered as the first arg. Input is second arg and is a string of the IPv4 address or CIDR block. #####
+	##### Result is a simple string containing "pass" or "fail" #####
+	def ip_checker(self, iptype, ip_block):
+		if iptype == "address":
+			ipregex = "^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$"
+		elif iptype == "cidr":
+			ipregex = "^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\/(?:[0-9]|1[0-9]|2[0-9]|3[0-2]?)$"
+		check = re.search(ipregex, ip_block)
+		if check is None:
+			result = "fail"
+		else:
+			result = "pass"
+		return result
 	##### Simple two-choice logic method to pick a preferred input over another #####
 	##### Used to decide whether to use the radiuid.conf file in the 'etc' location, or the one in the local working directory #####
 	def file_chooser(self, firstchoice, secondchoice):
@@ -201,14 +462,9 @@ class file_management(object):
 	##### Writes the new config data to the config file #####
 	##### Used at the end of the wizard when new config values have been defined and need to be written to a config file #####
 	def write_file(self, filepath, filedata):
-		try:
-			f = open(filepath, 'w')
-			f.write(filedata)
-			f.close()
-		except IOError:
-			print self.ui.color(time.strftime("%Y-%m-%d %H:%M:%S") + ":   " +"***********CANNOT OPEN FILE: " + filepath + " ***********\n", self.ui.red)
-			print self.ui.color(time.strftime("%Y-%m-%d %H:%M:%S") + ":   " +"***********PLEASE MAKE SURE YOU RAN THE INSTALLER ('python radiuid.py install')***********\n", self.ui.red)
-			quit()
+		f = open(filepath, 'w')
+		f.write(filedata)
+		f.close()
 	##### Check if specific file exists #####
 	def file_exists(self, filepath):
 		checkdata = commands.getstatusoutput("ls " + filepath)
@@ -317,6 +573,7 @@ class file_management(object):
 	##### Publish all settings to variables in the global namespace for use by other processes #####
 	##### All variables are set to strings with the exception of the targets, which is a list of dictionary items #####
 	def publish_config(self, mode):
+		global configdict
 		global radiuslogpath
 		global logfile
 		global userdomain
@@ -329,60 +586,106 @@ class file_management(object):
 			##### Suck config values into a dictionary #####
 			configdict = self.tinyxml2dict_starter()
 			##### Publish individual global settings values variables in main namespace #####
-			logfile = configdict['globalsettings']['paths']['logfile']
-			self.logwriter("normal", "***********INITIAL WRITE TO THE LOG FILE: " + logfile + "...***********")
-			self.logwriter("normal", "***********INITIALIZING VARIABLES FROM CONFIG FILE...***********")
-			self.logwriter("normal", "Initialized variable:" "\t" + "logfile" + "\t\t\t\t" + "with value:" + "\t" + self.ui.color(logfile, self.ui.green))
-			radiuslogpath = configdict['globalsettings']['paths']['radiuslogpath']
-			self.logwriter("normal", "Initialized variable:" "\t" + "radiuslogpath" + "\t\t\t" + "with value:" + "\t" + self.ui.color(radiuslogpath, self.ui.green))
-			ipaddressterm = configdict['globalsettings']['searchterms']['ipaddressterm']
-			self.logwriter("normal", "Initialized variable:" "\t" + "ipaddressterm" + "\t\t\t" + "with value:" + "\t" + self.ui.color(ipaddressterm, self.ui.green))
-			usernameterm = configdict['globalsettings']['searchterms']['usernameterm']
-			self.logwriter("normal", "Initialized variable:" "\t" + "usernameterm" + "\t\t\t" + "with value:" + "\t" + self.ui.color(usernameterm, self.ui.green))
-			delineatorterm = configdict['globalsettings']['searchterms']['delineatorterm']
-			self.logwriter("normal", "Initialized variable:" "\t" + "delineatorterm" + "\t\t\t" + "with value:" + "\t" + self.ui.color(delineatorterm, self.ui.green))
-			userdomain = configdict['globalsettings']['uidsettings']['userdomain']
-			self.logwriter("normal", "Initialized variable:" "\t" + "userdomain" + "\t\t\t" + "with value:" + "\t" + self.ui.color(userdomain, self.ui.green))
-			timeout = configdict['globalsettings']['uidsettings']['timeout']
-			self.logwriter("normal", "Initialized variable:" "\t" + "timeout" + "\t\t\t\t" + "with value:" + "\t" + self.ui.color(timeout, self.ui.green))
-			##### Publish list of firewall targets into main namespace #####
-			self.logwriter("normal", "***********INITIALIZING TARGETS...***********")
-			targets = configdict['targets']['target']
-			if type(targets) != type([]):
-				targets = [targets]
-			for target in targets:
-				self.logwriter("normal", self.ui.color("[IMPORTED]", self.ui.cyan) + "   HOSTNAME: " + self.ui.color(target['hostname'], self.ui.green) + "\t\tUSERNAME: " + self.ui.color(target['username'], self.ui.green) + "\t\tPASSWORD: " + self.ui.color(target['password'], self.ui.green) + "\t\tVERSION: " + self.ui.color(target['version'], self.ui.green))
+			try:
+				logfile = configdict['globalsettings']['paths']['logfile']
+				self.logwriter("normal", "***********INITIAL WRITE TO THE LOG FILE: " + logfile + "...***********")
+				self.logwriter("normal", "***********INITIALIZING VARIABLES FROM CONFIG FILE...***********")
+				self.logwriter("normal", "Initialized variable:" "\t" + "logfile" + "\t\t\t\t" + "with value:" + "\t" + self.ui.color(logfile, self.ui.green))
+				radiuslogpath = configdict['globalsettings']['paths']['radiuslogpath']
+				self.logwriter("normal", "Initialized variable:" "\t" + "radiuslogpath" + "\t\t\t" + "with value:" + "\t" + self.ui.color(radiuslogpath, self.ui.green))
+				ipaddressterm = configdict['globalsettings']['searchterms']['ipaddressterm']
+				self.logwriter("normal", "Initialized variable:" "\t" + "ipaddressterm" + "\t\t\t" + "with value:" + "\t" + self.ui.color(ipaddressterm, self.ui.green))
+				usernameterm = configdict['globalsettings']['searchterms']['usernameterm']
+				self.logwriter("normal", "Initialized variable:" "\t" + "usernameterm" + "\t\t\t" + "with value:" + "\t" + self.ui.color(usernameterm, self.ui.green))
+				delineatorterm = configdict['globalsettings']['searchterms']['delineatorterm']
+				self.logwriter("normal", "Initialized variable:" "\t" + "delineatorterm" + "\t\t\t" + "with value:" + "\t" + self.ui.color(delineatorterm, self.ui.green))
+				userdomain = configdict['globalsettings']['uidsettings']['userdomain']
+				self.logwriter("normal", "Initialized variable:" "\t" + "userdomain" + "\t\t\t" + "with value:" + "\t" + self.ui.color(userdomain, self.ui.green))
+				timeout = configdict['globalsettings']['uidsettings']['timeout']
+				self.logwriter("normal", "Initialized variable:" "\t" + "timeout" + "\t\t\t\t" + "with value:" + "\t" + self.ui.color(timeout, self.ui.green))
+				##### Publish list of firewall targets into main namespace #####
+				self.logwriter("normal", "***********INITIALIZING TARGETS...***********")
+				targets = configdict['targets']['target']
+				if type(targets) != type([]):
+					targets = [targets]
+			except KeyError:
+				print self.ui.color(time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + "****************WARNING: Could not import some important settings****************\n", self.ui.yellow)
 		if mode == 'quiet':
 			##### Suck config values into a dictionary #####
 			configdict = self.tinyxml2dict_starter()
 			##### Publish individual global settings values variables in main namespace #####
-			logfile = configdict['globalsettings']['paths']['logfile']
-			radiuslogpath = configdict['globalsettings']['paths']['radiuslogpath']
-			userdomain = configdict['globalsettings']['uidsettings']['userdomain']
-			timeout = configdict['globalsettings']['uidsettings']['timeout']
-			ipaddressterm = configdict['globalsettings']['searchterms']['ipaddressterm']
-			usernameterm = configdict['globalsettings']['searchterms']['usernameterm']
-			delineatorterm = configdict['globalsettings']['searchterms']['delineatorterm']
-			##### Publish list of firewall targets into main namespace #####
-			targets = configdict['targets']['target']
-	##### Show XML formatted configuration item #####
-	def show_config_item(self, itemname):
-		for value in self.root.iter(itemname):
-			xmldata = xml.etree.ElementTree.tostring(value, encoding="us-ascii", method="xml")
-			regexnewline = "\n.*[a-z]"
-			newline = re.findall(regexnewline, xmldata, flags=0)
-			if len(newline) > 0:
-				regexlastline = ".*</%s>" % itemname
-				#print regexlastline
-				regexlastelement = "</%s>" % itemname
-				lastline = re.findall(regexlastline, xmldata, flags=0)[0]
-				#print lastline
-				lastelement = re.findall(regexlastelement, xmldata, flags=0)[0]
-				#print lastelement
-				indent = lastline.replace(lastelement, "")
-				print indent + xmldata
-			else:
-				print "\t\t" + xmldata
+			try:
+				logfile = configdict['globalsettings']['paths']['logfile']
+				radiuslogpath = configdict['globalsettings']['paths']['radiuslogpath']
+				userdomain = configdict['globalsettings']['uidsettings']['userdomain']
+				timeout = configdict['globalsettings']['uidsettings']['timeout']
+				ipaddressterm = configdict['globalsettings']['searchterms']['ipaddressterm']
+				usernameterm = configdict['globalsettings']['searchterms']['usernameterm']
+				delineatorterm = configdict['globalsettings']['searchterms']['delineatorterm']
+				##### Publish list of firewall targets into main namespace #####
+				targets = configdict['targets']['target']
+				if type(targets) != type([]):
+					targets = [targets]
+			except KeyError:
+				return "WARNING: Could not import some important settings"
+	##### Show formatted configuration item #####
+	def show_config_item(self, mainmode, submode, itemname):
+		if mainmode == "xml":
+			for value in self.root.iter(itemname):
+				xmldata = xml.etree.ElementTree.tostring(value, encoding="us-ascii", method="xml")
+				regexnewline = "\n.*[a-z]"
+				newline = re.findall(regexnewline, xmldata, flags=0)
+				if len(newline) > 0:
+					regexlastline = ".*</%s>" % itemname
+					#print regexlastline
+					regexlastelement = "</%s>" % itemname
+					lastline = re.findall(regexlastline, xmldata, flags=0)[0]
+					#print lastline
+					lastelement = re.findall(regexlastelement, xmldata, flags=0)[0]
+					#print lastelement
+					indent = lastline.replace(lastelement, "")
+					print indent + xmldata
+				else:
+					print "\t\t" + xmldata
+		elif mainmode == "set":
+			if submode == "installed":
+				prepend = "radiuid"
+				header = "\n"\
+					"#######################################################\n"\
+					"#### Set Commands to use when RadiUID is installed ####\n"\
+					"#######################################################\n"
+			elif submode == "uninstalled":
+				prepend = "python radiuid.py"
+				header = "\n"\
+					"###########################################################\n"\
+					"#### Set Commands to use when RadiUID is NOT installed ####\n"\
+					"###########################################################\n"
+			elif submode == "auto":
+				prepend = runcmd
+				header = "\n"\
+					"##################################################\n"\
+					"#### Set Commands to use to configure RadiUID ####\n"\
+					"##################################################\n"
+			rawtargetsetlist = []
+			for target in targets:
+				setparams = ""
+				for param in target:
+					if param != "hostname":
+						setparams = setparams + param + " " + target[param] + " "
+				rawtargetsetlist.append(" set target " + target["hostname"] + " " + setparams)
+			#### Compile set commands for uninstalled and installed CLI format ####
+			settargets = ""
+			for settarget in rawtargetsetlist:
+				settargets = settargets + prepend + settarget + "\n!\n"
+			setcommands = \
+				"" + prepend + " set radiuslogpath " + radiuslogpath + "\n!\n"\
+				"" + prepend + " set logfile " + logfile + "\n!\n"\
+				"" + prepend + " set userdomain " + userdomain + "\n!\n"\
+				"" + prepend + " set timeout " + timeout + "\n!\n"
+			#### Compile all set commands for different formats ####
+			textconfig = header + "!\n" + setcommands + "!\n" + prepend + " clear target all\n!\n" + settargets + "!\n!\n###########################################################\n###########################################################\n"
+			return textconfig
+
 	##### Pull individual configuration item and return to calling function #####
 	def get_globalconfig_item(self, elementname):
 		for value in self.root.iter(elementname):
@@ -392,67 +695,103 @@ class file_management(object):
 	def change_config_item(self, itemname, newvalue):
 		for value in self.root.iter(itemname):
 			value.text = newvalue
-	##### Add target firewalls to XML configuration elements #####
-	##### Method accepts a list of dictionaries which contain the standard 4 elements for a firewall target #####
+	##### Add or edit target firewalls in XML configuration elements #####
+	##### Input is a list of dictionaries which contain any number of parameters for a firewall target, but a hostname parameter is required #####
 	##### Method will detect if the 'targets' element already exists and will create it if it doesn't #####
+	##### Result is a dictionary where keys are the hostnames of the processed targets with messages in the values #####
 	def add_targets(self, targetlist):
-		if len(self.root.findall('.//target')) == 0: # if <target> XML elements do not exist
-			for item in self.root.iter('globalsettings'): # adjust tail of 'globalsettings' element for formatting purposes
-				item.tail = '\n\t' # formatting added to tail of </globalsettings> element
-			targets = xml.etree.ElementTree.SubElement(self.root, 'targets') # mount new <targets> element as variable
-			targets.text = "\n\t\t" # add some formatting for upcoming <target> element
-			targets.tail = "\n" # add formatting to end for the </config> element
-		else:
-			targets = self.root.findall('.//targets')[0] # if <target> XML elements do already exist
-			lasttarget = self.root.findall('.//target')[len(self.root.findall('.//target')) - 1] # mount the last existing <target> element as variable
-			lasttarget.tail = "\n\t\t" # adjust formatting on tail of last </target> element
-		numtargets = len(targetlist) # check number of targets being added so last one's tail can be formatted differently
-		for item in targetlist:
-			target = xml.etree.ElementTree.SubElement(targets, 'target') # mount new target element as variable
-			target.text = "\n\t\t\t" # add some formatting to indent the upcoming <hostname> element properly
-			if numtargets == 1: # add different tail formatting if this is the last 'target' element entry
-				target.tail = "\n\t" # add formatting if this is the last target being added (to indent the '</targets>' properly)
-			else:
-				target.tail = "\n\t\t" # add formatting if this is NOT the last target being added (to indent the next '<target>' properly)
-			##### Add the different elements for the target #####
-			hostname = xml.etree.ElementTree.SubElement(target, 'hostname')
-			hostname.text = item['hostname']
-			hostname.tail = "\n\t\t\t"
-			username = xml.etree.ElementTree.SubElement(target, 'username')
-			username.text = item['username']
-			username.tail = "\n\t\t\t"
-			password = xml.etree.ElementTree.SubElement(target, 'password')
-			password.text = item['password']
-			password.tail = "\n\t\t\t"
-			version = xml.etree.ElementTree.SubElement(target, 'version')
-			version.text = item['version']
-			version.tail = "\n\t\t"
-			numtargets = numtargets - 1 # decrement the target counter for proper formatting on last target
-			##### Remove temporary variables #####
-			del hostname
-			del username
-			del password
-			del version
+		result = {} # Initialize Result
+		if len(self.root.findall('.//target')) == 0: # If <target> XML elements do not exist
+			targets = xml.etree.ElementTree.SubElement(self.root, 'targets') # Mount new <targets> element as variable
+		targets = self.root.findall('.//targets')[0] # Mount targets element as targets
+		for targetitem in targetlist: # For each dict entry in the target list input as an arg...
+			currenttargethostname = targetitem["hostname"]
+			result[currenttargethostname] = {"status": "processing", "messages": []} # Create a new key in the result for this targetitem
+			##### Does this target already exist, or do we need to create it new? #####
+			targetalreadyexists = False # Initialize variable to determine if the target already exists
+			for existingtarget in self.root.findall('.//target'): # For each existing target object in a list (empty list returned if none found)
+				for parameter in existingtarget: # For each parameter in the existing target entry
+					if targetitem["hostname"] == parameter.text: # If the hostname of the target to be edited matches this existing targets hostname...
+						targetalreadyexists = True # Then set the targetalreadyexists value as True
+						target = existingtarget # And mount the existing target (where the hostname matched) as target
+			##### If the target to be edited exists already #####
+			if targetalreadyexists: # If target exists..
+				result[currenttargethostname]["messages"].append("Editing existing target") # Create feedback message
+				targetitem.pop("hostname") # Remove the 'hostname' parameter from the list of edits to be made
+				#### Make edits to already existing parameters first #####
+				for parameter in list(targetitem): # For each of the parameters to be edited for the current target to be edited..
+					for existingparameter in target: # And for each existing parameter in the existing target
+						if existingparameter.tag == parameter: # If the parameter to be edited matches an existing parameter in the existing target...
+							result[currenttargethostname]["messages"].append("Changed existing <" + parameter + "> parameter from '" + existingparameter.text + "' to '" + targetitem[parameter] + "'") # Create feedback message
+							existingparameter.text = targetitem[parameter] # Edit the value of the parameter in place
+							del targetitem[parameter] # Then delete this parameter edit from the list
+				##### Then create the not-yet-existing parameters and set the appropriately #####
+				if targetitem > 0: # If there are parameter edits which didn't yet exist
+					for parameter in targetitem: # For each of those parameter edits
+						currentelement = xml.etree.ElementTree.SubElement(target, parameter) # Create the parameter in the target element
+						currentelement.text = targetitem[parameter] # Set the value of the parameter
+						result[currenttargethostname]["messages"].append("Created new <" + parameter + "> parameter with value '" + targetitem[parameter] + "'") # Create feedback message
+			else: # If target doesn't yet exist
+				target = xml.etree.ElementTree.SubElement(targets, 'target') # mount new target element as variable
+				result[currenttargethostname]["messages"].append("Created new target") # Create feedback message
+				##### Add the different elements for the target #####
+				hostname = xml.etree.ElementTree.SubElement(target, 'hostname') # Create and mount the hostname parameter for the target
+				hostname.text = targetitem['hostname'] # Set the hostname parameter value for the target
+				del hostname # Unmount the hostname parameter element
+				del targetitem['hostname'] # Remove the hostname parameter
+				for parameter in targetitem: # For each of the parameter edits
+					currentelement = xml.etree.ElementTree.SubElement(target, parameter) # Create the parameter in the target element
+					currentelement.text = targetitem[parameter] # Set the value of the parameter
+					result[currenttargethostname]["messages"].append("Created new <" + parameter + "> parameter with value '" + targetitem[parameter] + "'") # Create feedback message
+			del targetalreadyexists
 			del target
-		del numtargets
+			del currenttargethostname
+		del targets
+		##### Format Targets #####
+		globalsettings = self.root.findall('.//globalsettings')[0] # Mount the <globalsettings> element
+		globalsettings.tail = "\n\t" # Set the tail to properly indent "<targets>"
+		del globalsettings # Unmount the globalsettings element
+		targets = self.root.findall('.//targets')[0] # Mount the <targets> element
+		targets.text = "\n\t\t" # Set proper indent for first child <target> element
+		targets.tail = "\n" # Set proper indent for ending </config> element
+		targetpointer = len(targets.getchildren()) # Get the number of child <target> elements
+		for target in targets.getchildren(): # For each <target> element in <targets>
+			target.text = "\n\t\t\t" # Set the indent of the first parameter
+			parameterpointer = len(target.getchildren()) # Get the number of child parameter elements
+			for parameter in target.getchildren(): # For each parameter element
+				if parameterpointer == 1: # If this is the last parameter in the target
+					parameter.tail = "\n\t\t" # Set smaller indent
+				else: # If this is NOT the last parameter in the target
+					parameter.tail = "\n\t\t\t" # Set larger indent
+					parameterpointer = parameterpointer - 1 # And subtract one from the pointer
+			if targetpointer == 1: # If this is the last target in targets
+				target.tail = "\n\t" # Set smaller indent
+			else: # If this is NOT the last target in targets
+				target.tail = "\n\t\t" # Set larger indent
+				targetpointer = targetpointer - 1 # And subtract one from the pointer
+		del targets
+		del parameterpointer
+		del targetpointer
+		return result
 	##### Remove specific list of targets from config #####
 	##### Method accepts a list of dictionaries which contain at least the hostname key/value pair of the target #####
 	def remove_targets(self, targetlist):
-		if len(self.root.findall('.//target')) == 0: # If no targets exist in config, print error
-			print "No firewall targets exist. Nothing to remove"
+		result = ["fail"] # Start with failed result
+		if len(self.root.findall('.//target')) == 0: # If no targets exist in config, return error
+			result.append("No firewall targets exist. Nothing to remove")
 		else: # if some targets do exist in config
 			for removalitem in targetlist: # for each host listed for removal
-				result = 'failure' # initialize result in case host is not found for removal
+				hostresult = 'failure' # initialize hostresult in case host is not found for removal
 				for target in self.root.findall('.//target'): # for each target element 
 					for element in target.getchildren(): # list out children (atttributes) of the target (like hostname, username, etc)
 						if element.text == removalitem['hostname']: # check child elements of target element for hostname listed for removal
 							targets = self.root.findall('.//targets')[0] # mount <targets> element
 							targets.remove(target) # remove this <target> element from the <targets> element
 							del targets # unmount <targets> element
-							result = 'success' # set successful result
-							print "target " + element.text + " removed" # print confirmation of removal
-				if result == 'failure': # if we did not find the target to be removed
-					print "could not find that target" # print an error message
+							hostresult = 'success' # set successful hostresult
+							result[0] = "pass"
+				if hostresult == 'failure': # if we did not find the target to be removed
+					result.append("Could not find target" + removalitem['hostname']) # return an error message
 		##### If we did not remove the last <target> element from <targets>, then set the proper tail indent on last <target> element
 		if len(self.root.findall('.//target')) > 0:
 			lasttarget = self.root.findall('.//target')[len(self.root.findall('.//target')) - 1] # mount the last existing <target> element as variable
@@ -460,6 +799,9 @@ class file_management(object):
 			del lasttarget # unmount last <target> element
 		else: # If we just removed the last <target> element from <targets>
 			self.clear_targets() # use the 'clear_targets' method to remove the left over elements from the config
+		if result[0] == "pass" and len(result) > 1:
+			result[0] = "partial"
+		return result
 	##### Delete all firewall targets in mounted config #####
 	def clear_targets(self):
 		for item in self.root.iter('targets'):
@@ -490,6 +832,7 @@ class file_management(object):
 	##### Simple starter method for the XML to Dict conversion process #####
 	def tinyxml2dict_starter(self):
 		return self.tinyxml2dict(self.root)
+
 
 
 
@@ -555,6 +898,18 @@ class data_processing(object):
 			newdict[k] = v
 		self.filemgmt.logwriter("normal", "Dictionary values merged into one dictionary")
 		return newdict
+	##### Search an ordered list of values for a list of search queries and return the indices for the locations of the queries #####
+	##### Input is a list of search queries and the list of data to search through #####
+	##### Output is a dictionary with found queries as keys and indices as the vals #####
+	def find_index_in_list(self, querylist, listinput):
+		result = {} # Initialize result as a dictionary
+		for query in querylist: # For each search query, we run through the list once
+			indexpointer = 0 # Start the indexpointer at the 0 index for this search of the list
+			for entry in listinput:	# For each entry in the list...
+				if query == entry:	# If the query value is the same as this entry in the list
+					result.update({query: indexpointer}) # Add the query (key) and index location of where it was found
+				indexpointer = indexpointer + 1 # Then update the indexpointer 
+		return result
 
 
 
@@ -688,6 +1043,11 @@ class radiuid_main_process(object):
 	##### This method runs once during the initial startup of the program #####
 	def initialize(self):
 		print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + "***********MAIN PROGRAM INITIALIZATION KICKED OFF...***********" + "\n"
+		##### Scrub targets for any which have incomplete settings in the 'target' variable #####
+		self.filemgmt.logwriter("normal", "***********CHECKING TARGETS FOR INCOMPLETE OR INCORRECT CONFIGS***********")
+		self.filemgmt.scrub_targets("noisy", "scrub")
+		self.filemgmt.logwriter("normal", "***********LOADED THE BELOW TARGETS***********")
+		self.filemgmt.logwriter("normal", "\n" + self.ui.indenter("\t\t\t", self.ui.make_table(["hostname", "username", "password", "version"], targets)))
 		##### Initial log entry and help for anybody starting the .py program without first installing it #####
 		self.filemgmt.logwriter("normal", "***********RADIUID INITIALIZING... IF PROGRAM FAULTS NOW, MAKE SURE YOU SUCCESSFULLY RAN THE INSTALLER ('python radiuid.py install')***********")
 		##### Explicitly pull PAN key now and store API key in the main namespace #####
@@ -793,15 +1153,6 @@ class imu_methods(object):
 		else:
 			print self.ui.color("~~~ Changed setting to: " + newsetting, self.ui.yellow)
 		return newsetting
-	##### Check that legit CIDR block was entered #####
-	##### Used to check IP blocks entered into the wizard for configuration of FreeRADIUS #####
-	def cidr_checker(self, cidr_ip_block):
-		check = re.search("^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\/(?:[0-9]|1[0-9]|2[0-9]|3[0-2]?)$", cidr_ip_block)
-		if check is None:
-			result = "no"
-		else:
-			result = "yes"
-		return result
 	##### Create dictionary with client IP and shared password entries for FreeRADIUS server #####
 	##### Used to ask questions during install about IP blocks and shared secret to use for FreeRADIUS server #####
 	def freeradius_create_changes(self):
@@ -815,10 +1166,10 @@ class imu_methods(object):
 				self.ui.color('\n>>>>> Enter the IP subnet to use for recognition of RADIUS accounting sources: [' + addipexample + ']:', self.ui.cyan))
 			if goround == "":
 				goround = addipexample
-			ipcheck = self.cidr_checker(goround)
-			if ipcheck == 'no':
+			ipcheck = self.filemgmt.ip_checker("cidr",goround)
+			if ipcheck == 'fail':
 				print self.ui.color("~~~ Nope. Give me a legit CIDR block...", self.ui.red)
-			elif ipcheck == 'yes':
+			elif ipcheck == 'pass':
 				addips.append(goround)
 				print self.ui.color("~~~ Added " + goround + " to list\n", self.ui.yellow)
 				keepchanging = self.ui.yesorno("Do you want to add another IP block to the list of trusted sources?")
@@ -1138,7 +1489,7 @@ class installer_maintenance_utility(object):
 				self.filemgmt.clear_targets()
 				self.filemgmt.add_targets(newtargets)
 				##### Show Config #####
-				self.filemgmt.show_config_item('config')
+				self.filemgmt.show_config_item('xml', "none", 'config')
 				print "\n\n\n"
 			#########################################################################
 			###Pushing settings to .conf file with the code below
@@ -1213,13 +1564,14 @@ class command_line_interpreter(object):
 		self.imu = installer_maintenance_utility()
 		self.imum = imu_methods()
 		self.filemgmt = file_management()
+		self.dp = data_processing()
+		self.pafi = palo_alto_firewall_interaction()
 		####################################################
 	##### Create str sentence out of list seperated by spaces and lowercase everything #####
 	##### Used for recognizing arguments when running RadiUID from the CLI #####
 	def cat_list(self, listname):
 		result = ""
 		counter = 0
-		#listlen = len(listname)
 		for word in listname:
 			result = result + listname[counter].lower() + " "
 			counter = counter + 1
@@ -1228,12 +1580,21 @@ class command_line_interpreter(object):
 	######################### RadiUID Command Interpreter #############################
 	def interpreter(self):
 		arguments = self.cat_list(sys.argv[1:])
+		global runcmd
+		global targets
+		if "radiuid.py" in sys.argv[0]:
+			runcmd = "python " + sys.argv[0]
+		else:
+			runcmd = "radiuid"
 		self.filemgmt.initialize_config('quiet')
 		self.filemgmt.publish_config('quiet')
 		global configfile
 		######################### RUN #############################
 		if arguments == "run":
 			self.radiuid.looper()
+		######################### DEBUG #############################
+		elif arguments == "debug":
+			print targets
 		######################### INSTALL #############################
 		elif arguments == "install":
 			self.filemgmt.logwriter("quiet", "##### COMMAND '" + arguments + "' ISSUED FROM CLI BY USER '" + self.imum.currentuser()+ "' #####")
@@ -1241,11 +1602,23 @@ class command_line_interpreter(object):
 			self.imu.im_utility()
 		######################### SHOW #############################
 		elif arguments == "show" or arguments == "show ?":
-			print "\n - show log         |     Show the RadiUID log file"
-			print " - show run         |     Show the RadiUID config file"
-			print " - show config      |     Show the RadiUID config file"
-			print " - show clients     |     Show the FreeRADIUS client config file"
-			print " - show status      |     Show the RadiUID and FreeRADIUS service statuses"
+			print "\n - show log                |     Show the RadiUID log file"
+			print " - show run (xml | set)    |     Show the RadiUID configuration in XML format (default) or as set commands"
+			print " - show config (xml | set) |     Show the RadiUID configuration in XML format (default) or as set commands"
+			print " - show clients            |     Show the FreeRADIUS client config file"
+			print " - show status             |     Show the RadiUID and FreeRADIUS service statuses\n"
+		elif arguments == "show config ?":
+			print "\n - show config (xml | set)  |   Show the RadiUID configuration in XML format (default) or as set commands"
+			print "                            |  "
+			print "                            |   Examples: 'show config'"
+			print "                            |             'show config xml'"
+			print "                            |             'show config set'\n"
+		elif arguments == "show run ?":
+			print "\n - show run (xml | set)  |   Show the RadiUID configuration in XML format (default) or as set commands"
+			print "                         |  "
+			print "                         |   Examples: 'show run'"
+			print "                         |             'show run xml'"
+			print "                         |             'show run set'\n"
 		elif arguments == "show log":
 			self.filemgmt.logwriter("cli", "##### COMMAND '" + arguments + "' ISSUED FROM CLI BY USER '" + self.imum.currentuser()+ "' #####")
 			configfile = self.filemgmt.find_config("quiet")
@@ -1255,12 +1628,22 @@ class command_line_interpreter(object):
 			os.system("more " + logfile)
 			print self.ui.color("#" * len(header), self.ui.magenta)
 			print self.ui.color("#" * len(header), self.ui.magenta)
-		elif arguments == "show run" or arguments == "show config":
+		elif arguments == "show run set" or arguments == "show config set":
 			self.filemgmt.logwriter("cli", "##### COMMAND '" + arguments + "' ISSUED FROM CLI BY USER '" + self.imum.currentuser()+ "' #####")
+			print self.ui.color("NOTE:", self.ui.cyan) + "  Use command '" + self.ui.color(runcmd + " show config xml", self.ui.green) + "' to see configuration in XML format\n"
 			header = "########################## OUTPUT FROM FILE " + configfile + " ##########################"
 			print self.ui.color(header, self.ui.magenta)
 			print self.ui.color("#" * len(header), self.ui.magenta)
-			self.filemgmt.show_config_item('config')
+			print self.filemgmt.show_config_item('set', "auto", 'config')
+			print self.ui.color("#" * len(header), self.ui.magenta)
+			print self.ui.color("#" * len(header), self.ui.magenta)
+		elif arguments == "show run" or arguments == "show run xml" or arguments == "show config" or arguments == "show config xml":
+			self.filemgmt.logwriter("cli", "##### COMMAND '" + arguments + "' ISSUED FROM CLI BY USER '" + self.imum.currentuser()+ "' #####")
+			print self.ui.color("NOTE:", self.ui.cyan) + "  Use command '" + self.ui.color(runcmd + " show config set", self.ui.green) + "' to see configuration in form of CLI commands\n"
+			header = "########################## OUTPUT FROM FILE " + configfile + " ##########################"
+			print self.ui.color(header, self.ui.magenta)
+			print self.ui.color("#" * len(header), self.ui.magenta)
+			self.filemgmt.show_config_item('xml', "none", 'config')
 			print self.ui.color("#" * len(header), self.ui.magenta)
 			print self.ui.color("#" * len(header), self.ui.magenta)
 		elif arguments == "show clients":
@@ -1303,6 +1686,314 @@ class command_line_interpreter(object):
 					print self.ui.color("\n\n********** FREERADIUS IS CURRENTLY RUNNING **********\n\n", self.ui.green)
 				elif checkservice == "no":
 					print self.ui.color("\n\n********** FREERADIUS IS CURRENTLY NOT RUNNING **********\n\n", self.ui.yellow)
+		######################### SET #############################
+		elif arguments == "set" or arguments == "set ?":
+			print "\n - set logfile <file path>             |     Set the RadiUID logfile path"
+			print " - set radiuslogpath <directory path>  |     Set the path used to find FreeRADIUS accounting log files"
+			print " - set userdomain <domain name>        |     Set the domain name prepended to User-ID mappings"
+			print " - set timeout <minutes>               |     Set the timeout (in minutes) for User-ID mappings sent to the firewall targets"
+			print " - set target <hostname> [parameters]  |     Set configuration elements for existing or new firewall targets\n"
+		elif arguments == "set logfile" or arguments == "set logfile ?":
+			print "\n - set logfile <file path>  |  Example: 'set logfile /etc/radiuid/radiuid.log'\n"
+		elif arguments == "set radiuslogpath" or arguments == "set radiuslogpath ?":
+			print "\n - set radiuslogpath <directory path>  |  Example: 'set radiuslogpath /var/log/radius/radacct/'\n"
+		elif arguments == "set userdomain" or arguments == "set userdomain ?":
+			print "\n - set userdomain <domain name>  |  Example: 'set userdomain domain.com'\n"
+		elif arguments == "set timeout" or arguments == "set timeout ?":
+			print "\n - set timeout <minutes>  |  Example: 'set timeout 60'\n"
+		elif arguments == "set target" or arguments == "set target ?":
+			print "\n - set target <hostname> [parameters]  |  Parameters: (hostname <hostname> | username <username> | password <password> | version  <PAN-OS version #>)"
+			print "                                       |              "
+			print "                                       |  Examples:   'set target 192.168.1.1 username admin'"
+			print "                                       |              'set target pan1.domain.com password P@s$w0rd'"
+			print "                                       |              'set target 10.0.0.10 username admin password P@ssword version 6\n"
+		##### SET LOGFILE #####
+		elif self.cat_list(sys.argv[1:3]) == "set logfile" and len(re.findall("^(\/*)", sys.argv[3])) > 0:
+			self.filemgmt.logwriter("cli", "##### COMMAND '" + arguments + "' ISSUED FROM CLI BY USER '" + self.imum.currentuser()+ "' #####")
+			header = "########################## EXECUTING COMMAND: " + arguments + " ##########################"
+			print self.ui.color(header, self.ui.magenta)
+			print self.ui.color("#" * len(header), self.ui.magenta)
+			if self.filemgmt.get_globalconfig_item('logfile') == sys.argv[3]:
+				print self.ui.color("\n" + time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + "****************Entered value is the same as current value****************\n", self.ui.green)
+			else:
+				pathcheck = self.filemgmt.check_path("file",sys.argv[3])
+				if pathcheck[0] == "fail":
+					for error in pathcheck[1:]:
+						print self.ui.color(time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + "****************ERROR: " + error + "****************", self.ui.red)
+				elif pathcheck[0] == "pass":
+					newlogfiledir = self.filemgmt.strip_filepath(sys.argv[3])[0]
+					print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " +"****************Making sure directory: "+ newlogfiledir + " exists...creating if not****************\n"
+					os.system('mkdir -p ' + newlogfiledir)
+					try:
+						self.filemgmt.write_file(sys.argv[3], "***********Logfile created via RadiUID command by " + self.imum.currentuser() + "***********\n")
+						self.filemgmt.change_config_item('logfile', sys.argv[3])
+						print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " +"****************Writing config change to: "+ configfile + "****************\n"
+						self.filemgmt.save_config()
+						print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " +"<logfile> configuration element changed to :\n"
+						self.filemgmt.show_config_item('xml', "none", 'logfile')
+					except IOError:
+						print self.ui.color(time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + "****************ERROR: One of the directory names already exists as a file or vice-versa****************\n", self.ui.red)
+				if self.filemgmt.get_globalconfig_item('logfile') == sys.argv[3]:
+					print self.ui.color("Success!", self.ui.green)
+				else:
+					print self.ui.color("Something Went Wrong!", self.ui.red)
+			print self.ui.color("#" * len(header), self.ui.magenta)
+			print self.ui.color("#" * len(header), self.ui.magenta)
+		##### SET RADIUSLOGPATH #####
+		elif self.cat_list(sys.argv[1:3]) == "set radiuslogpath" and len(re.findall("^(\/*)", sys.argv[3])) > 0:
+			self.filemgmt.logwriter("cli", "##### COMMAND '" + arguments + "' ISSUED FROM CLI BY USER '" + self.imum.currentuser()+ "' #####")
+			header = "########################## EXECUTING COMMAND: " + arguments + " ##########################"
+			print self.ui.color(header, self.ui.magenta)
+			print self.ui.color("#" * len(header), self.ui.magenta)
+			if self.filemgmt.get_globalconfig_item('radiuslogpath') == sys.argv[3]:
+				print self.ui.color("\n" + time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + "****************Entered value is the same as current value****************\n", self.ui.green)
+			else:
+				pathcheck = self.filemgmt.check_path("dir",sys.argv[3])
+				if pathcheck[0] == "fail":
+					for error in pathcheck[1:]:
+						print self.ui.color(time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + "****************ERROR: " + error + "****************", self.ui.red)
+				elif pathcheck[0] == "pass":
+					print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " +"****************Making sure directory: "+ sys.argv[3] + " exists****************\n"
+					pathexists = self.filemgmt.file_exists(sys.argv[3])
+					if pathexists == "no":
+						print self.ui.color(time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + "****************WARNING: Directory path doesn't exist. You may need to install FreeRADIUS****************\n", self.ui.yellow)
+					self.filemgmt.change_config_item('radiuslogpath', sys.argv[3])
+					print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " +"****************Writing config change to: "+ configfile + "****************\n"
+					self.filemgmt.save_config()
+					print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " +"<radiuslogpath> configuration element changed to :\n"
+					self.filemgmt.show_config_item('xml', "none", 'radiuslogpath')
+				if self.filemgmt.get_globalconfig_item('radiuslogpath') == sys.argv[3]:
+					print self.ui.color("Success!", self.ui.green)
+				else:
+					print self.ui.color("Something Went Wrong!", self.ui.red)
+			print self.ui.color("#" * len(header), self.ui.magenta)
+			print self.ui.color("#" * len(header), self.ui.magenta)
+		##### SET USERDOMAIN #####
+		elif self.cat_list(sys.argv[1:3]) == "set userdomain" and len(re.findall("^(.*)", sys.argv[3])) > 0:
+			self.filemgmt.logwriter("cli", "##### COMMAND '" + arguments + "' ISSUED FROM CLI BY USER '" + self.imum.currentuser()+ "' #####")
+			header = "########################## EXECUTING COMMAND: " + arguments + " ##########################"
+			print self.ui.color(header, self.ui.magenta)
+			print self.ui.color("#" * len(header), self.ui.magenta)
+			if self.filemgmt.get_globalconfig_item('userdomain') == sys.argv[3]:
+				print self.ui.color("\n" + time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + "****************Entered value is the same as current value****************\n", self.ui.green)
+			else:
+				domaincheck = self.filemgmt.check_domainname(sys.argv[3])
+				if domaincheck["status"] == "fail":
+					for message in domaincheck["messages"]:
+						if message.keys()[0] == "FATAL":
+							print "\n" + self.ui.color(time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + "****************" + message.keys()[0] + ": " + message.values()[0] + "****************\n", self.ui.red)
+						elif message.keys()[0] == "WARNING":
+							print "\n" + self.ui.color(time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + "****************" + message.keys()[0] + ": " + message.values()[0] + "****************\n", self.ui.yellow)
+				elif domaincheck["status"] == "pass":
+					for message in domaincheck["messages"]:
+						if message.keys()[0] == "WARNING":
+							print "\n" + self.ui.color(time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + "****************" + message.keys()[0] + ": " + message.values()[0] + "****************\n", self.ui.yellow)
+					self.filemgmt.change_config_item('userdomain', sys.argv[3])
+					print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " +"****************Writing config change to: "+ configfile + "****************\n"
+					self.filemgmt.save_config()
+					print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " +"<userdomain> configuration element changed to :\n"
+					self.filemgmt.show_config_item('xml', "none", 'userdomain')
+				if self.filemgmt.get_globalconfig_item('userdomain') == sys.argv[3]:
+					print self.ui.color("Success!", self.ui.green)
+				else:
+					print self.ui.color("Something Went Wrong!", self.ui.red)
+			print self.ui.color("#" * len(header), self.ui.magenta)
+			print self.ui.color("#" * len(header), self.ui.magenta)
+		##### SET TIMEOUT #####
+		elif self.cat_list(sys.argv[1:3]) == "set timeout" and len(re.findall("[0-9A-Za-z]", sys.argv[3])) > 0:
+			self.filemgmt.logwriter("cli", "##### COMMAND '" + arguments + "' ISSUED FROM CLI BY USER '" + self.imum.currentuser()+ "' #####")
+			header = "########################## EXECUTING COMMAND: " + arguments + " ##########################"
+			print self.ui.color(header, self.ui.magenta)
+			print self.ui.color("#" * len(header), self.ui.magenta)
+			try:
+				timeoutval = int(sys.argv[3])
+				if timeoutval == 0:
+					print "\n" + self.ui.color(time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + "****************ERROR: Timeout value must be a number between 1 and 1440****************\n", self.ui.red)
+				elif int(self.filemgmt.get_globalconfig_item('timeout')) == timeoutval:
+					print self.ui.color("\n" + time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + "****************Entered value is the same as current value****************\n", self.ui.green)
+				elif timeoutval > maxtimeout:
+					print "\n" + self.ui.color(time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + "****************ERROR: Timeout cannot exceed 1440 minutes (24 hours)****************\n", self.ui.red)
+				else:
+					self.filemgmt.change_config_item('timeout', sys.argv[3])
+					print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " +"****************Writing config change to: "+ configfile + "****************\n"
+					self.filemgmt.save_config()
+					print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " +"<timeout> configuration element changed to :\n"
+					self.filemgmt.show_config_item('xml', "none", 'timeout')
+					if self.filemgmt.get_globalconfig_item('timeout') == sys.argv[3]:
+						print self.ui.color("Success!", self.ui.green)
+					else:
+						print self.ui.color("Something Went Wrong!", self.ui.red)
+			except ValueError:
+				print "\n" + self.ui.color(time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + "****************ERROR: Timeout value must be a number between 1 and 1440****************\n", self.ui.red)
+			print self.ui.color("#" * len(header), self.ui.magenta)
+			print self.ui.color("#" * len(header), self.ui.magenta)
+		##### SET TARGET #####
+		elif self.cat_list(sys.argv[1:3]) == "set target" and len(re.findall("[0-9A-Za-z]", sys.argv[3])) > 0:
+			self.filemgmt.logwriter("cli", "##### COMMAND '" + arguments + "' ISSUED FROM CLI BY USER '" + self.imum.currentuser()+ "' #####")
+			header = "########################## EXECUTING COMMAND: " + arguments + " ##########################"
+			print self.ui.color(header, self.ui.magenta)
+			print self.ui.color("#" * len(header), self.ui.magenta)
+			keepgoing = "yes"
+			##########################
+			## Check Input Hostname ##
+			##########################
+			inputcheck = {}
+			if self.filemgmt.ip_checker("address", sys.argv[3]) == "pass":
+				print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " +"****************Hostname " + sys.argv[3] + " looks like legit IPv4 address****************\n"
+				inputcheck.update({"hostnamecheck": "pass"})
+			else:
+				print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " +"****************Hostname " + sys.argv[3] + " looks like a domain name****************\n"
+				domaincheck = self.filemgmt.check_domainname(sys.argv[3])
+				if domaincheck["status"] == "fail":
+					for message in domaincheck["messages"]:
+						if message.keys()[0] == "FATAL":
+							print "\n" + self.ui.color(time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + "****************" + message.keys()[0] + ": " + message.values()[0] + "****************\n", self.ui.red)
+						elif message.keys()[0] == "WARNING":
+							print "\n" + self.ui.color(time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + "****************" + message.keys()[0] + ": " + message.values()[0] + "****************\n", self.ui.yellow)
+					inputcheck.update({"hostnamecheck": "fail"})
+				elif domaincheck["status"] == "pass":
+					for message in domaincheck["messages"]:
+						if message.keys()[0] == "WARNING":
+							print "\n" + self.ui.color(time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + "****************" + message.keys()[0] + ": " + message.values()[0] + "****************\n", self.ui.yellow)
+					inputcheck.update({"hostnamecheck": "pass"})
+			##############################
+			## Check other input values ##
+			##############################
+			## Compile arguments ##
+			targetparams = {'hostname': sys.argv[3]}
+			searchqueries = ['username', 'password', 'version']
+			cliparams = sys.argv[4:]
+			targetindices = self.dp.find_index_in_list(searchqueries, cliparams)
+			for key in targetindices:
+				try:
+					targetparams.update({key: cliparams[targetindices[key] + 1]})
+				except IndexError:
+					print "\n" + self.ui.color(time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + "****************WARNING: You didn't enter the value for " + key + "****************\n", self.ui.yellow)
+			## Check inputs ##
+			try:
+				usercheck = self.filemgmt.check_userpass("user", targetparams["username"])
+				if usercheck["status"] == "fail":
+					for message in usercheck["messages"]:
+						if message.keys()[0] == "FATAL":
+							print "\n" + self.ui.color(time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + "****************" + message.keys()[0] + ": " + message.values()[0] + "****************\n", self.ui.red)
+						elif message.keys()[0] == "WARNING":
+							print "\n" + self.ui.color(time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + "****************" + message.keys()[0] + ": " + message.values()[0] + "****************\n", self.ui.yellow)
+					inputcheck.update({"usercheck": "fail"})
+				else:
+					for message in usercheck["messages"]:
+						if message.keys()[0] == "WARNING":
+							print "\n" + self.ui.color(time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + "****************" + message.keys()[0] + ": " + message.values()[0] + "****************\n", self.ui.yellow)
+					inputcheck.update({"usercheck": "pass"})
+			except KeyError:
+				null = None
+			try:
+				passwordcheck = self.filemgmt.check_userpass("password", targetparams["password"])
+				if passwordcheck["status"] == "fail":
+					for message in passwordcheck["messages"]:
+						if message.keys()[0] == "FATAL":
+							print "\n" + self.ui.color(time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + "****************" + message.keys()[0] + ": " + message.values()[0] + "****************\n", self.ui.red)
+						elif message.keys()[0] == "WARNING":
+							print "\n" + self.ui.color(time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + "****************" + message.keys()[0] + ": " + message.values()[0] + "****************\n", self.ui.yellow)
+					inputcheck.update({"passwordcheck": "fail"})
+				else:
+					for message in passwordcheck["messages"]:
+						if message.keys()[0] == "WARNING":
+							print "\n" + self.ui.color(time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + "****************" + message.keys()[0] + ": " + message.values()[0] + "****************\n", self.ui.yellow)
+					inputcheck.update({"passwordcheck": "pass"})
+			except KeyError:
+				null = None
+			try:
+				versioncheck = self.filemgmt.check_version(targetparams["version"])
+				if versioncheck["status"] == "fail":
+					for message in versioncheck["messages"]:
+						if message.keys()[0] == "FATAL":
+							print "\n" + self.ui.color(time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + "****************" + message.keys()[0] + ": " + message.values()[0] + "****************\n", self.ui.red)
+						elif message.keys()[0] == "WARNING":
+							print "\n" + self.ui.color(time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + "****************" + message.keys()[0] + ": " + message.values()[0] + "****************\n", self.ui.yellow)
+					inputcheck.update({"versioncheck": "fail"})
+				else:
+					for message in versioncheck["messages"]:
+						if message.keys()[0] == "WARNING":
+							print "\n" + self.ui.color(time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + "****************" + message.keys()[0] + ": " + message.values()[0] + "****************\n", self.ui.yellow)
+					inputcheck.update({"versioncheck": "pass"})
+			except KeyError:
+				null = None
+			###########################################
+			## Eval input checks and continue or not ##
+			###########################################
+			applysettings = "yes"
+			for check in inputcheck.values():
+				if check == "fail":
+					applysettings = "no"
+			if applysettings == "yes":
+				status = "pass"
+				results = self.filemgmt.add_targets([targetparams])
+				for message in results[sys.argv[3]]["messages"]:
+					print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " +"****************"+ message + "****************\n"
+				print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " +"****************Writing config change to: "+ configfile + "****************\n"
+				self.filemgmt.save_config()
+				self.filemgmt.show_config_item('xml', "none", 'targets')
+				#### Republish config/targets and run targets through scrubber #####
+				self.filemgmt.publish_config('quiet')
+				self.filemgmt.scrub_targets("noisy", "report")
+			if applysettings == "yes":
+				print self.ui.color("Success!", self.ui.green)
+			elif applysettings == "no":
+				print self.ui.color("Something Went Wrong!", self.ui.red)
+			print self.ui.color("#" * len(header), self.ui.magenta)
+			print self.ui.color("#" * len(header), self.ui.magenta)
+		######################### PUSH #############################
+		elif arguments == "push" or arguments == "push ?":
+			print "\n - push (<hostname> | all) [parameters]  |  Parameters: (<username>, <ip address>)"
+			print "                                         |              "
+			print "                                         |  Examples:   'push 192.168.1.1 administrator 10.0.0.1'"
+			print "                                         |              'push pan1.domain.com jsmith 172.30.50.100'"
+			print "                                         |              'push all jsmith 172.30.50.100'"
+			print "                                         |              \n"
+		elif self.cat_list(sys.argv[1:2]) == "push" and len(re.findall("[0-9A-Za-z]", sys.argv[2])) > 0:
+			self.filemgmt.logwriter("cli", "##### COMMAND '" + arguments + "' ISSUED FROM CLI BY USER '" + self.imum.currentuser()+ "' #####")
+			header = "########################## EXECUTING COMMAND: " + arguments + " ##########################"
+			print self.ui.color(header, self.ui.magenta)
+			print self.ui.color("#" * len(header), self.ui.magenta)
+			keepgoing = "yes"
+			pushuser = "yes"
+			##### Check target hostname against config and check for necessary parameters #####
+			if len(sys.argv[3:5]) != 2:
+				self.filemgmt.logwriter("cli", self.ui.color("********************* ERROR: Some parameters are missing. Use '", self.ui.red) + self.ui.color(runcmd + " push ?", self.ui.cyan) + self.ui.color("' to see proper use and examples.********************", self.ui.red))
+				pushuser = "no"
+				keepgoing = "no"
+			if keepgoing == "yes":
+				if sys.argv[2].lower() != "all":
+					keepgoing = "no"
+					for target in targets:
+						if target['hostname'] == sys.argv[2]:
+							keepgoing = "yes"
+							targets = [target]
+					if keepgoing == "no":
+						self.filemgmt.logwriter("cli", self.ui.color("********************* ERROR: Target ", self.ui.red) + self.ui.color(sys.argv[2], self.ui.cyan) + self.ui.color(" does not exist in config. Please configure it.********************", self.ui.red))
+						pushuser = "no"
+			##### Check parameters for proper data and report errors #####
+			if keepgoing == "yes":
+				usercheck = self.filemgmt.check_userpass("user", sys.argv[3])
+				if usercheck["status"] != "pass":
+					for message in usercheck["messages"]:
+						if message.keys()[0] == "FATAL":
+							self.filemgmt.logwriter("cli", self.ui.color("****************" + message.keys()[0] + ": " + message.values()[0] + "****************", self.ui.red))
+							pushuser = "no"
+						elif message.keys()[0] == "WARNING":
+							self.filemgmt.logwriter("cli", self.ui.color("****************" + message.keys()[0] + ": " + message.values()[0] + "****************\n", self.ui.yellow))
+				if self.filemgmt.ip_checker("address", sys.argv[4]) != "pass":
+					self.filemgmt.logwriter("cli", self.ui.color("****************FATAL: Bad IP Address****************", self.ui.red))
+					pushuser = "no"
+				if pushuser == "yes":
+					pankey = self.pafi.pull_api_key(targets)
+					self.pafi.push_uids({sys.argv[4]: sys.argv[3]}, [])
+			if pushuser == "yes":
+				print self.ui.color("Success!", self.ui.green)
+			elif pushuser == "no":
+				print self.ui.color("Something Went Wrong!", self.ui.red)
+			print self.ui.color("#" * len(header), self.ui.magenta)
+			print self.ui.color("#" * len(header), self.ui.magenta)
 		######################### TAIL #############################
 		elif arguments == "tail" or arguments == "tail ?":
 			print "\n - tail log         |     Watch the RadiUID log file in real time\n"
@@ -1316,13 +2007,65 @@ class command_line_interpreter(object):
 			print self.ui.color("#" * len(header), self.ui.magenta)
 		######################### CLEAR #############################
 		elif arguments == "clear" or arguments == "clear ?":
-			print "\n - clear log         |     Delete the content in the log file\n"
+			print "\n - clear log                       |     Delete the content in the log file"
+			print " - clear target (<target> | all)     |     Delete one or all firewall targets in the config file\n"
+		elif arguments == "clear target" or arguments == "clear target ?":
+			print "\n - clear target (<target> | all)  |  Examples: 'clear target 192.168.1.1'"
+			print "                                  |            'clear target pan1.domain.com'"
+			print "                                  |            'clear target all'\n"
+		##### CLEAR LOG #####
 		elif arguments == "clear log":
 			print self.ui.color("********************* You are about to clear out the RadiUID log file... (" + logfile + ") ********************", self.ui.yellow)
 			raw_input("Hit CTRL-C to quit. Hit ENTER to continue\n>>>>>")
 			os.system("rm -f "+ logfile)
 			self.filemgmt.write_file(logfile, "***********Logfile cleared via RadiUID command by " + self.imum.currentuser() + "***********\n")
 			print self.ui.color("********************* Cleared logfile: " + logfile + " ********************", self.ui.yellow)
+		##### CLEAR TARGET ALL #####
+		elif arguments == "clear target all":
+			self.filemgmt.logwriter("cli", "##### COMMAND '" + arguments + "' ISSUED FROM CLI BY USER '" + self.imum.currentuser()+ "' #####")
+			header = "########################## EXECUTING COMMAND: " + arguments + " ##########################"
+			print self.ui.color(header, self.ui.magenta)
+			print self.ui.color("#" * len(header), self.ui.magenta)
+			if self.filemgmt.get_globalconfig_item('target') == None:
+				print "\n" + self.ui.color(time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + "****************ERROR: No targets currently exist in config****************\n", self.ui.red)
+			else:
+				print "\n" + time.strftime("%Y-%m-%d %H:%M:%S") + ":   " +"****************Deleting configuration items: ****************\n"
+				self.filemgmt.show_config_item('xml', "none", 'targets')
+				self.filemgmt.clear_targets()
+				print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " +"****************Writing config change to: "+ configfile + "****************\n"
+				self.filemgmt.save_config()
+				if self.filemgmt.get_globalconfig_item('target') == None:
+					print self.ui.color("Success!", self.ui.green)
+				else:
+					print self.ui.color("Something Went Wrong!", self.ui.red)
+			print self.ui.color("#" * len(header), self.ui.magenta)
+			print self.ui.color("#" * len(header), self.ui.magenta)
+		##### CLEAR TARGET <HOSTNAME> #####
+		elif self.cat_list(sys.argv[1:3]) == "clear target" and re.findall("^[0-9A-Za-z]", sys.argv[3]) > 0:
+			self.filemgmt.logwriter("cli", "##### COMMAND '" + arguments + "' ISSUED FROM CLI BY USER '" + self.imum.currentuser()+ "' #####")
+			header = "########################## EXECUTING COMMAND: " + arguments + " ##########################"
+			print self.ui.color(header, self.ui.magenta)
+			print self.ui.color("#" * len(header), self.ui.magenta)
+			targetexists = "no"
+			try:
+				for target in targets:
+					if target['hostname'] == sys.argv[3]:
+						targetexists = "yes"
+				if targetexists == "no":
+					print "\n" + self.ui.color(time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + "****************ERROR: Target " + sys.argv[3] + " doesn't currently exist in config****************\n", self.ui.red)
+				elif targetexists == "yes":
+					print "\n" + time.strftime("%Y-%m-%d %H:%M:%S") + ":   " +"****************Deleting target: " + sys.argv[3] + " ****************\n"
+					targetremove = self.filemgmt.remove_targets([{'hostname': sys.argv[3]}])
+					print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " +"****************Writing config change to: "+ configfile + "****************\n"
+					self.filemgmt.save_config()
+					if targetremove[0] == "pass":
+						print self.ui.color("Success!", self.ui.green)
+					else:
+						print self.ui.color("Something Went Wrong!", self.ui.red)
+			except NameError:
+				print "\n" + self.ui.color(time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + "****************ERROR: No targets currently exist in config****************\n", self.ui.red)
+			print self.ui.color("#" * len(header), self.ui.magenta)
+			print self.ui.color("#" * len(header), self.ui.magenta)
 		######################### EDIT #############################
 		elif arguments == "edit" or arguments == "edit ?":
 			print "\n - edit config      |     Edit the RadiUID config file"
@@ -1530,29 +2273,44 @@ class command_line_interpreter(object):
 		else:
 			print self.ui.color("\n\n\n########################## Below are the supported RadiUID Commands: ##########################", self.ui.magenta)
 			print self.ui.color("###############################################################################################\n\n", self.ui.magenta)
-			print "----------------------------------------------------------------------------------------------"
-			print " - run                 |     Run the RadiUID main program in shell mode begin pushing User-ID information"
-			print "----------------------------------------------------------------------------------------------\n"
-			print " - install             |     Run the RadiUID Install/Maintenance Utility"
-			print "----------------------------------------------------------------------------------------------\n"
-			print " - show log            |     Show the RadiUID log file"
-			print " - show run            |     Show the RadiUID config file"
-			print " - show config         |     Show the RadiUID config file"
-			print " - show clients        |     Show the FreeRADIUS client config file"
-			print " - show status         |     Show the RadiUID and FreeRADIUS service statuses"
-			print "----------------------------------------------------------------------------------------------\n"
-			print " - tail log            |     Watch the RadiUID log file in real time"
-			print "----------------------------------------------------------------------------------------------\n"
-			print " - clear log           |     Delete the content in the log file"
-			print "----------------------------------------------------------------------------------------------\n"
-			print " - edit config         |     Edit the RadiUID config file"
-			print " - edit clients        |     Edit list of client IPs for FreeRADIUS"
-			print "----------------------------------------------------------------------------------------------\n"
-			print " - service             |     Control the RadiUID and FreeRADIUS system services"
-			print "                       |     Usage: radiuid service (radiuid | freeradius | all) (start | stop | restart)"
-			print "----------------------------------------------------------------------------------------------\n"
-			print " - version             |     Show the current version of RadiUID and FreeRADIUS"
-			print "----------------------------------------------------------------------------------------------\n\n\n"
+			print self.ui.color(" - Usage if installed: ", self.ui.white) + self.ui.color("radiuid [arguments]", self.ui.green) + "\n"
+			print self.ui.color(" - Usage if NOT installed: ", self.ui.white) + self.ui.color("python radiuid.py [arguments]", self.ui.green) + "\n"
+			print "-------------------------------------------------------------------------------------------------------------------------------"
+			print "                  ARGUMENTS               |                                  DESCRIPTIONS"
+			print "-------------------------------------------------------------------------------------------------------------------------------\n"
+			print " - run                                    |     Run the RadiUID main program in shell mode begin pushing User-ID information"
+			print "-------------------------------------------------------------------------------------------------------------------------------\n"
+			print " - install                                |     Run the RadiUID Install/Maintenance Utility"
+			print "-------------------------------------------------------------------------------------------------------------------------------\n"
+			print " - show log                               |     Show the RadiUID log file"
+			print " - show run (xml | set)                   |     Show the RadiUID configuration in XML format (default) or as set commands"
+			print " - show config (xml | set)                |     Show the RadiUID configuration in XML format (default) or as set commands"
+			print " - show clients                           |     Show the FreeRADIUS client config file"
+			print " - show status                            |     Show the RadiUID and FreeRADIUS service statuses"
+			print "-------------------------------------------------------------------------------------------------------------------------------\n"
+			print " - set logfile                            |     Set the RadiUID logfile path"
+			print " - set radiuslogpath                      |     Set the path used to find FreeRADIUS accounting log files"
+			print " - set userdomain                         |     Set the domain name prepended to User-ID mappings"
+			print " - set timeout                            |     Set the timeout (in minutes) for User-ID mappings sent to the firewall targets"
+			print " - set target [parameters]                |     Set configuration elements for existing or new firewall targets"
+			print "-------------------------------------------------------------------------------------------------------------------------------\n"
+			print " - push (<hostname> | all) [parameters]   |     Manually push a User-ID mapping to one or all firewall targets"
+			print "-------------------------------------------------------------------------------------------------------------------------------\n"
+			print " - tail log                               |     Watch the RadiUID log file in real time"
+			print "-------------------------------------------------------------------------------------------------------------------------------\n"
+			print " - clear log                              |     Delete the content in the log file"
+			print " - clear target (<target> | all)          |     Delete one or all firewall targets in the config file"
+			print "-------------------------------------------------------------------------------------------------------------------------------\n"
+			print " - edit config                            |     Edit the RadiUID config file"
+			print " - edit clients                           |     Edit list of client IPs for FreeRADIUS"
+			print "-------------------------------------------------------------------------------------------------------------------------------\n"
+			print " - service [parameters]                   |     Control the RadiUID and FreeRADIUS system services"
+			print "                                          |     Usage: radiuid service (radiuid | freeradius | all) (start | stop | restart)"
+			print "-------------------------------------------------------------------------------------------------------------------------------\n"
+			print " - version                                |     Show the current version of RadiUID and FreeRADIUS"
+			print "-------------------------------------------------------------------------------------------------------------------------------\n"
+			print self.ui.color("###############################################################################################", self.ui.magenta)
+			print self.ui.color("###############################################################################################", self.ui.magenta)
 
 
 if __name__ == "__main__":
