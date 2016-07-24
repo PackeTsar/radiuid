@@ -1032,6 +1032,21 @@ class palo_alto_firewall_interaction(object):
 			url = 'https://' + target['hostname'] + '/api/?key=' + target['apikey'] + encodedcall
 			result.update({target['hostname']: urllib2.urlopen(url).read()})
 		return result
+	def clear_uids (self, targetlist):
+		encodedcall1 = "&type=op&cmd=" + urllib.quote_plus("<clear><user-cache><all></all></user-cache></clear>")
+		encodedcall2 = "&type=op&cmd=" + urllib.quote_plus("<clear><user-cache-mp><all></all></user-cache-mp></clear>")
+		result = {}
+		for target in targetlist:
+			url1 = 'https://' + target['hostname'] + '/api/?key=' + target['apikey'] + encodedcall1
+			url2 = 'https://' + target['hostname'] + '/api/?key=' + target['apikey'] + encodedcall2
+			result.update({target['hostname']: {}})
+			result1 = urllib2.urlopen(url1).read()
+			result2 = urllib2.urlopen(url2).read()
+			result[target['hostname']].update({"DP-CLEAR": result1})
+			result[target['hostname']].update({"MP-CLEAR": result2})
+		return result
+
+		
 
 
 
@@ -1611,12 +1626,7 @@ class command_line_interpreter(object):
 			self.filemgmt.publish_config("quiet")
 			self.filemgmt.scrub_targets("noisy", "scrub")
 			pankey = self.pafi.pull_api_key("quiet", targets)
-			uidxmldict = self.pafi.pull_uids(targets)
-			for uidset in uidxmldict:
-				currentuidset = xml.etree.ElementTree.fromstring(uidxmldict[uidset])
-				print "************" + uidset + "************"
-				print self.ui.make_table(["ip", "user",  'type', 'idle_timeout', 'timeout', 'vsys'], self.filemgmt.tinyxml2dict(currentuidset)['result']['entry'])
-				print "\n\n"
+			print self.pafi.clear_uids(targets)
 		######################### INSTALL #############################
 		elif arguments == "install":
 			self.filemgmt.logwriter("quiet", "##### COMMAND '" + arguments + "' ISSUED FROM CLI BY USER '" + self.imum.currentuser()+ "' #####")
@@ -2074,8 +2084,9 @@ class command_line_interpreter(object):
 			print self.ui.color("#" * len(header), self.ui.magenta)
 		######################### CLEAR #############################
 		elif arguments == "clear" or arguments == "clear ?":
-			print "\n - clear log                       |     Delete the content in the log file"
-			print " - clear target (<target> | all)     |     Delete one or all firewall targets in the config file\n"
+			print "\n - clear log                                    |     Delete the content in the log file"
+			print " - clear target (<target> | all)                |     Delete one or all firewall targets in the config file"
+			print " - clear mappings (<target> | all) (<ip> | all) |     Remove one or all IP-to-User mappings from one or all firewalls\n"
 		elif arguments == "clear target" or arguments == "clear target ?":
 			print "\n - clear target (<target> | all)  |  Examples: 'clear target 192.168.1.1'"
 			print "                                  |            'clear target pan1.domain.com'"
@@ -2368,6 +2379,7 @@ class command_line_interpreter(object):
 			print "-------------------------------------------------------------------------------------------------------------------------------\n"
 			print " - clear log                              |     Delete the content in the log file"
 			print " - clear target (<target> | all)          |     Delete one or all firewall targets in the config file"
+			print " - clear mappings [parameters]            |     Remove one or all IP-to-User mappings from one or all firewalls"
 			print "-------------------------------------------------------------------------------------------------------------------------------\n"
 			print " - edit config                            |     Edit the RadiUID config file"
 			print " - edit clients                           |     Edit list of client IPs for FreeRADIUS"
