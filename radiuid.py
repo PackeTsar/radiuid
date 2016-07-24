@@ -1032,9 +1032,13 @@ class palo_alto_firewall_interaction(object):
 			url = 'https://' + target['hostname'] + '/api/?key=' + target['apikey'] + encodedcall
 			result.update({target['hostname']: urllib2.urlopen(url).read()})
 		return result
-	def clear_uids (self, targetlist):
-		encodedcall1 = "&type=op&cmd=" + urllib.quote_plus("<clear><user-cache><all></all></user-cache></clear>")
-		encodedcall2 = "&type=op&cmd=" + urllib.quote_plus("<clear><user-cache-mp><all></all></user-cache-mp></clear>")
+	def clear_uids (self, targetlist, userip):
+		if userip == "all":
+			encodedcall1 = "&type=op&cmd=" + urllib.quote_plus("<clear><user-cache><all></all></user-cache></clear>")
+			encodedcall2 = "&type=op&cmd=" + urllib.quote_plus("<clear><user-cache-mp><all></all></user-cache-mp></clear>")
+		else:
+			encodedcall1 = "&type=op&cmd=" + urllib.quote_plus("<clear><user-cache><ip>" + userip + "</ip></user-cache></clear>")
+			encodedcall2 = "&type=op&cmd=" + urllib.quote_plus("<clear><user-cache-mp><ip>" + userip + "</ip></user-cache-mp></clear>")
 		result = {}
 		for target in targetlist:
 			url1 = 'https://' + target['hostname'] + '/api/?key=' + target['apikey'] + encodedcall1
@@ -2084,13 +2088,17 @@ class command_line_interpreter(object):
 			print self.ui.color("#" * len(header), self.ui.magenta)
 		######################### CLEAR #############################
 		elif arguments == "clear" or arguments == "clear ?":
-			print "\n - clear log                                    |     Delete the content in the log file"
-			print " - clear target (<target> | all)                |     Delete one or all firewall targets in the config file"
-			print " - clear mappings (<target> | all) (<ip> | all) |     Remove one or all IP-to-User mappings from one or all firewalls\n"
+			print "\n - clear log                                       |     Delete the content in the log file"
+			print " - clear target (<target> | all)                   |     Delete one or all firewall targets in the config file"
+			print " - clear mappings (<target> | all) (<ip> | all)    |     Remove one or all IP-to-User mappings from one or all firewalls\n"
 		elif arguments == "clear target" or arguments == "clear target ?":
 			print "\n - clear target (<target> | all)  |  Examples: 'clear target 192.168.1.1'"
 			print "                                  |            'clear target pan1.domain.com'"
 			print "                                  |            'clear target all'\n"
+		elif arguments == "clear mappings" or arguments == "clear mappings ?":
+			print "\n - clear mappings (<target> | all) (<ip> | all)     |  Examples: 'clear mappings pan1.domain.com 10.0.0.1'"
+			print "                                                    |            'clear mappings 192.168.1.1 all'"
+			print "                                                    |            'clear mappings all all'\n"
 		##### CLEAR LOG #####
 		elif arguments == "clear log":
 			print self.ui.color("********************* You are about to clear out the RadiUID log file... (" + logfile + ") ********************", self.ui.yellow)
@@ -2144,6 +2152,57 @@ class command_line_interpreter(object):
 				print "\n" + self.ui.color(time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + "****************ERROR: No targets currently exist in config****************\n", self.ui.red)
 			print self.ui.color("#" * len(header), self.ui.magenta)
 			print self.ui.color("#" * len(header), self.ui.magenta)
+		elif self.cat_list(sys.argv[1:3]) == "clear mappings" and len(re.findall("[0-9A-Za-z]", sys.argv[3])) > 0:
+			self.filemgmt.logwriter("cli", "##### COMMAND '" + arguments + "' ISSUED FROM CLI BY USER '" + self.imum.currentuser()+ "' #####")
+			header = "########################## EXECUTING COMMAND: " + arguments + " ##########################"
+			print self.ui.color(header, self.ui.magenta)
+			print self.ui.color("#" * len(header), self.ui.magenta)
+			keepgoing = "yes"
+			##### Check target hostname against config and check for necessary parameters #####
+			if len(sys.argv[3:5]) != 2:
+				self.filemgmt.logwriter("cli", self.ui.color("********************* ERROR: Some parameters are missing. Use '", self.ui.red) + self.ui.color(runcmd + " clear mappings ?", self.ui.cyan) + self.ui.color("' to see proper use and examples.********************", self.ui.red))
+				keepgoing = "no"
+			if keepgoing == "yes":
+				if sys.argv[3].lower() != "all":
+					keepgoing = "no"
+					for target in targets:
+						if target['hostname'] == sys.argv[3]:
+							keepgoing = "yes"
+							targets = [target]
+					if keepgoing == "no":
+						self.filemgmt.logwriter("cli", self.ui.color("********************* ERROR: Target ", self.ui.red) + self.ui.color(sys.argv[3], self.ui.cyan) + self.ui.color(" does not exist in config. Please configure it.********************", self.ui.red))
+			if keepgoing == "yes":
+				if sys.argv[4].lower() != "all":
+					if self.filemgmt.ip_checker("address", sys.argv[4]) != "pass":
+						self.filemgmt.logwriter("cli", self.ui.color("****************FATAL: Bad IP Address****************", self.ui.red))
+						keepgoing = "no"
+			if keepgoing == "yes":
+				if sys.argv[4].lower() == "all":
+					pankey = self.pafi.pull_api_key("quiet", targets)
+					print self.pafi.clear_uids(targets, "all")
+				else:
+					pankey = self.pafi.pull_api_key("quiet", targets)
+					print self.pafi.clear_uids(targets, sys.argv[4])
+			if keepgoing == "yes":
+				print self.ui.color("Success!", self.ui.green)
+			elif keepgoing == "no":
+				print self.ui.color("Something Went Wrong!", self.ui.red)
+			print self.ui.color("#" * len(header), self.ui.magenta)
+			print self.ui.color("#" * len(header), self.ui.magenta)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 		######################### EDIT #############################
 		elif arguments == "edit" or arguments == "edit ?":
 			print "\n - edit config      |     Edit the RadiUID config file"
