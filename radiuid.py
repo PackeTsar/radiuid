@@ -1742,7 +1742,7 @@ class command_line_interpreter(object):
 				for uidset in uidxmldict:
 					currentuidset = xml.etree.ElementTree.fromstring(uidxmldict[uidset])
 					print "************" + uidset + "************"
-					if type(self.filemgmt.tinyxml2dict(currentuidset)['result']) != type({}):
+					if type(self.filemgmt.tinyxml2dict(currentuidset)['result']) != type({}) or "<count>0</count>" in uidxmldict[uidset]:
 						print "\n" + self.ui.color("************No current mappings************", self.ui.yellow)
 					else:
 						print self.ui.make_table(["ip", "user",  'type', 'idle_timeout', 'timeout', 'vsys'], self.filemgmt.tinyxml2dict(currentuidset)['result']['entry'])
