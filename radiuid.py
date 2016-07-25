@@ -2177,12 +2177,26 @@ class command_line_interpreter(object):
 						self.filemgmt.logwriter("cli", self.ui.color("****************FATAL: Bad IP Address****************", self.ui.red))
 						keepgoing = "no"
 			if keepgoing == "yes":
+				print "\n" + time.strftime("%Y-%m-%d %H:%M:%S") + ":   " +"****************Removing IP-to-User Mappings... ****************\n"
 				if sys.argv[4].lower() == "all":
 					pankey = self.pafi.pull_api_key("quiet", targets)
-					print self.pafi.clear_uids(targets, "all")
+					tempresult = self.pafi.clear_uids(targets, "all")
 				else:
 					pankey = self.pafi.pull_api_key("quiet", targets)
-					print self.pafi.clear_uids(targets, sys.argv[4])
+					tempresult = self.pafi.clear_uids(targets, sys.argv[4])
+				resultlist = []
+				for target in tempresult:
+					tempdict = {"hostname": target}
+					for command in tempresult[target]:
+						if 'status="success"' in tempresult[target][command]:
+							tempdict.update({command: "success"})
+						else:
+							tempdict.update({command: "failed"})
+					resultlist.append(tempdict)
+					del tempdict
+				print "\n"
+				print self.ui.make_table(["hostname", "DP-CLEAR", "MP-CLEAR"], resultlist).replace("hostname", "HOSTNAME")
+				print "\n"
 			if keepgoing == "yes":
 				print self.ui.color("Success!", self.ui.green)
 			elif keepgoing == "no":
