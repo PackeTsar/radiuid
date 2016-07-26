@@ -1638,12 +1638,12 @@ class command_line_interpreter(object):
 			self.imu.im_utility()
 		######################### SHOW #############################
 		elif arguments == "show" or arguments == "show ?":
-			print "\n - show log                        |     Show the RadiUID log file"
-			print " - show run (xml | set)            |     Show the RadiUID configuration in XML format (default) or as set commands"
-			print " - show config (xml | set)         |     Show the RadiUID configuration in XML format (default) or as set commands"
-			print " - show clients                    |     Show the FreeRADIUS client config file"
-			print " - show status                     |     Show the RadiUID and FreeRADIUS service statuses"
-			print " - show mappings (<target> | all)  |     Show the current IP-to-User mappings of one or all targets\n"
+			print "\n - show log                                      |     Show the RadiUID log file"
+			print " - show run (xml | set)                          |     Show the RadiUID configuration in XML format (default) or as set commands"
+			print " - show config (xml | set)                       |     Show the RadiUID configuration in XML format (default) or as set commands"
+			print " - show clients                                  |     Show the FreeRADIUS client config file"
+			print " - show status                                   |     Show the RadiUID and FreeRADIUS service statuses"
+			print " - show mappings (<target> | all | consistency)  |     Show the current IP-to-User mappings of one or all targets or check consistency\n"
 		elif arguments == "show config ?":
 			print "\n - show config (xml | set)  |   Show the RadiUID configuration in XML format (default) or as set commands"
 			print "                            |  "
@@ -1657,11 +1657,13 @@ class command_line_interpreter(object):
 			print "                         |             'show run xml'"
 			print "                         |             'show run set'\n"
 		elif arguments == "show mappings" or arguments == "show mappings ?":
-			print "\n - show mappings (<target> | all)  |   Show the current IP-to-User mappings of one or all targets"
-			print "                                   |  "
-			print "                                   |   Examples: 'show mappings 192.168.1.1'"
-			print "                                   |             'show mappings pan1.domain.com'"
-			print "                                   |             'show mappings all'\n"
+			print "\n - show mappings (<target> | all | consistency)  |   Show the current IP-to-User mappings of one or all targets or"
+			print "                                                 |    check the consistency of IP-to-User mappings in all targets"
+			print "                                                 |  "
+			print "                                                 |   Examples: 'show mappings 192.168.1.1'"
+			print "                                                 |             'show mappings pan1.domain.com'"
+			print "                                                 |             'show mappings all'"
+			print "                                                 |             'show mappings consistency'\n"
 		elif arguments == "show log":
 			self.filemgmt.logwriter("cli", "##### COMMAND '" + arguments + "' ISSUED FROM CLI BY USER '" + self.imum.currentuser()+ "' #####")
 			configfile = self.filemgmt.find_config("quiet")
@@ -1738,7 +1740,7 @@ class command_line_interpreter(object):
 			pulluids = "yes"
 			##### Check target hostname against config and check for necessary parameters #####
 			if keepgoing == "yes":
-				if sys.argv[3].lower() != "all":
+				if sys.argv[3].lower() != "all" and sys.argv[3].lower() != "consistency":
 					keepgoing = "no"
 					for target in targets:
 						if target['hostname'] == sys.argv[3]:
@@ -1753,14 +1755,65 @@ class command_line_interpreter(object):
 				pankey = self.pafi.pull_api_key("quiet", targets) # Pull the API keys for each target
 				uidxmldict = self.pafi.pull_uids(targets) # Pull the mappings for each target
 				print "\n\n"
-				for uidset in uidxmldict:
-					currentuidset = xml.etree.ElementTree.fromstring(uidxmldict[uidset])
-					print "************" + uidset + "************"
-					if type(self.filemgmt.tinyxml2dict(currentuidset)['result']) != type({}) or "<count>0</count>" in uidxmldict[uidset]:
-						print "\n" + self.ui.color("************No current mappings************", self.ui.yellow)
-					else:
-						print self.ui.make_table(["ip", "user",  'type', 'idle_timeout', 'timeout', 'vsys'], self.filemgmt.tinyxml2dict(currentuidset)['result']['entry'])
-					print "\n\n"
+				if sys.argv[3].lower() == "consistency":
+					precordict = {}
+					for uidset in uidxmldict:
+						precordict.update({uidset: {}})
+						currentuidset = xml.etree.ElementTree.fromstring(uidxmldict[uidset])
+						if type(self.filemgmt.tinyxml2dict(currentuidset)['result']) != type({}) or "<count>0</count>" in uidxmldict[uidset]:
+							none = None
+						else:
+							for uidentry in self.filemgmt.tinyxml2dict(currentuidset)['result']['entry']:
+								precordict[uidset].update({uidentry['ip']: uidentry['user']})
+					#print precordict
+					###### Replace Fw Names with IDs and create master UID list #######
+					fwidlist = []
+					uiddict = {}
+					alluids = {}
+					fwid = 1
+					for fwname in precordict:
+						fwidlist.append(str(fwid) + ":  " + fwname)
+						uiddict.update({str(fwid): precordict[fwname]})
+						for uid in precordict[fwname]:
+							alluids.update({uid: precordict[fwname][uid]})
+						fwid += 1
+					###### Create corrolation dict #######
+					corlist = []
+					for uidentry in alluids:
+						uid = uidentry + ": " + alluids[uidentry]
+						tempdict = {"UID": uid}
+						for firewall in uiddict:
+							entryexists = False
+							for entry in uiddict[firewall]:
+								if entry + ": " + uiddict[firewall][entry] == uid:
+									entryexists = True
+							if entryexists:
+								tempdict.update({firewall: "X"})
+							else:
+								tempdict.update({firewall: " "})
+						corlist.append(tempdict)
+						del tempdict
+						del uid
+					columnorder = ["UID"]
+					for column in range(len(uiddict) + 1)[1:]:
+						columnorder.append(str(column))
+					####### Print output ######
+					print "################ FIREWALL IDENTIFIERS ################\n"
+					for each in fwidlist:
+						print each + "\n"
+					print "\n\n\n\n\n"
+					print "################ CONSISTENCY TABLE ################\n"
+					print self.ui.make_table(columnorder, corlist)
+					print "\n\n\n"
+				else:
+					for uidset in uidxmldict:
+						currentuidset = xml.etree.ElementTree.fromstring(uidxmldict[uidset])
+						print "************" + uidset + "************"
+						if type(self.filemgmt.tinyxml2dict(currentuidset)['result']) != type({}) or "<count>0</count>" in uidxmldict[uidset]:
+							print "\n" + self.ui.color("************No current mappings************", self.ui.yellow)
+						else:
+							print self.ui.make_table(["ip", "user",  'type', 'idle_timeout', 'timeout', 'vsys'], self.filemgmt.tinyxml2dict(currentuidset)['result']['entry'])
+						print "\n\n"
 			if pulluids == "yes":
 				print self.ui.color("Success!", self.ui.green)
 			elif pulluids == "no":
@@ -2203,20 +2256,6 @@ class command_line_interpreter(object):
 				print self.ui.color("Something Went Wrong!", self.ui.red)
 			print self.ui.color("#" * len(header), self.ui.magenta)
 			print self.ui.color("#" * len(header), self.ui.magenta)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 		######################### EDIT #############################
 		elif arguments == "edit" or arguments == "edit ?":
 			print "\n - edit config      |     Edit the RadiUID config file"
@@ -2238,9 +2277,9 @@ class command_line_interpreter(object):
 		elif arguments == "service" or arguments == "service ?":
 			print "\n - Usage: radiuid service (radiuid | freeradius | all) (start | stop | restart)"
 			print "----------------------------------------------------------------------------------"
-			print "\n - service radiuid       |     Control the RadiUID system service"
-			print " - service freeradius    |     Control the FreeRADIUS system service"
-			print " - service all           |     Control the RadiUID and FreeRADIUS system services\n"
+			print "\n - service radiuid (start | stop | restart)      |     Control the RadiUID system service"
+			print " - service freeradius (start | stop | restart)   |     Control the FreeRADIUS system service"
+			print " - service all (start | stop | restart)          |     Control the RadiUID and FreeRADIUS system services\n"
 		elif arguments == "service radiuid" or arguments == "service radiuid ?":
 			print "\n - service radiuid start        |     Start the RadiUID system service"
 			print " - service radiuid stop         |     Stop the RadiUID system service"
@@ -2427,40 +2466,39 @@ class command_line_interpreter(object):
 			print self.ui.color(" - Usage if installed: ", self.ui.white) + self.ui.color("radiuid [arguments]", self.ui.green) + "\n"
 			print self.ui.color(" - Usage if NOT installed: ", self.ui.white) + self.ui.color("python radiuid.py [arguments]", self.ui.green) + "\n"
 			print "-------------------------------------------------------------------------------------------------------------------------------"
-			print "                  ARGUMENTS               |                                  DESCRIPTIONS"
+			print "                     ARGUMENTS                  |                                  DESCRIPTIONS"
 			print "-------------------------------------------------------------------------------------------------------------------------------\n"
-			print " - run                                    |     Run the RadiUID main program in shell mode begin pushing User-ID information"
+			print " - run                                          |  Run the RadiUID main program in shell mode begin pushing User-ID information"
 			print "-------------------------------------------------------------------------------------------------------------------------------\n"
-			print " - install                                |     Run the RadiUID Install/Maintenance Utility"
+			print " - install                                      |  Run the RadiUID Install/Maintenance Utility"
 			print "-------------------------------------------------------------------------------------------------------------------------------\n"
-			print " - show log                               |     Show the RadiUID log file"
-			print " - show run (xml | set)                   |     Show the RadiUID configuration in XML format (default) or as set commands"
-			print " - show config (xml | set)                |     Show the RadiUID configuration in XML format (default) or as set commands"
-			print " - show clients                           |     Show the FreeRADIUS client config file"
-			print " - show status                            |     Show the RadiUID and FreeRADIUS service statuses"
-			print " - show mappings (<target> | all)         |     Show the current IP-to-User mappings of one or all targets"
+			print " - show log                                     |  Show the RadiUID log file"
+			print " - show run (xml | set)                         |  Show the RadiUID configuration in XML format (default) or as set commands"
+			print " - show config (xml | set)                      |  Show the RadiUID configuration in XML format (default) or as set commands"
+			print " - show clients                                 |  Show the FreeRADIUS client config file"
+			print " - show status                                  |  Show the RadiUID and FreeRADIUS service statuses"
+			print " - show mappings (<target> | all | consistency) |  Show the current IP-to-User mappings of one or all targets or check consistency"
 			print "-------------------------------------------------------------------------------------------------------------------------------\n"
-			print " - set logfile                            |     Set the RadiUID logfile path"
-			print " - set radiuslogpath                      |     Set the path used to find FreeRADIUS accounting log files"
-			print " - set userdomain                         |     Set the domain name prepended to User-ID mappings"
-			print " - set timeout                            |     Set the timeout (in minutes) for User-ID mappings sent to the firewall targets"
-			print " - set target [parameters]                |     Set configuration elements for existing or new firewall targets"
+			print " - set logfile                                  |  Set the RadiUID logfile path"
+			print " - set radiuslogpath                            |  Set the path used to find FreeRADIUS accounting log files"
+			print " - set userdomain                               |  Set the domain name prepended to User-ID mappings"
+			print " - set timeout                                  |  Set the timeout (in minutes) for User-ID mappings sent to the firewall targets"
+			print " - set target [parameters]                      |  Set configuration elements for existing or new firewall targets"
 			print "-------------------------------------------------------------------------------------------------------------------------------\n"
-			print " - push (<hostname> | all) [parameters]   |     Manually push a User-ID mapping to one or all firewall targets"
+			print " - push (<hostname> | all) [parameters]         |  Manually push a User-ID mapping to one or all firewall targets"
 			print "-------------------------------------------------------------------------------------------------------------------------------\n"
-			print " - tail log                               |     Watch the RadiUID log file in real time"
+			print " - tail log                                     |  Watch the RadiUID log file in real time"
 			print "-------------------------------------------------------------------------------------------------------------------------------\n"
-			print " - clear log                              |     Delete the content in the log file"
-			print " - clear target (<target> | all)          |     Delete one or all firewall targets in the config file"
-			print " - clear mappings [parameters]            |     Remove one or all IP-to-User mappings from one or all firewalls"
+			print " - clear log                                    |  Delete the content in the log file"
+			print " - clear target (<target> | all)                |  Delete one or all firewall targets in the config file"
+			print " - clear mappings [parameters]                  |  Remove one or all IP-to-User mappings from one or all firewalls"
 			print "-------------------------------------------------------------------------------------------------------------------------------\n"
-			print " - edit config                            |     Edit the RadiUID config file"
-			print " - edit clients                           |     Edit list of client IPs for FreeRADIUS"
+			print " - edit config                                  |  Edit the RadiUID config file"
+			print " - edit clients                                 |  Edit list of client IPs for FreeRADIUS"
 			print "-------------------------------------------------------------------------------------------------------------------------------\n"
-			print " - service [parameters]                   |     Control the RadiUID and FreeRADIUS system services"
-			print "                                          |     Usage: radiuid service (radiuid | freeradius | all) (start | stop | restart)"
+			print " - service [parameters]                         |  Control the RadiUID and FreeRADIUS system services"
 			print "-------------------------------------------------------------------------------------------------------------------------------\n"
-			print " - version                                |     Show the current version of RadiUID and FreeRADIUS"
+			print " - version                                      |  Show the current version of RadiUID and FreeRADIUS"
 			print "-------------------------------------------------------------------------------------------------------------------------------\n"
 			print self.ui.color("###############################################################################################", self.ui.magenta)
 			print self.ui.color("###############################################################################################", self.ui.magenta)
