@@ -2205,6 +2205,7 @@ class command_line_interpreter(object):
 				print "\n" + self.ui.color(time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + "****************ERROR: No targets currently exist in config****************\n", self.ui.red)
 			print self.ui.color("#" * len(header), self.ui.magenta)
 			print self.ui.color("#" * len(header), self.ui.magenta)
+		##### CLEAR MAPPINGS #####
 		elif self.cat_list(sys.argv[1:3]) == "clear mappings" and len(re.findall("[0-9A-Za-z]", sys.argv[3])) > 0:
 			self.filemgmt.logwriter("cli", "##### COMMAND '" + arguments + "' ISSUED FROM CLI BY USER '" + self.imum.currentuser()+ "' #####")
 			header = "########################## EXECUTING COMMAND: " + arguments + " ##########################"
@@ -2230,6 +2231,8 @@ class command_line_interpreter(object):
 						self.filemgmt.logwriter("cli", self.ui.color("****************FATAL: Bad IP Address****************", self.ui.red))
 						keepgoing = "no"
 			if keepgoing == "yes":
+				print "\n\n",self.ui.color("********************* You are about to remove IP-to-User mappings. Please confirm... ********************", self.ui.yellow)
+				raw_input("Hit CTRL-C to quit. Hit ENTER to continue\n>>>>>")
 				print "\n" + time.strftime("%Y-%m-%d %H:%M:%S") + ":   " +"****************Removing IP-to-User Mappings... ****************\n"
 				if sys.argv[4].lower() == "all":
 					pankey = self.pafi.pull_api_key("quiet", targets)
