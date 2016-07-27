@@ -997,7 +997,10 @@ class palo_alto_firewall_interaction(object):
 			encodedusername = urllib.quote_plus(target['username'])
 			encodedpassword = urllib.quote_plus(target['password'])
 			url = 'https://' + target['hostname'] + '/api/?type=keygen&user=' + encodedusername + '&password=' + encodedpassword
-			response = urllib2.urlopen(url).read()
+			try:
+				response = urllib2.urlopen(url).read()
+			except urllib2.URLError:
+				response = "FATAL: Firewall Inaccessible"
 			if mode == "noisy":
 				self.filemgmt.logwriter("normal", "Pulling API key using PAN from " + target['hostname'] + " using credentials: " + target['username'] + "\\" + target['password'])
 			if 'success' in response:
@@ -1009,9 +1012,15 @@ class palo_alto_firewall_interaction(object):
 				target['apikey'] = pankey
 				if mode == "noisy":
 					self.filemgmt.logwriter("normal", "Added 'apikey': " + pankey + " attribute to host: " + target['hostname'])
-			else:
+			elif "Firewall Inaccessible" in response:
+				self.filemgmt.logwriter("normal", self.ui.color('ERROR: Firewall ' + target['hostname'] + ' cannot be accessed at this time. Removing it as an active target' + '\n', self.ui.red))
+				targetlist.remove(target)
+				self.pull_api_key(mode, targetlist)
+			elif "Invalid credentials" in response:
 				self.filemgmt.logwriter("normal", self.ui.color('ERROR: Username\\password failed. Please re-enter in config file...' + '\n', self.ui.red))
-				quit()
+				self.filemgmt.logwriter("normal", self.ui.color('Removing ' + target['hostname'] + ' as an active target' + '\n', self.ui.red))
+				targetlist.remove(target)
+				self.pull_api_key(mode, targetlist)
 	##### Accepts IP-to-User mappings as a dict in, uses the xml-formatter and xml-assembler to generate a list of URLS, then opens those URLs and logs response codes  #####
 	def push_uids(self, ipanduserdict, filelist):
 		xml_dict = self.xml_formatter_v67(ipanduserdict, targets)
@@ -1022,8 +1031,22 @@ class palo_alto_firewall_interaction(object):
 			for entry in ipanduserdict:
 				self.filemgmt.logwriter("normal", "IP Address: " + self.ui.color(entry, self.ui.cyan) + "\t\tUsername: " + self.ui.color(ipanduserdict[entry], self.ui.cyan))
 			for eachurl in urllist:
-				response = urllib2.urlopen(eachurl).read()
-				self.filemgmt.logwriter("normal", self.ui.color(response, self.ui.green) + "\n")
+				try:
+					response = urllib2.urlopen(eachurl).read()
+				except urllib2.HTTPError:
+					response = "FATAL: Firewall Hung"
+				except urllib2.URLError:
+					response = "FATAL: Firewall Inaccessible"
+				if "success" in response:
+					self.filemgmt.logwriter("normal", self.ui.color("Successful UID push to " + host, self.ui.green))
+				elif "Firewall Inaccessible" in response:
+					self.filemgmt.logwriter("normal", self.ui.color('ERROR: Firewall ' + host + ' cannot be accessed at this time. Skipping it', self.ui.red))
+				elif "Invalid credentials" in response:
+					self.filemgmt.logwriter("normal", self.ui.color('ERROR: Username\\password failed. Please re-enter in config file...', self.ui.red))
+					self.filemgmt.logwriter("normal", self.ui.color('Skipping the ' + host + ' target', self.ui.red))
+				elif "Firewall Hung" in response:
+					self.filemgmt.logwriter("normal", self.ui.color('ERROR: Firewall '+ host + ' seems to be hung. We will come back to it', self.ui.red))
+					self.filemgmt.logwriter("normal", self.ui.color('Skipping the ' + host + ' target', self.ui.red))
 		self.filemgmt.remove_files(filelist)
 	def pull_uids (self, targetlist):
 		encodedcall = "&type=op&cmd=" + urllib.quote_plus("<show><user><ip-user-mapping><all></all></ip-user-mapping></user></show>")
@@ -1086,6 +1109,10 @@ class radiuid_main_process(object):
 		self.filemgmt.logwriter("normal", "***********************************CONNECTING TO PALO ALTO FIREWALL TO EXTRACT THE API KEY...***********************************")
 		self.filemgmt.logwriter("normal", "********************IF PROGRAM FREEZES/FAILS RIGHT NOW, THEN THERE IS LIKELY A COMMUNICATION PROBLEM WITH THE FIREWALL********************")
 		pankey = self.pafi.pull_api_key("noisy", targets)
+		self.filemgmt.logwriter("normal", "********************SUCCESSFULLY INITIALIZED THE FOLLOWING FIREWALLS********************")
+		targetnum = 1
+		for target in targets:
+			self.filemgmt.logwriter("normal", str(targetnum) + ": " + (self.ui.color(target['hostname'], self.ui.green)))
 		self.filemgmt.logwriter("normal", "*******************************************CONFIG FILE SETTINGS INITIALIZED*******************************************")
 		self.filemgmt.logwriter("normal", "***********************************RADIUID SERVER STARTING WITH INITIALIZED VARIABLES...******************************")
 	##### RadiUID looper method which initializes the namespace with config variables and loops the main RadiUID program #####
