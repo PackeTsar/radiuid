@@ -99,8 +99,8 @@ class user_interface(object):
 		for columnhead in columnorder: # For each column in the columnorder input
 			datalengthdict.update({columnhead: len(columnhead)}) # Create a key in the length dict with a value which is the length of the header
 		for row in tabledata: # For each row entry in the tabledata list of dicts
-			for item in row: # For column entry in that row
-				if len(row[item]) > datalengthdict[item]: # If the length of this column entry is longer than the current longest entry
+			for item in columnorder: # For column entry in that row
+				if len(re.sub(r'\x1b[^m]*m', "",  row[item])) > datalengthdict[item]: # If the length of this column entry is longer than the current longest entry
 					datalengthdict[item] = len(row[item]) # Then change the value of entry
 		##### Calculate total table width #####
 		totalwidth = 0 # Initialize at 0
@@ -114,8 +114,8 @@ class user_interface(object):
 		columnqty = len(columnorder) # Count number of columns
 		for columnhead in columnorder: # For each column header value
 			spacing = {"before": 0, "after": 0} # Initialize the before and after spacing for that header value before the columnsep
-			spacing["before"] = (datalengthdict[columnhead] - len(columnhead)) / 2 # Calculate the before spacing
-			spacing["after"] = (datalengthdict[columnhead] - len(columnhead)) - spacing["before"] # Calculate the after spacing
+			spacing["before"] = int((datalengthdict[columnhead] - len(columnhead)) / 2) # Calculate the before spacing
+			spacing["after"] = int((datalengthdict[columnhead] - len(columnhead)) - spacing["before"]) # Calculate the after spacing
 			result += columnspace + spacing["before"] * " " + columnhead + spacing["after"] * " " + columnspace # Add the header entry with spacing
 			if columnqty > 1: # If this is not the last entry
 				result += columnsep # Append a column seperator
@@ -129,8 +129,8 @@ class user_interface(object):
 			columnqty = len(columnorder) # Set a column counter so we can detect the last entry in this row
 			for column in columnorder: # For each value in this row, but using the correct order from column order
 				spacing = {"before": 0, "after": 0} # Initialize the before and after spacing for that header value before the columnsep
-				spacing["before"] = (datalengthdict[column] - len(row[column])) / 2 # Calculate the before spacing
-				spacing["after"] = (datalengthdict[column] - len(row[column])) - spacing["before"] # Calculate the after spacing
+				spacing["before"] = int((datalengthdict[column] - len(re.sub(r'\x1b[^m]*m', "",  row[column]))) / 2) # Calculate the before spacing
+				spacing["after"] = int((datalengthdict[column] - len(re.sub(r'\x1b[^m]*m', "",  row[column]))) - spacing["before"]) # Calculate the after spacing
 				result += columnspace + spacing["before"] * " " + row[column] + spacing["after"] * " " + columnspace # Add the entry to the row with spacing
 				if columnqty == 1: # If this is the last entry in this row
 					result += tablewrap + "\n" + tablewrap # Add the wrapper, a line break, and start the next row
@@ -913,7 +913,70 @@ class data_processing(object):
 					result.update({query: indexpointer}) # Add the query (key) and index location of where it was found
 				indexpointer = indexpointer + 1 # Then update the indexpointer 
 		return result
-
+	def map_consistency_check(self, uidxmldict):
+		precordict = {}
+		for uidset in uidxmldict:
+			precordict.update({uidset: {}})
+			currentuidset = xml.etree.ElementTree.fromstring(uidxmldict[uidset])
+			if type(self.filemgmt.tinyxml2dict(currentuidset)['result']) != type({}) or "<count>0</count>" in uidxmldict[uidset]:
+				none = None
+			else:
+				if type(self.filemgmt.tinyxml2dict(currentuidset)['result']['entry']) != type([]):
+					uidentry = self.filemgmt.tinyxml2dict(currentuidset)['result']['entry']
+					precordict[uidset].update({uidentry['ip']: uidentry['user']})
+				else:
+					for uidentry in self.filemgmt.tinyxml2dict(currentuidset)['result']['entry']:
+						precordict[uidset].update({uidentry['ip']: uidentry['user']})
+		###### Replace Fw Names with IDs and create master UID list #######
+		fwidlist = []
+		uiddict = {}
+		alluids = []
+		fwid = 1
+		for fwname in precordict:
+			fwidlist.append(str(fwid) + ":  " + fwname)
+			uiddict.update({str(fwid): precordict[fwname]})
+			for uid in precordict[fwname]:
+				if uid + " : " + precordict[fwname][uid] not in alluids:
+					alluids.append(uid + " : " + precordict[fwname][uid])
+			fwid += 1
+		###### Create corrolation dict #######
+		corlist = []
+		for uid in alluids:
+			tempdict = {"UID": uid}
+			for firewall in uiddict:
+				entryexists = False
+				for entry in uiddict[firewall]:
+					if entry + " : " + uiddict[firewall][entry] == uid:
+						entryexists = True
+				if entryexists:
+					tempdict.update({firewall: "X"})
+				else:
+					tempdict.update({firewall: " "})
+			corlist.append(tempdict)
+			del tempdict
+			del uid
+		###### Colorize entries ######
+		for row in corlist:
+			consistent = True
+			for column in row:
+				if column != "UID":
+					if row[column] != "X":
+						consistent = False
+			if consistent:
+				row["UID"] = self.ui.color(row["UID"], self.ui.green)
+			else:
+				row["UID"] = self.ui.color(row["UID"], self.ui.red)
+			del consistent
+		###### Create columnorder list ######
+		columnorder = ["UID"]
+		for column in range(len(uiddict) + 1)[1:]:
+			columnorder.append(str(column))
+		result = "################ FIREWALL IDENTIFIERS ################\n\n"
+		for firewall in fwidlist:
+			result += firewall + "\n\n"
+		result += "\n\n\n\n\n\n################ CONSISTENCY TABLE ################\n\n"
+		result += self.ui.make_table(columnorder, corlist)
+		return result
 
 
 
@@ -1783,55 +1846,8 @@ class command_line_interpreter(object):
 				uidxmldict = self.pafi.pull_uids(targets) # Pull the mappings for each target
 				print "\n\n"
 				if sys.argv[3].lower() == "consistency":
-					precordict = {}
-					for uidset in uidxmldict:
-						precordict.update({uidset: {}})
-						currentuidset = xml.etree.ElementTree.fromstring(uidxmldict[uidset])
-						if type(self.filemgmt.tinyxml2dict(currentuidset)['result']) != type({}) or "<count>0</count>" in uidxmldict[uidset]:
-							none = None
-						else:
-							for uidentry in self.filemgmt.tinyxml2dict(currentuidset)['result']['entry']:
-								precordict[uidset].update({uidentry['ip']: uidentry['user']})
-					#print precordict
-					###### Replace Fw Names with IDs and create master UID list #######
-					fwidlist = []
-					uiddict = {}
-					alluids = {}
-					fwid = 1
-					for fwname in precordict:
-						fwidlist.append(str(fwid) + ":  " + fwname)
-						uiddict.update({str(fwid): precordict[fwname]})
-						for uid in precordict[fwname]:
-							alluids.update({uid: precordict[fwname][uid]})
-						fwid += 1
-					###### Create corrolation dict #######
-					corlist = []
-					for uidentry in alluids:
-						uid = uidentry + ": " + alluids[uidentry]
-						tempdict = {"UID": uid}
-						for firewall in uiddict:
-							entryexists = False
-							for entry in uiddict[firewall]:
-								if entry + ": " + uiddict[firewall][entry] == uid:
-									entryexists = True
-							if entryexists:
-								tempdict.update({firewall: "X"})
-							else:
-								tempdict.update({firewall: " "})
-						corlist.append(tempdict)
-						del tempdict
-						del uid
-					columnorder = ["UID"]
-					for column in range(len(uiddict) + 1)[1:]:
-						columnorder.append(str(column))
-					####### Print output ######
-					print "################ FIREWALL IDENTIFIERS ################\n"
-					for each in fwidlist:
-						print each + "\n"
-					print "\n\n\n\n\n"
-					print "################ CONSISTENCY TABLE ################\n"
-					print self.ui.make_table(columnorder, corlist)
-					print "\n\n\n"
+					print self.dp.map_consistency_check(uidxmldict)
+					print "\n\n"
 				else:
 					for uidset in uidxmldict:
 						currentuidset = xml.etree.ElementTree.fromstring(uidxmldict[uidset])
@@ -2157,13 +2173,20 @@ class command_line_interpreter(object):
 			print self.ui.color("#" * len(header), self.ui.magenta)
 		######################### TAIL #############################
 		elif arguments == "tail" or arguments == "tail ?":
-			print "\n - tail log         |     Watch the RadiUID log file in real time\n"
-		elif arguments == "tail log":
+			print "\n - tail log (<# of lines>)    |     Watch the RadiUID log file in real time\n"
+		elif self.cat_list(sys.argv[1:3]) == "tail log":
 			self.filemgmt.logwriter("cli", "##### COMMAND '" + arguments + "' ISSUED FROM CLI BY USER '" + self.imum.currentuser()+ "' #####")
 			header = "########################## OUTPUT FROM FILE " + logfile + " ##########################"
 			print self.ui.color(header, self.ui.magenta)
 			print self.ui.color("#" * len(header), self.ui.magenta)
-			os.system("tail -fn 25 " + logfile)
+			if len(sys.argv) == 3:
+				os.system("tail -fn 25 " + logfile)
+			else:
+				try:
+					lineqty = int(sys.argv[3])
+					os.system("tail -fn " + str(lineqty) + " " + logfile)
+				except ValueError:
+					self.filemgmt.logwriter("cli", self.ui.color("****************FATAL: '" + sys.argv[3] + "' is a bad input for number of lines. Please input a number****************", self.ui.red))
 			print self.ui.color("#" * len(header), self.ui.magenta)
 			print self.ui.color("#" * len(header), self.ui.magenta)
 		######################### CLEAR #############################
@@ -2517,7 +2540,7 @@ class command_line_interpreter(object):
 			print "-------------------------------------------------------------------------------------------------------------------------------\n"
 			print " - push (<hostname> | all) [parameters]         |  Manually push a User-ID mapping to one or all firewall targets"
 			print "-------------------------------------------------------------------------------------------------------------------------------\n"
-			print " - tail log                                     |  Watch the RadiUID log file in real time"
+			print " - tail log (<# of lines>)                      |  Watch the RadiUID log file in real time"
 			print "-------------------------------------------------------------------------------------------------------------------------------\n"
 			print " - clear log                                    |  Delete the content in the log file"
 			print " - clear target (<target> | all)                |  Delete one or all firewall targets in the config file"
