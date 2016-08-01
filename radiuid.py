@@ -347,41 +347,42 @@ class file_management(object):
 	def check_targets(self, targetdict):
 		result = {}
 		for target in targetdict:
-			result.update({target["hostname"]: {"status": "working"}})
+			targetname = target["hostname"] + ":vsys" + target["vsys"]
+			result.update({targetname: {"status": "working"}})
 			##### Check hostname #####
-			result[target["hostname"]].update({"hostnamecheck": {"status": "working", "messages": []}})
-			if self.ip_checker("address", target["hostname"]) == "pass":
-				result[target["hostname"]]["hostnamecheck"]["status"] = "pass"
-				result[target["hostname"]]["hostnamecheck"]["messages"].append({"OK": "Target hostname is valid IPv4 address"})
+			result[targetname].update({"hostnamecheck": {"status": "working", "messages": []}})
+			if self.ip_checker("address", targetname) == "pass":
+				result[targetname]["hostnamecheck"]["status"] = "pass"
+				result[targetname]["hostnamecheck"]["messages"].append({"OK": "Target hostname is valid IPv4 address"})
 			else:
-				result[target["hostname"]]["hostnamecheck"] = self.check_domainname(target["hostname"])
+				result[targetname]["hostnamecheck"] = self.check_domainname(target["hostname"])
 			##### Check Username and Password #####
 			try:
-				result[target["hostname"]].update({"usernamecheck": self.check_userpass("user", target["username"])})
+				result[targetname].update({"usernamecheck": self.check_userpass("user", target["username"])})
 			except KeyError:
-				result[target["hostname"]].update({"usernamecheck": {"status": "fail", "messages": [{"FATAL": "<username> parameter does not exist for this target"}]}})
+				result[targetname].update({"usernamecheck": {"status": "fail", "messages": [{"FATAL": "<username> parameter does not exist for this target"}]}})
 			try:
-				result[target["hostname"]].update({"passwordcheck": self.check_userpass("password", target["password"])})
+				result[targetname].update({"passwordcheck": self.check_userpass("password", target["password"])})
 			except KeyError:
-				result[target["hostname"]].update({"passwordcheck": {"status": "fail", "messages": [{"FATAL": "<password> parameter does not exist for this target"}]}})
+				result[targetname].update({"passwordcheck": {"status": "fail", "messages": [{"FATAL": "<password> parameter does not exist for this target"}]}})
 			##### Check Version #####
 			try:
-				result[target["hostname"]].update({"versioncheck": self.check_version(target["version"])})
+				result[targetname].update({"versioncheck": self.check_version(target["version"])})
 			except KeyError:
-				result[target["hostname"]].update({"versioncheck": {"status": "fail", "messages": [{"FATAL": "<version> parameter does not exist for this target"}]}})
+				result[targetname].update({"versioncheck": {"status": "fail", "messages": [{"FATAL": "<version> parameter does not exist for this target"}]}})
 			##### Read Results #####
 			warnings = 0
-			for check in result[target["hostname"]].keys():
+			for check in result[targetname].keys():
 				if check != "status":
-					if result[target["hostname"]][check]["status"] == "fail":
-						result[target["hostname"]]["status"] = "fail"
+					if result[targetname][check]["status"] == "fail":
+						result[targetname]["status"] = "fail"
 						break
-					elif result[target["hostname"]][check]["status"] == "warning":
+					elif result[targetname][check]["status"] == "warning":
 						warnings = warnings + 1
-					elif result[target["hostname"]][check]["status"] == "pass":
-						result[target["hostname"]]["status"] = "pass"
+					elif result[targetname][check]["status"] == "pass":
+						result[targetname]["status"] = "pass"
 			if warnings > 0:
-				result[target["hostname"]]["status"] = "warning"
+				result[targetname]["status"] = "warning"
 		return result
 	def scrub_targets(self, mainmode, submode):
 		if mainmode == "noisy":
@@ -673,9 +674,9 @@ class file_management(object):
 			for target in targets:
 				setparams = ""
 				for param in target:
-					if param != "hostname":
+					if param != "hostname" and param != "vsys":
 						setparams = setparams + param + " " + target[param] + " "
-				rawtargetsetlist.append(" set target " + target["hostname"] + " " + setparams)
+				rawtargetsetlist.append(" set target " + target["hostname"] + ":vsys" + target["vsys"] + " " + setparams)
 			#### Compile set commands for uninstalled and installed CLI format ####
 			settargets = ""
 			for settarget in rawtargetsetlist:
@@ -709,18 +710,19 @@ class file_management(object):
 		targets = self.root.findall('.//targets')[0] # Mount targets element as targets
 		for targetitem in targetlist: # For each dict entry in the target list input as an arg...
 			currenttargethostname = targetitem["hostname"]
+			currenttargetvsys = targetitem["vsys"]
 			result[currenttargethostname] = {"status": "processing", "messages": []} # Create a new key in the result for this targetitem
 			##### Does this target already exist, or do we need to create it new? #####
 			targetalreadyexists = False # Initialize variable to determine if the target already exists
 			for existingtarget in self.root.findall('.//target'): # For each existing target object in a list (empty list returned if none found)
-				for parameter in existingtarget: # For each parameter in the existing target entry
-					if targetitem["hostname"] == parameter.text: # If the hostname of the target to be edited matches this existing targets hostname...
-						targetalreadyexists = True # Then set the targetalreadyexists value as True
-						target = existingtarget # And mount the existing target (where the hostname matched) as target
+				if targetitem["hostname"] == existingtarget.findall("hostname")[0].text and targetitem["vsys"] == existingtarget.findall("vsys")[0].text:
+					targetalreadyexists = True # Then set the targetalreadyexists value as True
+					target = existingtarget # And mount the existing target (where the hostname matched) as target
 			##### If the target to be edited exists already #####
 			if targetalreadyexists: # If target exists..
 				result[currenttargethostname]["messages"].append("Editing existing target") # Create feedback message
 				targetitem.pop("hostname") # Remove the 'hostname' parameter from the list of edits to be made
+				targetitem.pop("vsys") # Remove the 'vsys' parameter from the list of edits to be made
 				#### Make edits to already existing parameters first #####
 				for parameter in list(targetitem): # For each of the parameters to be edited for the current target to be edited..
 					for existingparameter in target: # And for each existing parameter in the existing target
@@ -742,6 +744,10 @@ class file_management(object):
 				hostname.text = targetitem['hostname'] # Set the hostname parameter value for the target
 				del hostname # Unmount the hostname parameter element
 				del targetitem['hostname'] # Remove the hostname parameter
+				vsys = xml.etree.ElementTree.SubElement(target, 'vsys') # Create and mount the vsys parameter for the target
+				vsys.text = targetitem['vsys'] # Set the vsys parameter value for the target
+				del vsys # Unmount the vsys parameter element
+				del targetitem['vsys'] # Remove the hostname parameter
 				for parameter in targetitem: # For each of the parameter edits
 					currentelement = xml.etree.ElementTree.SubElement(target, parameter) # Create the parameter in the target element
 					currentelement.text = targetitem[parameter] # Set the value of the parameter
@@ -777,7 +783,7 @@ class file_management(object):
 		del targetpointer
 		return result
 	##### Remove specific list of targets from config #####
-	##### Method accepts a list of dictionaries which contain at least the hostname key/value pair of the target #####
+	##### Method accepts a list of dictionaries which contain at least the hostname key/value pair anbd vsys id of the target #####
 	def remove_targets(self, targetlist):
 		result = ["fail"] # Start with failed result
 		if len(self.root.findall('.//target')) == 0: # If no targets exist in config, return error
@@ -785,14 +791,13 @@ class file_management(object):
 		else: # if some targets do exist in config
 			for removalitem in targetlist: # for each host listed for removal
 				hostresult = 'failure' # initialize hostresult in case host is not found for removal
-				for target in self.root.findall('.//target'): # for each target element 
-					for element in target.getchildren(): # list out children (atttributes) of the target (like hostname, username, etc)
-						if element.text == removalitem['hostname']: # check child elements of target element for hostname listed for removal
-							targets = self.root.findall('.//targets')[0] # mount <targets> element
-							targets.remove(target) # remove this <target> element from the <targets> element
-							del targets # unmount <targets> element
-							hostresult = 'success' # set successful hostresult
-							result[0] = "pass"
+				for target in self.root.findall('.//target'): # for each target element
+					if target.findall("hostname")[0].text == removalitem['hostname'] and target.findall("vsys")[0].text == removalitem['vsys']:
+						targets = self.root.findall('.//targets')[0] # mount <targets> element
+						targets.remove(target) # remove this <target> element from the <targets> element
+						del targets # unmount <targets> element
+						hostresult = 'success' # set successful hostresult
+						result[0] = "pass"
 				if hostresult == 'failure': # if we did not find the target to be removed
 					result.append("Could not find target" + removalitem['hostname']) # return an error message
 		##### If we did not remove the last <target> element from <targets>, then set the proper tail indent on last <target> element
@@ -2012,16 +2017,22 @@ class command_line_interpreter(object):
 			print self.ui.color(header, self.ui.magenta)
 			print self.ui.color("#" * len(header), self.ui.magenta)
 			keepgoing = "yes"
-			##########################
-			## Check Input Hostname ##
-			##########################
+			###################################
+			## Check Input Hostname and VSYS ##
+			###################################
 			inputcheck = {}
-			if self.filemgmt.ip_checker("address", sys.argv[3]) == "pass":
-				print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " +"****************Hostname " + sys.argv[3] + " looks like legit IPv4 address****************\n"
+			if ":" in sys.argv[3]:
+				hostname = sys.argv[3].split(":")[0]
+				vsys = sys.argv[3].split(":")[1].replace("vsys", "")
+			else:
+				hostname = sys.argv[3]
+				vsys = "1"
+			if self.filemgmt.ip_checker("address", hostname) == "pass":
+				print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " +"****************Hostname " + hostname + " looks like legit IPv4 address****************\n"
 				inputcheck.update({"hostnamecheck": "pass"})
 			else:
-				print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " +"****************Hostname " + sys.argv[3] + " looks like a domain name****************\n"
-				domaincheck = self.filemgmt.check_domainname(sys.argv[3])
+				print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " +"****************Hostname " + hostname + " looks like a domain name****************\n"
+				domaincheck = self.filemgmt.check_domainname(hostname)
 				if domaincheck["status"] == "fail":
 					for message in domaincheck["messages"]:
 						if message.keys()[0] == "FATAL":
@@ -2034,11 +2045,20 @@ class command_line_interpreter(object):
 						if message.keys()[0] == "WARNING":
 							print "\n" + self.ui.color(time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + "****************" + message.keys()[0] + ": " + message.values()[0] + "****************\n", self.ui.yellow)
 					inputcheck.update({"hostnamecheck": "pass"})
+			try:
+				if int(vsys) <= 255 and int(vsys) >= 1:
+					inputcheck.update({"vsyscheck": "pass"})
+				else:
+					print "\n" + self.ui.color(time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + "**************** FATAL: Invalid VSYS ID. Please use a number between 1 and 255****************\n", self.ui.red)
+					inputcheck.update({"vsyscheck": "fail"})
+			except ValueError:
+				print "\n" + self.ui.color(time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + "**************** FATAL: Invalid VSYS ID. Please use a number between 1 and 255****************\n", self.ui.red)
+				inputcheck.update({"vsyscheck": "fail"})
 			##############################
 			## Check other input values ##
 			##############################
 			## Compile arguments ##
-			targetparams = {'hostname': sys.argv[3]}
+			targetparams = {'hostname': hostname, "vsys": vsys}
 			searchqueries = ['username', 'password', 'version']
 			cliparams = sys.argv[4:]
 			targetindices = self.dp.find_index_in_list(searchqueries, cliparams)
@@ -2106,7 +2126,7 @@ class command_line_interpreter(object):
 			if applysettings == "yes":
 				status = "pass"
 				results = self.filemgmt.add_targets([targetparams])
-				for message in results[sys.argv[3]]["messages"]:
+				for message in results[hostname]["messages"]:
 					print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " +"****************"+ message + "****************\n"
 				print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " +"****************Writing config change to: "+ configfile + "****************\n"
 				self.filemgmt.save_config()
@@ -2237,15 +2257,21 @@ class command_line_interpreter(object):
 			print self.ui.color(header, self.ui.magenta)
 			print self.ui.color("#" * len(header), self.ui.magenta)
 			targetexists = "no"
+			if ":" in sys.argv[3]:
+				hostname = sys.argv[3].split(":")[0]
+				vsys = sys.argv[3].split(":")[1].replace("vsys", "")
+			else:
+				hostname = sys.argv[3]
+				vsys = "1"
 			try:
 				for target in targets:
-					if target['hostname'] == sys.argv[3]:
+					if target['hostname'] == hostname and target['vsys'] == vsys:
 						targetexists = "yes"
 				if targetexists == "no":
-					print "\n" + self.ui.color(time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + "****************ERROR: Target " + sys.argv[3] + " doesn't currently exist in config****************\n", self.ui.red)
+					print "\n" + self.ui.color(time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + "****************ERROR: Target " + hostname + ":vsys" + vsys + " doesn't currently exist in config****************\n", self.ui.red)
 				elif targetexists == "yes":
 					print "\n" + time.strftime("%Y-%m-%d %H:%M:%S") + ":   " +"****************Deleting target: " + sys.argv[3] + " ****************\n"
-					targetremove = self.filemgmt.remove_targets([{'hostname': sys.argv[3]}])
+					targetremove = self.filemgmt.remove_targets([{'hostname': hostname, "vsys": vsys}])
 					print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " +"****************Writing config change to: "+ configfile + "****************\n"
 					self.filemgmt.save_config()
 					if targetremove[0] == "pass":
