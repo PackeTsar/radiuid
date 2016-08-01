@@ -973,7 +973,7 @@ class data_processing(object):
 			columnorder.append(str(column))
 		result = "################ FIREWALL IDENTIFIERS ################\n\n"
 		for firewall in fwidlist:
-			result += firewall + "\n\n"
+			result += self.ui.color(firewall, self.ui.cyan) + "\n\n"
 		result += "\n\n\n\n\n\n################ CONSISTENCY TABLE ################\n\n"
 		result += self.ui.make_table(columnorder, corlist)
 		return result
@@ -1117,6 +1117,7 @@ class palo_alto_firewall_interaction(object):
 		for target in targetlist:
 			url = 'https://' + target['hostname'] + '/api/?key=' + target['apikey'] + encodedcall
 			result.update({target['hostname']: urllib2.urlopen(url).read()})
+			self.filemgmt.logwriter("normal", self.ui.color("Successfully pulled UID's from " + target["hostname"], self.ui.green))
 		return result
 	def clear_uids (self, targetlist, userip):
 		if userip == "all":
