@@ -19,7 +19,6 @@ version = "dev2.0.0"
 
 ##### Set some default configs #####
 etcconfigfile = '/etc/radiuid/radiuid.conf'
-extrastuff = '&type=user-id&vsys=vsys1&cmd='
 maxtimeout = 1440
 
 
@@ -403,7 +402,7 @@ class file_management(object):
 					if checkdict[target]["status"] == "fail":
 						targetindex = 0
 						for badtarget in targets:
-							if badtarget["hostname"] == target:
+							if badtarget["hostname"] + ":vsys" + badtarget["vsys"] == target:
 								self.logwriter("normal", self.ui.color("***********Excluding " + target + " from loaded firewall targets***********", self.ui.red))
 								targets.pop(targetindex)
 							else:
@@ -671,16 +670,20 @@ class file_management(object):
 					"#### Set Commands to use to configure RadiUID ####\n"\
 					"##################################################\n"
 			rawtargetsetlist = []
-			for target in targets:
-				setparams = ""
-				for param in target:
-					if param != "hostname" and param != "vsys":
-						setparams = setparams + param + " " + target[param] + " "
-				rawtargetsetlist.append(" set target " + target["hostname"] + ":vsys" + target["vsys"] + " " + setparams)
+			try:
+				for target in targets:
+					setparams = ""
+					for param in target:
+						if param != "hostname" and param != "vsys":
+							setparams = setparams + param + " " + target[param] + " "
+					rawtargetsetlist.append(" set target " + target["hostname"] + ":vsys" + target["vsys"] + " " + setparams)
+			except NameError:
+				rawtargetsetlist = False
 			#### Compile set commands for uninstalled and installed CLI format ####
 			settargets = ""
-			for settarget in rawtargetsetlist:
-				settargets = settargets + prepend + settarget + "\n!\n"
+			if rawtargetsetlist:
+				for settarget in rawtargetsetlist:
+					settargets = settargets + prepend + settarget + "\n!\n"
 			setcommands = \
 				"" + prepend + " set radiuslogpath " + radiuslogpath + "\n!\n"\
 				"" + prepend + " set logfile " + logfile + "\n!\n"\
@@ -1008,11 +1011,12 @@ class palo_alto_firewall_interaction(object):
 		xmldict = {}
 		for target in targetlist:
 			if target['version'] == '7' or target['version'] == '6':
-				xmldict[target['hostname']] = []
+				hostname = target['hostname'] + ":vsys" + target['vsys']
+				xmldict[hostname] = []
 				ipaddresses = ipanduserdict.keys()
 				for ip in ipaddresses:
 					entry = '<entry name="%s\%s" ip="%s" timeout="%s">' % (userdomain, ipanduserdict[ip], ip, timeout)
-					xmldict[target['hostname']].append(entry)
+					xmldict[hostname].append(entry)
 					entry = ''
 			else:
 				self.filemgmt.logwriter("normal", self.ui.color("PAN-OS version not supported for XML push!", self.ui.red))
@@ -1026,7 +1030,8 @@ class palo_alto_firewall_interaction(object):
 			if host['version'] == '7' or host['version'] == '6':
 				xmluserdata = ""
 				hostname = host['hostname']
-				hostxmlentries = ipuserxmldict[hostname]
+				vsys = host['vsys']
+				hostxmlentries = ipuserxmldict[hostname + ":vsys" + vsys]
 				finishedurllist = []
 				while len(hostxmlentries) > 0:
 					for entry in hostxmlentries[:100]:
@@ -1042,11 +1047,12 @@ class palo_alto_firewall_interaction(object):
 	</payload>\n\
 	</uid-message>'
 					urljunk = urllib.quote_plus(urldecoded)
-					finishedurllist.append('https://' + hostname + '/api/?key=' + host['apikey'] + extrastuff + urljunk)
+					finishedurllist.append('https://' + hostname + '/api/?key=' + host['apikey'] + '&type=user-id&vsys=vsys' + vsys +'&cmd=' + urljunk)
 					xmluserdata = ""
-				finishedurldict.update({hostname: finishedurllist})
+				finishedurldict.update({hostname + ":vsys" + vsys: finishedurllist})
 				del hostname
 				del hostxmlentries
+				del vsys
 			else:
 				self.filemgmt.logwriter("normal", self.ui.color("PAN-OS version not supported for XML push!", self.ui.red))
 				quit()
@@ -1070,7 +1076,7 @@ class palo_alto_firewall_interaction(object):
 			except urllib2.URLError:
 				response = "FATAL: Firewall Inaccessible"
 			if mode == "noisy":
-				self.filemgmt.logwriter("normal", "Pulling API key using PAN from " + target['hostname'] + " using credentials: " + target['username'] + "\\" + target['password'])
+				self.filemgmt.logwriter("normal", "Pulling API key using PAN from " + target['hostname'] + ":vsys" + target['vsys'] + " using credentials: " + target['username'] + "\\" + target['password'])
 			if 'success' in response:
 				if mode == "noisy":
 					self.filemgmt.logwriter("normal", self.ui.color(response, self.ui.green))
@@ -1079,14 +1085,14 @@ class palo_alto_firewall_interaction(object):
 				pankey = stripped2
 				target['apikey'] = pankey
 				if mode == "noisy":
-					self.filemgmt.logwriter("normal", "Added 'apikey': " + pankey + " attribute to host: " + target['hostname'])
+					self.filemgmt.logwriter("normal", "Added 'apikey': " + pankey + " attribute to host: " + target['hostname'] + ":vsys" + target['vsys'])
 			elif "Firewall Inaccessible" in response:
-				self.filemgmt.logwriter("normal", self.ui.color('ERROR: Firewall ' + target['hostname'] + ' cannot be accessed at this time. Removing it as an active target' + '\n', self.ui.red))
+				self.filemgmt.logwriter("normal", self.ui.color('ERROR: Firewall ' + target['hostname'] + ":vsys" + target['vsys'] + ' cannot be accessed at this time. Removing it as an active target' + '\n', self.ui.red))
 				targetlist.remove(target)
 				self.pull_api_key(mode, targetlist)
 			elif "Invalid credentials" in response:
 				self.filemgmt.logwriter("normal", self.ui.color('ERROR: Username\\password failed. Please re-enter in config file...' + '\n', self.ui.red))
-				self.filemgmt.logwriter("normal", self.ui.color('Removing ' + target['hostname'] + ' as an active target' + '\n', self.ui.red))
+				self.filemgmt.logwriter("normal", self.ui.color('Removing ' + target['hostname'] + ":vsys" + target['vsys'] + ' as an active target' + '\n', self.ui.red))
 				targetlist.remove(target)
 				self.pull_api_key(mode, targetlist)
 	##### Accepts IP-to-User mappings as a dict in, uses the xml-formatter and xml-assembler to generate a list of URLS, then opens those URLs and logs response codes  #####
@@ -1115,31 +1121,35 @@ class palo_alto_firewall_interaction(object):
 				elif "Firewall Hung" in response:
 					self.filemgmt.logwriter("normal", self.ui.color('ERROR: Firewall '+ host + ' seems to be hung. We will come back to it', self.ui.red))
 					self.filemgmt.logwriter("normal", self.ui.color('Skipping the ' + host + ' target', self.ui.red))
+				else:
+					self.filemgmt.logwriter("normal", self.ui.color("Something may have gone wrong in push to " + host, self.ui.yellow))
+					self.filemgmt.logwriter("normal", "REST call: " + self.ui.color(urllib.unquote(re.sub('https:.*api', "", eachurl)), self.ui.yellow))
+					self.filemgmt.logwriter("normal", "Response: " + self.ui.color(response, self.ui.yellow))
 		self.filemgmt.remove_files(filelist)
 	def pull_uids (self, targetlist):
-		encodedcall = "&type=op&cmd=" + urllib.quote_plus("<show><user><ip-user-mapping><all></all></ip-user-mapping></user></show>")
+		encodedcall = urllib.quote_plus("<show><user><ip-user-mapping><all></all></ip-user-mapping></user></show>")
 		result = {}
-		for target in targetlist:
-			url = 'https://' + target['hostname'] + '/api/?key=' + target['apikey'] + encodedcall
-			result.update({target['hostname']: urllib2.urlopen(url).read()})
-			self.filemgmt.logwriter("normal", self.ui.color("Successfully pulled UID's from " + target["hostname"], self.ui.green))
+		for target in targetlist: 
+			url = 'https://' + target['hostname'] + '/api/?key=' + target['apikey'] + "&type=op&vsys=vsys" + target['vsys'] + "&cmd=" + encodedcall
+			result.update({target['hostname'] + ":vsys" + target['vsys']: urllib2.urlopen(url).read()})
+			self.filemgmt.logwriter("normal", self.ui.color("Successfully pulled UID's from " + target['hostname'] + ":vsys" + target['vsys'], self.ui.green))
 		return result
 	def clear_uids (self, targetlist, userip):
 		if userip == "all":
 			encodedcall1 = "&type=op&cmd=" + urllib.quote_plus("<clear><user-cache><all></all></user-cache></clear>")
 			encodedcall2 = "&type=op&cmd=" + urllib.quote_plus("<clear><user-cache-mp><all></all></user-cache-mp></clear>")
 		else:
-			encodedcall1 = "&type=op&cmd=" + urllib.quote_plus("<clear><user-cache><ip>" + userip + "</ip></user-cache></clear>")
-			encodedcall2 = "&type=op&cmd=" + urllib.quote_plus("<clear><user-cache-mp><ip>" + userip + "</ip></user-cache-mp></clear>")
+			encodedcall1 = urllib.quote_plus("<clear><user-cache><ip>" + userip + "</ip></user-cache></clear>")
+			encodedcall2 = urllib.quote_plus("<clear><user-cache-mp><ip>" + userip + "</ip></user-cache-mp></clear>")
 		result = {}
 		for target in targetlist:
-			url1 = 'https://' + target['hostname'] + '/api/?key=' + target['apikey'] + encodedcall1
-			url2 = 'https://' + target['hostname'] + '/api/?key=' + target['apikey'] + encodedcall2
-			result.update({target['hostname']: {}})
+			url1 = 'https://' + target['hostname'] + '/api/?key=' + target['apikey'] + "&type=op&vsys=vsys" + target['vsys'] + "&cmd=" + encodedcall1
+			url2 = 'https://' + target['hostname'] + '/api/?key=' + target['apikey'] + "&type=op&vsys=vsys" + target['vsys'] + "&cmd=" + encodedcall2
+			result.update({target['hostname'] + ":vsys" + target['vsys']: {}})
 			result1 = urllib2.urlopen(url1).read()
 			result2 = urllib2.urlopen(url2).read()
-			result[target['hostname']].update({"DP-CLEAR": result1})
-			result[target['hostname']].update({"MP-CLEAR": result2})
+			result[target['hostname'] + ":vsys" + target['vsys']].update({"DP-CLEAR": result1})
+			result[target['hostname'] + ":vsys" + target['vsys']].update({"MP-CLEAR": result2})
 		return result
 
 		
@@ -1171,7 +1181,7 @@ class radiuid_main_process(object):
 		self.filemgmt.logwriter("normal", "***********CHECKING TARGETS FOR INCOMPLETE OR INCORRECT CONFIGS***********")
 		self.filemgmt.scrub_targets("noisy", "scrub")
 		self.filemgmt.logwriter("normal", "***********LOADED THE BELOW TARGETS***********")
-		self.filemgmt.logwriter("normal", "\n" + self.ui.indenter("\t\t\t", self.ui.make_table(["hostname", "username", "password", "version"], targets)))
+		self.filemgmt.logwriter("normal", "\n" + self.ui.indenter("\t\t\t", self.ui.make_table(["hostname", "vsys", "username", "password", "version"], targets)))
 		##### Initial log entry and help for anybody starting the .py program without first installing it #####
 		self.filemgmt.logwriter("normal", "***********RADIUID INITIALIZING... IF PROGRAM FAULTS NOW, MAKE SURE YOU SUCCESSFULLY RAN THE INSTALLER ('python radiuid.py install')***********")
 		##### Explicitly pull PAN key now and store API key in the main namespace #####
@@ -1181,7 +1191,7 @@ class radiuid_main_process(object):
 		self.filemgmt.logwriter("normal", "********************SUCCESSFULLY INITIALIZED THE FOLLOWING FIREWALLS********************")
 		targetnum = 1
 		for target in targets:
-			self.filemgmt.logwriter("normal", str(targetnum) + ": " + (self.ui.color(target['hostname'], self.ui.green)))
+			self.filemgmt.logwriter("normal", str(targetnum) + ": " + (self.ui.color(target['hostname'] + ":vsys" + target['vsys'], self.ui.green)))
 		self.filemgmt.logwriter("normal", "*******************************************CONFIG FILE SETTINGS INITIALIZED*******************************************")
 		self.filemgmt.logwriter("normal", "***********************************RADIUID SERVER STARTING WITH INITIALIZED VARIABLES...******************************")
 	##### RadiUID looper method which initializes the namespace with config variables and loops the main RadiUID program #####
@@ -1583,10 +1593,13 @@ class installer_maintenance_utility(object):
 			#########################################################################
 			print "\n****************Checking for already configured firewall targets****************\n"
 			self.ui.progress('Reading:', 1)
-			for target in targets:
-				print "   HOSTNAME: " + self.ui.color(target['hostname'], self.ui.green) + "\t\tUSERNAME: " + self.ui.color(target['username'], self.ui.green) + "\t\tPASSWORD: " + self.ui.color(target['password'], self.ui.green) + "\t\tVERSION: " + self.ui.color(target['version'], self.ui.green)
+			try:
+				self.filemgmt.scrub_targets("noisy", "scrub")
+				print self.ui.make_table(["hostname", "vsys",  'username', 'password', 'version'], targets)
+			except NameError:
+				print self.ui.color("\n****************No firewall targets currently configured****************\n", self.ui.yellow)
 			print "\n\n"
-			changetargets = self.ui.yesorno("Do you want to delete the current targets and set up new ones?")
+			changetargets = self.ui.yesorno("Do you want to delete any current targets and set up new ones?")
 			if changetargets == 'no':
 				print "~~~ OK. Leaving current targets alone..."
 				newtargets = targets
@@ -1596,15 +1609,15 @@ class installer_maintenance_utility(object):
 				while anothertarget == 'yes':
 					print "\n\n\n"
 					addhostname = self.imum.change_setting('192.168.1.1', 'Enter the IP ADDRESS or HOSTNAME of the target firewall to recieve User-ID mappings')
+					addvsys = self.imum.change_setting('vsys1', 'Enter the Virtual System ID of the target firewall to recieve User-ID mappings').replace("vsys", "")
 					addusername = self.imum.change_setting('admin', 'Enter the administrative USERNAME to use for authentication against the firewall')
 					addpassword = self.imum.change_setting('admin', 'Enter the PASSWORD for the username you just entered')
 					addversion = self.imum.change_setting('7', 'Enter the major software version running on the firewall')
-					newtargets.append({'hostname': addhostname, 'username': addusername, 'password': addpassword, 'version': addversion})
+					newtargets.append({'hostname': addhostname, 'vsys': addvsys, 'username': addusername, 'password': addpassword, 'version': addversion})
 					print "\n\n"
 					anothertarget = self.ui.yesorno("Do you want to add another target firewall?")
 				print "\n****************New Targets Are:****************\n"
-				for target in newtargets:
-					print "   HOSTNAME: " + self.ui.color(target['hostname'], self.ui.green) + "\t\tUSERNAME: " + self.ui.color(target['username'], self.ui.green) + "\t\tPASSWORD: " + self.ui.color(target['password'], self.ui.green) + "\t\tVERSION: " + self.ui.color(target['version'], self.ui.green)
+				print self.ui.make_table(["hostname", "vsys",  'username', 'password', 'version'], newtargets)
 				print "\n\n\n"
 				raw_input(self.ui.color("\n\n>>>>> Hit ENTER to see what the new config will look like...\n\n>>>>>", self.ui.cyan))
 				print "\n\n\n"
@@ -1734,12 +1747,12 @@ class command_line_interpreter(object):
 			self.imu.im_utility()
 		######################### SHOW #############################
 		elif arguments == "show" or arguments == "show ?":
-			print "\n - show log                                      |     Show the RadiUID log file"
-			print " - show run (xml | set)                          |     Show the RadiUID configuration in XML format (default) or as set commands"
-			print " - show config (xml | set)                       |     Show the RadiUID configuration in XML format (default) or as set commands"
-			print " - show clients                                  |     Show the FreeRADIUS client config file"
-			print " - show status                                   |     Show the RadiUID and FreeRADIUS service statuses"
-			print " - show mappings (<target> | all | consistency)  |     Show the current IP-to-User mappings of one or all targets or check consistency\n"
+			print "\n - show log                                                  |     Show the RadiUID log file"
+			print " - show run (xml | set)                                      |     Show the RadiUID configuration in XML format (default) or as set commands"
+			print " - show config (xml | set)                                   |     Show the RadiUID configuration in XML format (default) or as set commands"
+			print " - show clients                                              |     Show the FreeRADIUS client config file"
+			print " - show status                                               |     Show the RadiUID and FreeRADIUS service statuses"
+			print " - show mappings (<hostname>:<vsys-id> | all | consistency)  |     Show the current IP-to-User mappings of one or all targets or check consistency\n"
 		elif arguments == "show config ?":
 			print "\n - show config (xml | set)  |   Show the RadiUID configuration in XML format (default) or as set commands"
 			print "                            |  "
@@ -1753,13 +1766,14 @@ class command_line_interpreter(object):
 			print "                         |             'show run xml'"
 			print "                         |             'show run set'\n"
 		elif arguments == "show mappings" or arguments == "show mappings ?":
-			print "\n - show mappings (<target> | all | consistency)  |   Show the current IP-to-User mappings of one or all targets or"
-			print "                                                 |    check the consistency of IP-to-User mappings in all targets"
-			print "                                                 |  "
-			print "                                                 |   Examples: 'show mappings 192.168.1.1'"
-			print "                                                 |             'show mappings pan1.domain.com'"
-			print "                                                 |             'show mappings all'"
-			print "                                                 |             'show mappings consistency'\n"
+			print "\n - show mappings (<hostname>:<vsys-id> | all | consistency)  |   Show the current IP-to-User mappings of one or all targets or"
+			print "                                                             |    check the consistency of IP-to-User mappings in all targets"
+			print "                                                             |  "
+			print "                                                             |   Examples: 'show mappings 192.168.1.1:vsys1'"
+			print "                                                             |             'show mappings pan1.domain.com'"
+			print "                                                             |             'show mappings pan1.domain.com:4'"
+			print "                                                             |             'show mappings all'"
+			print "                                                             |             'show mappings consistency'\n"
 		elif arguments == "show log":
 			self.filemgmt.logwriter("cli", "##### COMMAND '" + arguments + "' ISSUED FROM CLI BY USER '" + self.imum.currentuser()+ "' #####")
 			configfile = self.filemgmt.find_config("quiet")
@@ -1832,14 +1846,20 @@ class command_line_interpreter(object):
 			header = "########################## EXECUTING COMMAND: " + arguments + " ##########################"
 			print self.ui.color(header, self.ui.magenta)
 			print self.ui.color("#" * len(header), self.ui.magenta)
+			if ":" in sys.argv[3]:
+				hostname = sys.argv[3].split(":")[0]
+				vsys = sys.argv[3].split(":")[1].replace("vsys", "")
+			else:
+				hostname = sys.argv[3]
+				vsys = "1"
 			keepgoing = "yes"
 			pulluids = "yes"
 			##### Check target hostname against config and check for necessary parameters #####
 			if keepgoing == "yes":
-				if sys.argv[3].lower() != "all" and sys.argv[3].lower() != "consistency":
+				if hostname.lower() != "all" and hostname.lower() != "consistency":
 					keepgoing = "no"
 					for target in targets:
-						if target['hostname'] == sys.argv[3]:
+						if target['hostname'] == hostname and target['vsys'] == vsys:
 							keepgoing = "yes"
 							targets = [target]
 					if keepgoing == "no":
@@ -1851,7 +1871,7 @@ class command_line_interpreter(object):
 				pankey = self.pafi.pull_api_key("quiet", targets) # Pull the API keys for each target
 				uidxmldict = self.pafi.pull_uids(targets) # Pull the mappings for each target
 				print "\n\n"
-				if sys.argv[3].lower() == "consistency":
+				if hostname.lower() == "consistency":
 					print self.dp.map_consistency_check(uidxmldict)
 					print "\n\n"
 				else:
@@ -1871,11 +1891,11 @@ class command_line_interpreter(object):
 			print self.ui.color("#" * len(header), self.ui.magenta)
 		######################### SET #############################
 		elif arguments == "set" or arguments == "set ?":
-			print "\n - set logfile <file path>             |     Set the RadiUID logfile path"
-			print " - set radiuslogpath <directory path>  |     Set the path used to find FreeRADIUS accounting log files"
-			print " - set userdomain <domain name>        |     Set the domain name prepended to User-ID mappings"
-			print " - set timeout <minutes>               |     Set the timeout (in minutes) for User-ID mappings sent to the firewall targets"
-			print " - set target <hostname> [parameters]  |     Set configuration elements for existing or new firewall targets\n"
+			print "\n - set logfile <file path>                       |     Set the RadiUID logfile path"
+			print " - set radiuslogpath <directory path>            |     Set the path used to find FreeRADIUS accounting log files"
+			print " - set userdomain <domain name>                  |     Set the domain name prepended to User-ID mappings"
+			print " - set timeout <minutes>                         |     Set the timeout (in minutes) for User-ID mappings sent to the firewall targets"
+			print " - set target <hostname>:<vsys-id> [parameters]  |     Set configuration elements for existing or new firewall targets\n"
 		elif arguments == "set logfile" or arguments == "set logfile ?":
 			print "\n - set logfile <file path>  |  Example: 'set logfile /etc/radiuid/radiuid.log'\n"
 		elif arguments == "set radiuslogpath" or arguments == "set radiuslogpath ?":
@@ -1885,11 +1905,14 @@ class command_line_interpreter(object):
 		elif arguments == "set timeout" or arguments == "set timeout ?":
 			print "\n - set timeout <minutes>  |  Example: 'set timeout 60'\n"
 		elif arguments == "set target" or arguments == "set target ?":
-			print "\n - set target <hostname> [parameters]  |  Parameters: (hostname <hostname> | username <username> | password <password> | version  <PAN-OS version #>)"
-			print "                                       |              "
-			print "                                       |  Examples:   'set target 192.168.1.1 username admin'"
-			print "                                       |              'set target pan1.domain.com password P@s$w0rd'"
-			print "                                       |              'set target 10.0.0.10 username admin password P@ssword version 6\n"
+			print "\n - set target <hostname>:<vsys-id> [parameters]  |  Parameters: hostname and vsys <hostname>:<vsys-id>"
+			print "                                                 |              username <username> "
+			print "                                                 |              password <password> "
+			print "                                                 |              version  <PAN-OS version #> "
+			print "                                                 |              "
+			print "                                                 |  Examples:   'set target 192.168.1.1 username admin'"
+			print "                                                 |              'set target pan1.domain.com:vsys1 password P@s$w0rd'"
+			print "                                                 |              'set target 10.0.0.10:2 username admin password P@ssword version 6\n"
 		##### SET LOGFILE #####
 		elif self.cat_list(sys.argv[1:3]) == "set logfile" and len(re.findall("^(\/*)", sys.argv[3])) > 0:
 			self.filemgmt.logwriter("cli", "##### COMMAND '" + arguments + "' ISSUED FROM CLI BY USER '" + self.imum.currentuser()+ "' #####")
@@ -2142,12 +2165,11 @@ class command_line_interpreter(object):
 			print self.ui.color("#" * len(header), self.ui.magenta)
 		######################### PUSH #############################
 		elif arguments == "push" or arguments == "push ?":
-			print "\n - push (<hostname> | all) [parameters]  |  Parameters: (<username>, <ip address>)"
-			print "                                         |              "
-			print "                                         |  Examples:   'push 192.168.1.1 administrator 10.0.0.1'"
-			print "                                         |              'push pan1.domain.com jsmith 172.30.50.100'"
-			print "                                         |              'push all jsmith 172.30.50.100'"
-			print "                                         |              \n"
+			print "\n - push (<hostname>:<vsys-id> | all) [parameters]  |  Parameters: (<username>, <ip address>)"
+			print "                                                   |              "
+			print "                                                   |  Examples:   'push 192.168.1.1:vsys1 administrator 10.0.0.1'"
+			print "                                                   |              'push pan1.domain.com:3 jsmith 172.30.50.100'"
+			print "                                                   |              'push all jsmith 172.30.50.100'\n"
 		elif self.cat_list(sys.argv[1:2]) == "push" and len(re.findall("[0-9A-Za-z]", sys.argv[2])) > 0:
 			self.filemgmt.logwriter("cli", "##### COMMAND '" + arguments + "' ISSUED FROM CLI BY USER '" + self.imum.currentuser()+ "' #####")
 			header = "########################## EXECUTING COMMAND: " + arguments + " ##########################"
@@ -2160,15 +2182,21 @@ class command_line_interpreter(object):
 				self.filemgmt.logwriter("cli", self.ui.color("********************* ERROR: Some parameters are missing. Use '", self.ui.red) + self.ui.color(runcmd + " push ?", self.ui.cyan) + self.ui.color("' to see proper use and examples.********************", self.ui.red))
 				pushuser = "no"
 				keepgoing = "no"
+			if ":" in sys.argv[2]:
+				hostname = sys.argv[2].split(":")[0]
+				vsys = sys.argv[2].split(":")[1].replace("vsys", "")
+			else:
+				hostname = sys.argv[2]
+				vsys = "1"
 			if keepgoing == "yes":
-				if sys.argv[2].lower() != "all":
+				if hostname.lower() != "all":
 					keepgoing = "no"
 					for target in targets:
-						if target['hostname'] == sys.argv[2]:
+						if target['hostname'] == hostname and target['vsys'] == vsys:
 							keepgoing = "yes"
 							targets = [target]
 					if keepgoing == "no":
-						self.filemgmt.logwriter("cli", self.ui.color("********************* ERROR: Target ", self.ui.red) + self.ui.color(sys.argv[2], self.ui.cyan) + self.ui.color(" does not exist in config. Please configure it.********************", self.ui.red))
+						self.filemgmt.logwriter("cli", self.ui.color("********************* ERROR: Target ", self.ui.red) + self.ui.color(hostname + ":vsys" + vsys, self.ui.cyan) + self.ui.color(" does not exist in config. Please configure it.********************", self.ui.red))
 						pushuser = "no"
 			##### Check parameters for proper data and report errors #####
 			if keepgoing == "yes":
@@ -2184,6 +2212,7 @@ class command_line_interpreter(object):
 					self.filemgmt.logwriter("cli", self.ui.color("****************FATAL: Bad IP Address****************", self.ui.red))
 					pushuser = "no"
 				if pushuser == "yes":
+					self.filemgmt.scrub_targets("noisy", "scrub")
 					pankey = self.pafi.pull_api_key("noisy", targets)
 					self.pafi.push_uids({sys.argv[4]: sys.argv[3]}, [])
 			if pushuser == "yes":
@@ -2212,17 +2241,17 @@ class command_line_interpreter(object):
 			print self.ui.color("#" * len(header), self.ui.magenta)
 		######################### CLEAR #############################
 		elif arguments == "clear" or arguments == "clear ?":
-			print "\n - clear log                                       |     Delete the content in the log file"
-			print " - clear target (<target> | all)                   |     Delete one or all firewall targets in the config file"
-			print " - clear mappings (<target> | all) (<ip> | all)    |     Remove one or all IP-to-User mappings from one or all firewalls\n"
+			print "\n - clear log                                                   |     Delete the content in the log file"
+			print " - clear target (<hostname>:<vsys-id> | all)                   |     Delete one or all firewall targets in the config file"
+			print " - clear mappings (<hostname>:<vsys-id> | all) (<ip> | all)    |     Remove one or all IP-to-User mappings from one or all firewalls\n"
 		elif arguments == "clear target" or arguments == "clear target ?":
-			print "\n - clear target (<target> | all)  |  Examples: 'clear target 192.168.1.1'"
-			print "                                  |            'clear target pan1.domain.com'"
-			print "                                  |            'clear target all'\n"
+			print "\n - clear target (<hostname>:<vsys-id> | all)  |  Examples: 'clear target 192.168.1.1:vsys1'"
+			print "                                              |            'clear target pan1.domain.com:2'"
+			print "                                              |            'clear target all'\n"
 		elif arguments == "clear mappings" or arguments == "clear mappings ?":
-			print "\n - clear mappings (<target> | all) (<ip> | all)     |  Examples: 'clear mappings pan1.domain.com 10.0.0.1'"
-			print "                                                    |            'clear mappings 192.168.1.1 all'"
-			print "                                                    |            'clear mappings all all'\n"
+			print "\n - clear mappings (<hostname>:<vsys-id> | all) (<ip> | all)     |  Examples: 'clear mappings pan1.domain.com:vsys1 10.0.0.1'"
+			print "                                                                |            'clear mappings 192.168.1.1:2 all'"
+			print "                                                                |            'clear mappings all all'\n"
 		##### CLEAR LOG #####
 		elif arguments == "clear log":
 			print self.ui.color("********************* You are about to clear out the RadiUID log file... (" + logfile + ") ********************", self.ui.yellow)
@@ -2288,20 +2317,26 @@ class command_line_interpreter(object):
 			header = "########################## EXECUTING COMMAND: " + arguments + " ##########################"
 			print self.ui.color(header, self.ui.magenta)
 			print self.ui.color("#" * len(header), self.ui.magenta)
+			if ":" in sys.argv[3]:
+				hostname = sys.argv[3].split(":")[0]
+				vsys = sys.argv[3].split(":")[1].replace("vsys", "")
+			else:
+				hostname = sys.argv[3]
+				vsys = "1"
 			keepgoing = "yes"
 			##### Check target hostname against config and check for necessary parameters #####
 			if len(sys.argv[3:5]) != 2:
 				self.filemgmt.logwriter("cli", self.ui.color("********************* ERROR: Some parameters are missing. Use '", self.ui.red) + self.ui.color(runcmd + " clear mappings ?", self.ui.cyan) + self.ui.color("' to see proper use and examples.********************", self.ui.red))
 				keepgoing = "no"
 			if keepgoing == "yes":
-				if sys.argv[3].lower() != "all":
+				if hostname.lower() != "all":
 					keepgoing = "no"
 					for target in targets:
-						if target['hostname'] == sys.argv[3]:
+						if target['hostname'] == hostname and target['vsys'] == vsys:
 							keepgoing = "yes"
 							targets = [target]
 					if keepgoing == "no":
-						self.filemgmt.logwriter("cli", self.ui.color("********************* ERROR: Target ", self.ui.red) + self.ui.color(sys.argv[3], self.ui.cyan) + self.ui.color(" does not exist in config. Please configure it.********************", self.ui.red))
+						self.filemgmt.logwriter("cli", self.ui.color("********************* ERROR: Target ", self.ui.red) + self.ui.color(hostname + ":vsys" + vsys, self.ui.cyan) + self.ui.color(" does not exist in config. Please configure it.********************", self.ui.red))
 			if keepgoing == "yes":
 				if sys.argv[4].lower() != "all":
 					if self.filemgmt.ip_checker("address", sys.argv[4]) != "pass":
@@ -2310,6 +2345,7 @@ class command_line_interpreter(object):
 			if keepgoing == "yes":
 				print "\n\n",self.ui.color("********************* You are about to remove IP-to-User mappings. Please confirm... ********************", self.ui.yellow)
 				raw_input("Hit CTRL-C to quit. Hit ENTER to continue\n>>>>>")
+				self.filemgmt.scrub_targets("noisy", "scrub")
 				print "\n" + time.strftime("%Y-%m-%d %H:%M:%S") + ":   " +"****************Removing IP-to-User Mappings... ****************\n"
 				if sys.argv[4].lower() == "all":
 					pankey = self.pafi.pull_api_key("quiet", targets)
@@ -2318,17 +2354,21 @@ class command_line_interpreter(object):
 					pankey = self.pafi.pull_api_key("quiet", targets)
 					tempresult = self.pafi.clear_uids(targets, sys.argv[4])
 				resultlist = []
+				debug = ""
 				for target in tempresult:
 					tempdict = {"hostname": target}
 					for command in tempresult[target]:
 						if 'status="success"' in tempresult[target][command]:
-							tempdict.update({command: "success"})
+							tempdict.update({command: self.ui.color("success", self.ui.green)})
 						else:
-							tempdict.update({command: "failed"})
+							tempdict.update({command: self.ui.color("failed", self.ui.red)})
+							debug += tempresult[target][command] + "\n\n"
 					resultlist.append(tempdict)
 					del tempdict
 				print "\n"
 				print self.ui.make_table(["hostname", "DP-CLEAR", "MP-CLEAR"], resultlist).replace("hostname", "HOSTNAME")
+				if debug != "":
+					print "\n\n" + self.ui.color(debug, self.ui.red)
 				print "\n"
 			if keepgoing == "yes":
 				print self.ui.color("Success!", self.ui.green)
@@ -2546,39 +2586,39 @@ class command_line_interpreter(object):
 			print self.ui.color(" - Usage if installed: ", self.ui.white) + self.ui.color("radiuid [arguments]", self.ui.green) + "\n"
 			print self.ui.color(" - Usage if NOT installed: ", self.ui.white) + self.ui.color("python radiuid.py [arguments]", self.ui.green) + "\n"
 			print "-------------------------------------------------------------------------------------------------------------------------------"
-			print "                     ARGUMENTS                  |                                  DESCRIPTIONS"
+			print "                     ARGUMENTS                    |                                  DESCRIPTIONS"
 			print "-------------------------------------------------------------------------------------------------------------------------------\n"
-			print " - run                                          |  Run the RadiUID main program in shell mode begin pushing User-ID information"
+			print " - run                                            |  Run the RadiUID main program in shell mode begin pushing User-ID information"
 			print "-------------------------------------------------------------------------------------------------------------------------------\n"
-			print " - install                                      |  Run the RadiUID Install/Maintenance Utility"
+			print " - install                                        |  Run the RadiUID Install/Maintenance Utility"
 			print "-------------------------------------------------------------------------------------------------------------------------------\n"
-			print " - show log                                     |  Show the RadiUID log file"
-			print " - show run (xml | set)                         |  Show the RadiUID configuration in XML format (default) or as set commands"
-			print " - show config (xml | set)                      |  Show the RadiUID configuration in XML format (default) or as set commands"
-			print " - show clients                                 |  Show the FreeRADIUS client config file"
-			print " - show status                                  |  Show the RadiUID and FreeRADIUS service statuses"
-			print " - show mappings (<target> | all | consistency) |  Show the current IP-to-User mappings of one or all targets or check consistency"
+			print " - show log                                       |  Show the RadiUID log file"
+			print " - show run (xml | set)                           |  Show the RadiUID configuration in XML format (default) or as set commands"
+			print " - show config (xml | set)                        |  Show the RadiUID configuration in XML format (default) or as set commands"
+			print " - show clients                                   |  Show the FreeRADIUS client config file"
+			print " - show status                                    |  Show the RadiUID and FreeRADIUS service statuses"
+			print " - show mappings (<target> | all | consistency)   |  Show the current IP-to-User mappings of one or all targets or check consistency"
 			print "-------------------------------------------------------------------------------------------------------------------------------\n"
-			print " - set logfile                                  |  Set the RadiUID logfile path"
-			print " - set radiuslogpath                            |  Set the path used to find FreeRADIUS accounting log files"
-			print " - set userdomain                               |  Set the domain name prepended to User-ID mappings"
-			print " - set timeout                                  |  Set the timeout (in minutes) for User-ID mappings sent to the firewall targets"
-			print " - set target [parameters]                      |  Set configuration elements for existing or new firewall targets"
+			print " - set logfile                                    |  Set the RadiUID logfile path"
+			print " - set radiuslogpath                              |  Set the path used to find FreeRADIUS accounting log files"
+			print " - set userdomain                                 |  Set the domain name prepended to User-ID mappings"
+			print " - set timeout                                    |  Set the timeout (in minutes) for User-ID mappings sent to the firewall targets"
+			print " - set target <hostname>:<vsys-id> [parameters]   |  Set configuration elements for existing or new firewall targets"
 			print "-------------------------------------------------------------------------------------------------------------------------------\n"
-			print " - push (<hostname> | all) [parameters]         |  Manually push a User-ID mapping to one or all firewall targets"
+			print " - push (<hostname>:<vsys-id> | all) [parameters] |  Manually push a User-ID mapping to one or all firewall targets"
 			print "-------------------------------------------------------------------------------------------------------------------------------\n"
-			print " - tail log (<# of lines>)                      |  Watch the RadiUID log file in real time"
+			print " - tail log (<# of lines>)                        |  Watch the RadiUID log file in real time"
 			print "-------------------------------------------------------------------------------------------------------------------------------\n"
-			print " - clear log                                    |  Delete the content in the log file"
-			print " - clear target (<target> | all)                |  Delete one or all firewall targets in the config file"
-			print " - clear mappings [parameters]                  |  Remove one or all IP-to-User mappings from one or all firewalls"
+			print " - clear log                                      |  Delete the content in the log file"
+			print " - clear target (<hostname>:<vsys-id> | all)      |  Delete one or all firewall targets in the config file"
+			print " - clear mappings [parameters]                    |  Remove one or all IP-to-User mappings from one or all firewalls"
 			print "-------------------------------------------------------------------------------------------------------------------------------\n"
-			print " - edit config                                  |  Edit the RadiUID config file"
-			print " - edit clients                                 |  Edit list of client IPs for FreeRADIUS"
+			print " - edit config                                    |  Edit the RadiUID config file"
+			print " - edit clients                                   |  Edit list of client IPs for FreeRADIUS"
 			print "-------------------------------------------------------------------------------------------------------------------------------\n"
-			print " - service [parameters]                         |  Control the RadiUID and FreeRADIUS system services"
+			print " - service [parameters]                           |  Control the RadiUID and FreeRADIUS system services"
 			print "-------------------------------------------------------------------------------------------------------------------------------\n"
-			print " - version                                      |  Show the current version of RadiUID and FreeRADIUS"
+			print " - version                                        |  Show the current version of RadiUID and FreeRADIUS"
 			print "-------------------------------------------------------------------------------------------------------------------------------\n"
 			print self.ui.color("###############################################################################################", self.ui.magenta)
 			print self.ui.color("###############################################################################################", self.ui.magenta)
