@@ -1407,6 +1407,9 @@ _radiuid_complete()
       "service")
         COMPREPLY=( $(compgen -W "radiuid freeradius all" -- $cur) )
         ;;
+      debug)
+        COMPREPLY=( $(compgen -W "auto-complete" -- $cur) )
+        ;;
       *)
         ;;
     esac
@@ -1555,7 +1558,6 @@ bind 'set show-all-if-ambiguous on'"""
 		f.close()
 		os.system('chmod 777 /etc/profile.d/radiuid-complete.sh')
 		self.ui.progress("Setting Up Auto-Completion: ", 2)
-		os.system('. /etc/profile.d/radiuid-complete.sh')
 	##### Apply new settings as veriables in the namespace #####
 	##### Used to write new setting values to namespace to be picked up and used by the write_file method to write to the config file #####
 	def apply_setting(self, file_data, settingname, oldsetting, newsetting):
