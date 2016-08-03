@@ -1719,6 +1719,7 @@ class installer_maintenance_utility(object):
 				self.imum.install_radiuid()
 				print "\n"
 				self.imum.install_radiuid_completion()
+				raw_input(self.ui.color(">>>>> You will need to log out and log back in to activate the RadiUID CLI auto-completion functionality\n>>>>>", self.ui.cyan))
 				print "\n\n****************We will start up the RadiUID service once we configure the .conf file****************\n"
 			if radiuidreinstall == 'no':
 				print "~~~ Yea, probably best to leave it alone..."
@@ -1742,6 +1743,7 @@ class installer_maintenance_utility(object):
 						self.imum.install_radiuid()
 						print "\n"
 						self.imum.install_radiuid_completion()
+						raw_input(self.ui.color(">>>>> You will need to log out and log back in to activate the RadiUID CLI auto-completion functionality\n>>>>>", self.ui.cyan))
 						print "\n\n****************We will start up the RadiUID service once we configure the .conf file****************\n"
 			if radiuidrestart == 'no':
 				print self.ui.color("~~~ OK, leaving it off...", self.ui.yellow)
@@ -1754,6 +1756,7 @@ class installer_maintenance_utility(object):
 				self.imum.install_radiuid()
 				print "\n"
 				self.imum.install_radiuid_completion()
+				raw_input(self.ui.color(">>>>> You will need to log out and log back in to activate the RadiUID CLI auto-completion functionality\n>>>>>", self.ui.cyan))
 				print "\n\n****************We will start up the RadiUID service once we configure the .conf file****************\n"
 	
 			if radiuidinstall == 'no':
