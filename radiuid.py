@@ -1229,6 +1229,7 @@ class imu_methods(object):
 	def __init__(self):
 		##### Instantiate external object dependencies #####
 		self.ui = user_interface()
+		self.filemgmt = file_management()
 		####################################################
 	#######################################################
 	#######          OS Interaction Methods           #####
@@ -1364,6 +1365,197 @@ class imu_methods(object):
 		f.close()
 		self.ui.progress("Installing: ", 2)
 		os.system('systemctl enable radiuid')
+	def install_radiuid_completion(self):
+		##### BASH SCRIPT DATA START #####
+		bash_complete_script = """#!/bin/bash
+
+#####  RadiUID Server BASH Complete Script  #####
+#####        Written by John W Kerns        #####
+#####       http://blog.packetsar.com       #####
+#####  https://github.com/PackeTsar/radiuid #####
+
+_radiuid_complete()
+{
+  local cur prev
+  COMPREPLY=()
+  cur=${COMP_WORDS[COMP_CWORD]}
+  prev=${COMP_WORDS[COMP_CWORD-1]}
+  prev2=${COMP_WORDS[COMP_CWORD-2]}
+  if [ $COMP_CWORD -eq 1 ]; then
+    COMPREPLY=( $(compgen -W "run install show set push tail clear edit service version" -- $cur) )
+  elif [ $COMP_CWORD -eq 2 ]; then
+    case "$prev" in
+      show)
+        COMPREPLY=( $(compgen -W "log run config clients status mappings" -- $cur) )
+        ;;
+      "set")
+        COMPREPLY=( $(compgen -W "logfile radiuslogpath userdomain timeout target" -- $cur) )
+        ;;
+      push)
+        local targets=$(for target in `radiuid targets`; do echo $target ; done)
+        COMPREPLY=( $(compgen -W "${targets} all" -- ${cur}) )
+        ;;
+      "tail")
+        COMPREPLY=( $(compgen -W "log" -- $cur) )
+        ;;
+      "clear")
+        COMPREPLY=( $(compgen -W "log target mappings" -- $cur) )
+        ;;
+      edit)
+        COMPREPLY=( $(compgen -W "config clients" -- $cur) )
+        ;;
+      "service")
+        COMPREPLY=( $(compgen -W "radiuid freeradius all" -- $cur) )
+        ;;
+      *)
+        ;;
+    esac
+  elif [ $COMP_CWORD -eq 3 ]; then
+    case "$prev" in
+      run)
+        COMPREPLY=( $(compgen -W "xml set" -- $cur) )
+        ;;
+      config)
+        if [ "$prev2" == "show" ]; then
+          COMPREPLY=( $(compgen -W "xml set" -- $cur) )
+        fi
+        ;;
+      freeradius|radiuid)
+        if [ "$prev2" == "service" ]; then
+          COMPREPLY=( $(compgen -W "start stop restart" -- $cur) )
+        fi
+        ;;
+      log)
+        if [ "$prev2" == "tail" ]; then
+          COMPREPLY=( $(compgen -W "<number-of-lines> -" -- $cur) )
+        fi
+        ;;
+      all)
+        if [ "$prev2" == "service" ]; then
+          COMPREPLY=( $(compgen -W "start stop restart" -- $cur) )
+        elif [ "$prev2" == "push" ]; then
+          COMPREPLY=( $(compgen -W "<username> -" -- $cur) )
+        fi
+        ;;
+      mappings)
+        local targets=$(for target in `radiuid targets`; do echo $target ; done)
+        if [ "$prev2" == "show" ]; then
+          COMPREPLY=( $(compgen -W "${targets} all consistency" -- ${cur}) )
+        elif [ "$prev2" == "clear" ]; then
+          COMPREPLY=( $(compgen -W "${targets} all" -- ${cur}) )
+        fi
+        ;;
+      target)
+        local targets=$(for target in `radiuid targets`; do echo $target ; done)
+        if [ "$prev2" == "set" ]; then
+          COMPREPLY=( $(compgen -W "${targets} <NEW-HOSTNAME>:<VSYS-ID>" -- ${cur}) )
+        elif [ "$prev2" == "clear" ]; then
+          COMPREPLY=( $(compgen -W "${targets} all" -- ${cur}) )
+        fi
+        ;;
+      *)
+        ;;
+    esac
+  elif [ $COMP_CWORD -eq 4 ]; then
+    prev3=${COMP_WORDS[COMP_CWORD-3]}
+    if [ "$prev2" == "mappings" ]; then
+      if [ "$prev3" == "clear" ]; then
+        COMPREPLY=( $(compgen -W "all <uid-ip>" -- $cur) )
+      fi
+    fi
+    if [ "$prev2" == "all" ]; then
+      if [ "$prev3" == "push" ]; then
+        COMPREPLY=( $(compgen -W "<ip-address> -" -- $cur) )
+      fi
+    fi
+  elif [ $COMP_CWORD -eq 5 ]; then
+    prev4=${COMP_WORDS[COMP_CWORD-4]}
+    if [ "$prev4" == "push" ]; then
+      COMPREPLY=( $(compgen -W "<username> -" -- $cur) )
+    fi
+  elif [ $COMP_CWORD -eq 6 ]; then
+    prev4=${COMP_WORDS[COMP_CWORD-4]}
+    prev5=${COMP_WORDS[COMP_CWORD-5]}
+    if [ "$prev4" == "mappings" ]; then
+      if [ "$prev5" == "clear" ]; then
+        COMPREPLY=( $(compgen -W "all <uid-ip>" -- $cur) )
+      fi
+    elif [ "$prev5" == "push" ]; then
+      COMPREPLY=( $(compgen -W "<ip-address> -" -- $cur) )
+    fi
+    if [ "$prev4" == "target" ]; then
+      if [ "$prev5" == "set" ]; then
+        COMPREPLY=( $(compgen -W "username password version" -- $cur) )
+      fi
+    fi
+  elif [ $COMP_CWORD -eq 8 ]; then
+    case "$prev2" in
+      username)
+        COMPREPLY=( $(compgen -W "password version" -- $cur) )
+        ;;
+      password)
+        COMPREPLY=( $(compgen -W "username version" -- $cur) )
+        ;;
+      version)
+        COMPREPLY=( $(compgen -W "username password" -- $cur) )
+        ;;
+      *)
+        ;;
+    esac
+  elif [ $COMP_CWORD -eq 10 ]; then
+    prev4=${COMP_WORDS[COMP_CWORD-4]}
+    case "$prev4" in
+      username)
+        if [ "$prev2" == "password" ]; then
+            COMPREPLY=( $(compgen -W "version" -- $cur) )
+        elif [ "$prev2" == "version" ]; then
+            COMPREPLY=( $(compgen -W "password" -- $cur) )
+        fi
+        ;;
+      password)
+        if [ "$prev2" == "username" ]; then
+            COMPREPLY=( $(compgen -W "version" -- $cur) )
+        elif [ "$prev2" == "version" ]; then
+            COMPREPLY=( $(compgen -W "username" -- $cur) )
+        fi
+        ;;
+      version)
+        if [ "$prev2" == "username" ]; then
+            COMPREPLY=( $(compgen -W "password" -- $cur) )
+        elif [ "$prev2" == "password" ]; then
+            COMPREPLY=( $(compgen -W "username" -- $cur) )
+        fi
+        ;;
+      *)
+        ;;
+    esac
+  elif [ $COMP_CWORD -eq 7 ] || [ $COMP_CWORD -eq 9 ] || [ $COMP_CWORD -eq 11 ]; then
+    case "$prev" in
+      username)
+        COMPREPLY=( $(compgen -W "<username> -" -- $cur) )
+        ;;
+      password)
+        COMPREPLY=( $(compgen -W "<password> -" -- $cur) )
+        ;;
+      version)
+        COMPREPLY=( $(compgen -W "<pan-os-version> -" -- $cur) )
+        ;;
+      *)
+        ;;
+    esac
+  fi
+  return 0
+} &&
+complete -F _radiuid_complete radiuid &&
+bind 'set show-all-if-ambiguous on'"""
+		##### BASH SCRIPT DATA STOP #####
+		##### Place script file #####
+		f = open('/etc/profile.d/radiuid-complete.sh', 'w')
+		f.write(bash_complete_script)
+		f.close()
+		os.system('chmod 777 /etc/profile.d/radiuid-complete.sh')
+		self.ui.progress("Setting Up Auto-Completion: ", 2)
+		os.system('. /etc/profile.d/radiuid-complete.sh')
 	##### Apply new settings as veriables in the namespace #####
 	##### Used to write new setting values to namespace to be picked up and used by the write_file method to write to the config file #####
 	def apply_setting(self, file_data, settingname, oldsetting, newsetting):
@@ -1523,6 +1715,8 @@ class installer_maintenance_utility(object):
 				print "\n\n****************Re-installing the RadiUID service...****************\n"
 				self.imum.copy_radiuid()
 				self.imum.install_radiuid()
+				print "\n"
+				self.imum.install_radiuid_completion()
 				print "\n\n****************We will start up the RadiUID service once we configure the .conf file****************\n"
 			if radiuidreinstall == 'no':
 				print "~~~ Yea, probably best to leave it alone..."
@@ -1544,6 +1738,8 @@ class installer_maintenance_utility(object):
 						print "\n\n****************Re-installing the RadiUID service...****************\n"
 						self.imum.copy_radiuid()
 						self.imum.install_radiuid()
+						print "\n"
+						self.imum.install_radiuid_completion()
 						print "\n\n****************We will start up the RadiUID service once we configure the .conf file****************\n"
 			if radiuidrestart == 'no':
 				print self.ui.color("~~~ OK, leaving it off...", self.ui.yellow)
@@ -1554,6 +1750,8 @@ class installer_maintenance_utility(object):
 				print "\n\n****************Installing the RadiUID service...****************\n"
 				self.imum.copy_radiuid()
 				self.imum.install_radiuid()
+				print "\n"
+				self.imum.install_radiuid_completion()
 				print "\n\n****************We will start up the RadiUID service once we configure the .conf file****************\n"
 	
 			if radiuidinstall == 'no':
@@ -1734,12 +1932,17 @@ class command_line_interpreter(object):
 		if arguments == "run":
 			self.radiuid.looper()
 		######################### DEBUG #############################
-		elif arguments == "debug":
+		elif arguments == "debug auto-complete":
+			self.imum.install_radiuid_completion()
+		######################### TARGETS #############################
+		elif arguments == "targets":
 			self.filemgmt.initialize_config("quiet")
 			self.filemgmt.publish_config("quiet")
-			self.filemgmt.scrub_targets("noisy", "scrub")
-			pankey = self.pafi.pull_api_key("quiet", targets)
-			print self.pafi.clear_uids(targets)
+			try:
+				for target in targets:
+					print target["hostname"] + ":vsys" + target["vsys"]
+			except NameError:
+				null = None
 		######################### INSTALL #############################
 		elif arguments == "install":
 			self.filemgmt.logwriter("quiet", "##### COMMAND '" + arguments + "' ISSUED FROM CLI BY USER '" + self.imum.currentuser()+ "' #####")
