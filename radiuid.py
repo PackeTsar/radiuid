@@ -1932,6 +1932,9 @@ class command_line_interpreter(object):
 		if arguments == "run":
 			self.radiuid.looper()
 		######################### DEBUG #############################
+		elif arguments == "debug" or arguments == "debug ?":
+			print "\n - debug auto-complete      |     Manually run the 'install_radiuid_completion' function"
+			print "                            |  "
 		elif arguments == "debug auto-complete":
 			self.imum.install_radiuid_completion()
 		######################### TARGETS #############################
