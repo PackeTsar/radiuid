@@ -541,6 +541,8 @@ class file_management(object):
 			if self.file_exists(logfile) == "yes":
 				self.logwriter_core(logfile, input)
 				# no printing to console
+		if maxloglines != 0:
+			self.log_trimmer(logfile, int(maxloglines))
 	#######################################################
 	#######    Configuration Management Methods     #######
 	#######################################################
@@ -579,6 +581,7 @@ class file_management(object):
 		global configdict
 		global radiuslogpath
 		global logfile
+		global maxloglines
 		global userdomain
 		global timeout
 		global ipaddressterm
@@ -596,6 +599,8 @@ class file_management(object):
 				self.logwriter("normal", "Initialized variable:" "\t" + "logfile" + "\t\t\t\t" + "with value:" + "\t" + self.ui.color(logfile, self.ui.green))
 				radiuslogpath = configdict['globalsettings']['paths']['radiuslogpath']
 				self.logwriter("normal", "Initialized variable:" "\t" + "radiuslogpath" + "\t\t\t" + "with value:" + "\t" + self.ui.color(radiuslogpath, self.ui.green))
+				maxloglines = configdict['globalsettings']['logging']['maxloglines']
+				self.logwriter("normal", "Initialized variable:" "\t" + "maxloglines" + "\t\t\t" + "with value:" + "\t" + self.ui.color(maxloglines, self.ui.green))
 				ipaddressterm = configdict['globalsettings']['searchterms']['ipaddressterm']
 				self.logwriter("normal", "Initialized variable:" "\t" + "ipaddressterm" + "\t\t\t" + "with value:" + "\t" + self.ui.color(ipaddressterm, self.ui.green))
 				usernameterm = configdict['globalsettings']['searchterms']['usernameterm']
@@ -620,6 +625,7 @@ class file_management(object):
 			try:
 				logfile = configdict['globalsettings']['paths']['logfile']
 				radiuslogpath = configdict['globalsettings']['paths']['radiuslogpath']
+				maxloglines = configdict['globalsettings']['logging']['maxloglines']
 				userdomain = configdict['globalsettings']['uidsettings']['userdomain']
 				timeout = configdict['globalsettings']['uidsettings']['timeout']
 				ipaddressterm = configdict['globalsettings']['searchterms']['ipaddressterm']
@@ -843,6 +849,28 @@ class file_management(object):
 	##### Simple starter method for the XML to Dict conversion process #####
 	def tinyxml2dict_starter(self):
 		return self.tinyxml2dict(self.root)
+	##### Method to trim the top off a file to meet a certain line length #####
+	def log_trimmer(self, filepath, linecount):
+		report = {"status": "processing", "messages": {}}
+		try:
+			linelist = open(filepath).readlines(  )
+			if len(linelist) > linecount:
+				firstline = len(linelist) - linecount
+				newtext = ""
+				for index in range(len(linelist))[firstline + 1:]:
+					newtext += linelist[index]
+				newfile = open(filepath, "w")
+				newfile.write(newtext)
+				newfile.close
+				report["messages"].update({"OK": "File " + filepath + " trimmed by " + str(firstline) + " lines"})
+				report["status"] = "SUCCESS"
+			else:
+				report["messages"].update({"OK": "File " + filepath + " is under max size. Leaving it alone"})
+				report["status"] = "SUCCESS"
+		except IOError:
+			report["messages"].update({"FATAL": "File " + filepath + " does not exist"})
+			report["status"] = "FAIL"
+		return report
 
 
 
@@ -1942,6 +1970,8 @@ class command_line_interpreter(object):
 			print "                            |  "
 		elif arguments == "debug auto-complete":
 			self.imum.install_radiuid_completion()
+		elif arguments == "debug maxlines":
+			print maxloglines
 		######################### TARGETS #############################
 		elif arguments == "targets":
 			self.filemgmt.initialize_config("quiet")
