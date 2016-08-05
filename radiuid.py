@@ -541,7 +541,7 @@ class file_management(object):
 			if self.file_exists(logfile) == "yes":
 				self.logwriter_core(logfile, input)
 				# no printing to console
-		if maxloglines != 0:
+		if maxloglines != "0":
 			self.log_trimmer(logfile, int(maxloglines))
 	#######################################################
 	#######    Configuration Management Methods     #######
@@ -693,6 +693,7 @@ class file_management(object):
 			setcommands = \
 				"" + prepend + " set radiuslogpath " + radiuslogpath + "\n!\n"\
 				"" + prepend + " set logfile " + logfile + "\n!\n"\
+				"" + prepend + " set maxloglines " + maxloglines + "\n!\n"\
 				"" + prepend + " set userdomain " + userdomain + "\n!\n"\
 				"" + prepend + " set timeout " + timeout + "\n!\n"
 			#### Compile all set commands for different formats ####
@@ -1417,7 +1418,7 @@ _radiuid_complete()
         COMPREPLY=( $(compgen -W "log run config clients status mappings" -- $cur) )
         ;;
       "set")
-        COMPREPLY=( $(compgen -W "logfile radiuslogpath userdomain timeout target" -- $cur) )
+        COMPREPLY=( $(compgen -W "logfile maxloglines radiuslogpath userdomain timeout target" -- $cur) )
         ;;
       push)
         local targets=$(for target in `radiuid targets`; do echo $target ; done)
@@ -1449,6 +1450,31 @@ _radiuid_complete()
       config)
         if [ "$prev2" == "show" ]; then
           COMPREPLY=( $(compgen -W "xml set" -- $cur) )
+        fi
+        ;;
+      radiuslogpath)
+        if [ "$prev2" == "set" ]; then
+          COMPREPLY=( $(compgen -W "<directory-path> -" -- $cur) )
+        fi
+        ;;
+      logfile)
+        if [ "$prev2" == "set" ]; then
+          COMPREPLY=( $(compgen -W "<file-path> -" -- $cur) )
+        fi
+        ;;
+      maxloglines)
+        if [ "$prev2" == "set" ]; then
+          COMPREPLY=( $(compgen -W "<number-of-lines> -" -- $cur) )
+        fi
+        ;;
+      userdomain)
+        if [ "$prev2" == "set" ]; then
+          COMPREPLY=( $(compgen -W "<domain-name> -" -- $cur) )
+        fi
+        ;;
+      timeout)
+        if [ "$prev2" == "set" ]; then
+          COMPREPLY=( $(compgen -W "<number-of-minutes> -" -- $cur) )
         fi
         ;;
       freeradius|radiuid)
@@ -2134,6 +2160,7 @@ class command_line_interpreter(object):
 		elif arguments == "set" or arguments == "set ?":
 			print "\n - set logfile <file path>                       |     Set the RadiUID logfile path"
 			print " - set radiuslogpath <directory path>            |     Set the path used to find FreeRADIUS accounting log files"
+			print " - set maxloglines <number-of-lines>             |     Set the max number of lines allowed in the log ('0' turns circular logging off)"
 			print " - set userdomain <domain name>                  |     Set the domain name prepended to User-ID mappings"
 			print " - set timeout <minutes>                         |     Set the timeout (in minutes) for User-ID mappings sent to the firewall targets"
 			print " - set target <hostname>:<vsys-id> [parameters]  |     Set configuration elements for existing or new firewall targets\n"
@@ -2141,6 +2168,9 @@ class command_line_interpreter(object):
 			print "\n - set logfile <file path>  |  Example: 'set logfile /etc/radiuid/radiuid.log'\n"
 		elif arguments == "set radiuslogpath" or arguments == "set radiuslogpath ?":
 			print "\n - set radiuslogpath <directory path>  |  Example: 'set radiuslogpath /var/log/radius/radacct/'\n"
+		elif arguments == "set maxloglines" or arguments == "set maxloglines ?":
+			print "\n - set maxloglines <number-of-lines>  |  Examples: 'set maxloglines 1000'   (circular logging enabled at 1000 lines)"
+			print "                                      |            'set maxloglines 0'      (circular logging disabled)"
 		elif arguments == "set userdomain" or arguments == "set userdomain ?":
 			print "\n - set userdomain <domain name>  |  Example: 'set userdomain domain.com'\n"
 		elif arguments == "set timeout" or arguments == "set timeout ?":
@@ -2181,6 +2211,36 @@ class command_line_interpreter(object):
 					except IOError:
 						print self.ui.color(time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + "****************ERROR: One of the directory names already exists as a file or vice-versa****************\n", self.ui.red)
 				if self.filemgmt.get_globalconfig_item('logfile') == sys.argv[3]:
+					print self.ui.color("Success!", self.ui.green)
+				else:
+					print self.ui.color("Something Went Wrong!", self.ui.red)
+			print self.ui.color("#" * len(header), self.ui.magenta)
+			print self.ui.color("#" * len(header), self.ui.magenta)
+		##### SET MAXLOGLINES #####
+		elif self.cat_list(sys.argv[1:3]) == "set maxloglines" and len(re.findall("^(\/*)", sys.argv[3])) > 0:
+			self.filemgmt.logwriter("cli", "##### COMMAND '" + arguments + "' ISSUED FROM CLI BY USER '" + self.imum.currentuser()+ "' #####")
+			header = "########################## EXECUTING COMMAND: " + arguments + " ##########################"
+			print self.ui.color(header, self.ui.magenta)
+			print self.ui.color("#" * len(header), self.ui.magenta)
+			if self.filemgmt.get_globalconfig_item('maxloglines') == sys.argv[3]:
+				print self.ui.color("\n" + time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + "****************Entered value is the same as current value****************\n", self.ui.green)
+			else:
+				try:
+					int(sys.argv[3])
+					keepgoing = True
+				except ValueError:
+					print self.ui.color("\n" + time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + "****************Entered value must be a number****************\n", self.ui.red)
+					keepgoing = False
+				if keepgoing:
+					newlogfiledir = self.filemgmt.strip_filepath(sys.argv[3])[0]
+					print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " +"****************Making sure directory: "+ newlogfiledir + " exists...creating if not****************\n"
+					os.system('mkdir -p ' + newlogfiledir)
+					self.filemgmt.change_config_item('maxloglines', sys.argv[3])
+					print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " +"****************Writing config change to: "+ configfile + "****************\n"
+					self.filemgmt.save_config()
+					print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " +"<maxloglines> configuration element changed to :\n"
+					self.filemgmt.show_config_item('xml', "none", 'maxloglines')
+				if self.filemgmt.get_globalconfig_item('maxloglines') == sys.argv[3]:
 					print self.ui.color("Success!", self.ui.green)
 				else:
 					print self.ui.color("Something Went Wrong!", self.ui.red)
@@ -2842,6 +2902,7 @@ class command_line_interpreter(object):
 			print "-------------------------------------------------------------------------------------------------------------------------------\n"
 			print " - set logfile                                    |  Set the RadiUID logfile path"
 			print " - set radiuslogpath                              |  Set the path used to find FreeRADIUS accounting log files"
+			print " - set maxloglines <number-of-lines>              |  Set the max number of lines allowed in the log ('0' turns circular logging off)"
 			print " - set userdomain                                 |  Set the domain name prepended to User-ID mappings"
 			print " - set timeout                                    |  Set the timeout (in minutes) for User-ID mappings sent to the firewall targets"
 			print " - set target <hostname>:<vsys-id> [parameters]   |  Set configuration elements for existing or new firewall targets"
