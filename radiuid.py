@@ -19,6 +19,7 @@ version = "dev2.0.0"
 
 ##### Set some default configs #####
 etcconfigfile = '/etc/radiuid/radiuid.conf'
+clientconfpath = '/etc/raddb/clients.conf'
 maxtimeout = 1440
 
 
@@ -872,6 +873,61 @@ class file_management(object):
 			report["messages"].update({"FATAL": "File " + filepath + " does not exist"})
 			report["status"] = "FAIL"
 		return report
+	##### Mode can be append, clear, or show #####
+	def freeradius_client_editor(self, mode, enteredclients):
+		clientfilelines = open(clientconfpath).readlines(  )
+		firstline = 1
+		for line in clientfilelines:
+			if line == "###################### RadiUID Generated Settings #####################\n":
+				break
+			else:
+				firstline += 1
+		radclientdatalist = clientfilelines[firstline - 1:]
+		if mode == "append":
+			if len(clientfilelines) == firstline - 1:
+				clientfilelines.append("###################### RadiUID Generated Settings #####################\n")
+				clientfilelines.append("################### Be Careful When Changing Manually #################\n")
+			for entry in enteredclients:
+				clientfilelines.append('\n')
+				clientfilelines.append('client ' + entry["IP Block"] + ' {\n')
+				clientfilelines.append('    secret      = ' + entry["Shared Secret"] + '\n')
+				clientfilelines.append('    shortname   = Created_By_RadiUID\n')
+				clientfilelines.append(' }\n')
+			newfiledata = ""
+			for line in clientfilelines:
+				newfiledata += line
+			f = open(clientconfpath, "w")
+			f.write(newfiledata)
+			f.close()
+		if mode == "show":
+			del radclientdatalist[0:3]
+			result = []
+			while len(radclientdatalist) > 0:
+				ipblock = radclientdatalist[0]
+				ipblock = ipblock.replace("client ", "")
+				ipblock = ipblock.replace(" {\n", "")
+				secret = radclientdatalist[1]
+				secret = secret.replace("    secret      = ", "")
+				secret = secret.replace("\n", "")
+				result.append({"IP Block": ipblock, "Shared Secret": secret})
+				del ipblock,secret,radclientdatalist[0:5]
+			return result
+		if mode == "clear":
+			if enteredclients == []:
+				newfiledata = ""
+				for line in clientfilelines[:firstline - 1]:
+					newfiledata += line
+				f = open(clientconfpath, "w")
+				f.write(newfiledata)
+				f.close()
+			elif type(enteredclients) == type([]):
+				currentclients = self.freeradius_client_editor("show", "")
+				newclients = []
+				for currentclient in currentclients:
+					if currentclient["IP Block"] != enteredclients[0]["IP Block"]:
+						newclients.append(currentclient)
+				self.freeradius_client_editor("clear", [])
+				self.freeradius_client_editor("append", newclients)
 
 
 
@@ -879,7 +935,7 @@ class file_management(object):
 
 
 
-#########################################################################
+################################################
 ########################## DATA PROCESSING CLASS ########################
 #########################################################################
 #######       Used by the main RadiUID methods to munge data      #######
@@ -1626,7 +1682,6 @@ bind 'set show-all-if-ambiguous on'"""
 			return new_file_data
 	##### Use dictionary of edits for FreeRADIUS and push them to the config file #####
 	def freeradius_editor(self, dict_edits):
-		clientconfpath = '/etc/raddb/clients.conf'
 		iplist = dict_edits.keys()
 		print "\n\n\n"
 		print "#####About to append the below client data to the FreeRADIUS client.conf file#####"
@@ -1998,6 +2053,12 @@ class command_line_interpreter(object):
 			self.imum.install_radiuid_completion()
 		elif arguments == "debug maxlines":
 			print maxloglines
+		elif arguments == "debug clear all":
+			self.filemgmt.freeradius_client_editor("clear", [])
+		elif arguments == "debug clear ones":
+			self.filemgmt.freeradius_client_editor("clear", [{'IP Block': '1.1.1.1/8'}])
+		elif arguments == "debug clear fives":
+			self.filemgmt.freeradius_client_editor("clear", [{'IP Block': '5.5.5.5/8'}])
 		######################### TARGETS #############################
 		elif arguments == "targets":
 			self.filemgmt.initialize_config("quiet")
@@ -2068,12 +2129,22 @@ class command_line_interpreter(object):
 			self.filemgmt.show_config_item('xml', "none", 'config')
 			print self.ui.color("#" * len(header), self.ui.magenta)
 			print self.ui.color("#" * len(header), self.ui.magenta)
-		elif arguments == "show clients":
+		elif arguments == "show clients" or arguments == "show clients table":
 			self.filemgmt.logwriter("cli", "##### COMMAND '" + arguments + "' ISSUED FROM CLI BY USER '" + self.imum.currentuser()+ "' #####")
 			header = "########################## OUTPUT FROM FILE /etc/raddb/clients.conf ##########################"
 			print self.ui.color(header, self.ui.magenta)
 			print self.ui.color("#" * len(header), self.ui.magenta)
-			os.system("more /etc/raddb/clients.conf")
+			print "\n\n"
+			print self.ui.make_table(["IP Block", "Shared Secret"], self.filemgmt.freeradius_client_editor("show", ""))
+			print "\n\n"
+			print self.ui.color("#" * len(header), self.ui.magenta)
+			print self.ui.color("#" * len(header), self.ui.magenta)
+		elif arguments == "show clients file":
+			self.filemgmt.logwriter("cli", "##### COMMAND '" + arguments + "' ISSUED FROM CLI BY USER '" + self.imum.currentuser()+ "' #####")
+			header = "########################## OUTPUT FROM FILE /etc/raddb/clients.conf ##########################"
+			print self.ui.color(header, self.ui.magenta)
+			print self.ui.color("#" * len(header), self.ui.magenta)
+			os.system("more " + clientconfpath)
 			print self.ui.color("#" * len(header), self.ui.magenta)
 			print self.ui.color("#" * len(header), self.ui.magenta)
 		elif arguments == "show status":
@@ -2163,6 +2234,7 @@ class command_line_interpreter(object):
 			print " - set maxloglines <number-of-lines>             |     Set the max number of lines allowed in the log ('0' turns circular logging off)"
 			print " - set userdomain <domain name>                  |     Set the domain name prepended to User-ID mappings"
 			print " - set timeout <minutes>                         |     Set the timeout (in minutes) for User-ID mappings sent to the firewall targets"
+			print " - set client <ip-block> <shared-secret>         |     Set configuration elements for RADIUS clients to send accounting data FreeRADIUS"
 			print " - set target <hostname>:<vsys-id> [parameters]  |     Set configuration elements for existing or new firewall targets\n"
 		elif arguments == "set logfile" or arguments == "set logfile ?":
 			print "\n - set logfile <file path>  |  Example: 'set logfile /etc/radiuid/radiuid.log'\n"
@@ -2175,6 +2247,8 @@ class command_line_interpreter(object):
 			print "\n - set userdomain <domain name>  |  Example: 'set userdomain domain.com'\n"
 		elif arguments == "set timeout" or arguments == "set timeout ?":
 			print "\n - set timeout <minutes>  |  Example: 'set timeout 60'\n"
+		elif arguments == "set client" or arguments == "set client ?":
+			print "\n - set client <ip-block> <shared-secret>  |  Example: 'set client 10.0.0.0/8 password123'\n"
 		elif arguments == "set target" or arguments == "set target ?":
 			print "\n - set target <hostname>:<vsys-id> [parameters]  |  Parameters: hostname and vsys <hostname>:<vsys-id>"
 			print "                                                 |              username <username> "
@@ -2332,6 +2406,26 @@ class command_line_interpreter(object):
 						print self.ui.color("Something Went Wrong!", self.ui.red)
 			except ValueError:
 				print "\n" + self.ui.color(time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + "****************ERROR: Timeout value must be a number between 1 and 1440****************\n", self.ui.red)
+			print self.ui.color("#" * len(header), self.ui.magenta)
+			print self.ui.color("#" * len(header), self.ui.magenta)
+		##### SET CLIENTS #####
+		elif self.cat_list(sys.argv[1:3]) == "set client" and len(re.findall("[0-9A-Za-z]", sys.argv[3])) > 0:
+			self.filemgmt.logwriter("cli", "##### COMMAND '" + arguments + "' ISSUED FROM CLI BY USER '" + self.imum.currentuser()+ "' #####")
+			header = "########################## EXECUTING COMMAND: " + arguments + " ##########################"
+			print self.ui.color(header, self.ui.magenta)
+			print self.ui.color("#" * len(header), self.ui.magenta)
+			if self.filemgmt.ip_checker("cidr", sys.argv[3]) == "pass":
+				print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " +"**************** " + sys.argv[3] + " looks like a legit IPv4 CIDR Block****************\n"
+				newclient = self.filemgmt.freeradius_client_editor("append", [{'Shared Secret': sys.argv[4], 'IP Block': sys.argv[3]}])
+				print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " +"**************** New clients added ****************\n"
+				print self.ui.make_table(["IP Block", "Shared Secret"], self.filemgmt.freeradius_client_editor("show", ""))
+				print "\n\n"
+				print self.ui.color("Success!", self.ui.green)
+			else:
+				print "\n"
+				print self.ui.color(time.strftime("%Y-%m-%d %H:%M:%S") + ":   " +"**************** " + sys.argv[3] + " is not a legit IPv4 CIDR Block****************\n", self.ui.red)
+				print "\n"
+				print self.ui.color("Something Went Wrong!", self.ui.red)
 			print self.ui.color("#" * len(header), self.ui.magenta)
 			print self.ui.color("#" * len(header), self.ui.magenta)
 		##### SET TARGET #####
