@@ -1501,7 +1501,7 @@ _radiuid_complete()
         COMPREPLY=( $(compgen -W "log run config clients status mappings" -- $cur) )
         ;;
       "set")
-        COMPREPLY=( $(compgen -W "logfile maxloglines radiuslogpath userdomain timeout target" -- $cur) )
+        COMPREPLY=( $(compgen -W "logfile maxloglines radiuslogpath userdomain timeout target client" -- $cur) )
         ;;
       push)
         local targets=$(for target in `radiuid targets`; do echo $target ; done)
@@ -1511,7 +1511,7 @@ _radiuid_complete()
         COMPREPLY=( $(compgen -W "log" -- $cur) )
         ;;
       "clear")
-        COMPREPLY=( $(compgen -W "log target mappings" -- $cur) )
+        COMPREPLY=( $(compgen -W "log target mappings client" -- $cur) )
         ;;
       edit)
         COMPREPLY=( $(compgen -W "config clients" -- $cur) )
@@ -1528,11 +1528,24 @@ _radiuid_complete()
   elif [ $COMP_CWORD -eq 3 ]; then
     case "$prev" in
       run)
-        COMPREPLY=( $(compgen -W "xml set" -- $cur) )
+        COMPREPLY=( $(compgen -W "xml set <cr>" -- $cur) )
         ;;
       config)
         if [ "$prev2" == "show" ]; then
-          COMPREPLY=( $(compgen -W "xml set" -- $cur) )
+          COMPREPLY=( $(compgen -W "xml set <cr>" -- $cur) )
+        fi
+        ;;
+      client)
+        local clients=$(for client in `radiuid clients`; do echo $client ; done)
+        if [ "$prev2" == "clear" ]; then
+          COMPREPLY=( $(compgen -W "${clients} all" -- ${cur}) )
+        elif [ "$prev2" == "set" ]; then
+          COMPREPLY=( $(compgen -W "- <ip-block>" -- ${cur}) )
+        fi
+        ;;
+      clients)
+        if [ "$prev2" == "show" ]; then
+          COMPREPLY=( $(compgen -W "file table <cr>" -- ${cur}) )
         fi
         ;;
       radiuslogpath)
@@ -1567,7 +1580,7 @@ _radiuid_complete()
         ;;
       log)
         if [ "$prev2" == "tail" ]; then
-          COMPREPLY=( $(compgen -W "<number-of-lines> -" -- $cur) )
+          COMPREPLY=( $(compgen -W "<number-of-lines> <cr>" -- $cur) )
         fi
         ;;
       all)
@@ -1606,6 +1619,11 @@ _radiuid_complete()
     if [ "$prev2" == "all" ]; then
       if [ "$prev3" == "push" ]; then
         COMPREPLY=( $(compgen -W "<ip-address> -" -- $cur) )
+      fi
+    fi
+    if [ "$prev2" == "client" ]; then
+      if [ "$prev3" == "set" ]; then
+        COMPREPLY=( $(compgen -W "<shared-secret> -" -- $cur) )
       fi
     fi
   elif [ $COMP_CWORD -eq 5 ]; then
@@ -2078,7 +2096,7 @@ class command_line_interpreter(object):
 			print "                            |  "
 		elif arguments == "debug auto-complete":
 			self.imum.install_radiuid_completion()
-		######################### TARGETS #############################
+		######################### AUTO-COMPLETE USE #############################
 		elif arguments == "targets":
 			self.filemgmt.initialize_config("quiet")
 			self.filemgmt.publish_config("quiet")
@@ -2087,6 +2105,15 @@ class command_line_interpreter(object):
 					print target["hostname"] + ":vsys" + target["vsys"]
 			except NameError:
 				null = None
+		elif arguments == "clients":
+			self.filemgmt.initialize_config("quiet")
+			self.filemgmt.publish_config("quiet")
+			clientinfo = self.filemgmt.freeradius_client_editor("show", "")
+			if "FATAL" in clientinfo:
+				return None
+			else:
+				for client in clientinfo:
+					print client["IP Block"]
 		######################### INSTALL #############################
 		elif arguments == "install":
 			self.filemgmt.logwriter("quiet", "##### COMMAND '" + arguments + "' ISSUED FROM CLI BY USER '" + self.imum.currentuser()+ "' #####")
