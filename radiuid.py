@@ -686,11 +686,22 @@ class file_management(object):
 					rawtargetsetlist.append(" set target " + target["hostname"] + ":vsys" + target["vsys"] + " " + setparams)
 			except NameError:
 				rawtargetsetlist = False
+			#### Compile set commands for FreeRADIUS clients ####
+			clients = self.freeradius_client_editor("show", "")
+			setclientlist = []
+			if "FATAL" not in clients:
+				setclientlist = []
+				for client in clients:
+					setclientlist.append(" set client " + client['IP Block'] + " " + client['Shared Secret'])
 			#### Compile set commands for uninstalled and installed CLI format ####
 			settargets = ""
 			if rawtargetsetlist:
 				for settarget in rawtargetsetlist:
-					settargets = settargets + prepend + settarget + "\n!\n"
+					settargets += prepend + settarget + "\n!\n"
+			setclients = ""
+			if setclientlist != []:
+				for setclient in setclientlist:
+					setclients += prepend + setclient + "\n!\n"
 			setcommands = \
 				"" + prepend + " set radiuslogpath " + radiuslogpath + "\n!\n"\
 				"" + prepend + " set logfile " + logfile + "\n!\n"\
@@ -698,7 +709,12 @@ class file_management(object):
 				"" + prepend + " set userdomain " + userdomain + "\n!\n"\
 				"" + prepend + " set timeout " + timeout + "\n!\n"
 			#### Compile all set commands for different formats ####
-			textconfig = header + "!\n" + setcommands + "!\n" + prepend + " clear target all\n!\n" + settargets + "!\n!\n###########################################################\n###########################################################\n"
+			textconfig = ""
+			textconfig += header + "!\n" + setcommands + "!\n"
+			textconfig += prepend + " clear client all\n!\n" + setclients + "!\n"
+			textconfig += prepend + " clear target all\n!\n" + settargets
+			textconfig += "!\n!\n###########################################################\n"
+			textconfig += "###########################################################\n"
 			return textconfig
 
 	##### Pull individual configuration item and return to calling function #####
@@ -875,7 +891,10 @@ class file_management(object):
 		return report
 	##### Mode can be append, clear, or show #####
 	def freeradius_client_editor(self, mode, enteredclients):
-		clientfilelines = open(clientconfpath).readlines(  )
+		try:
+			clientfilelines = open(clientconfpath).readlines(  )
+		except IOError:
+			return "FATAL: File " + clientconfpath + " does not exist"
 		firstline = 1
 		for line in clientfilelines:
 			if line == "###################### RadiUID Generated Settings #####################\n":
@@ -899,6 +918,7 @@ class file_management(object):
 			f = open(clientconfpath, "w")
 			f.write(newfiledata)
 			f.close()
+			return "SUCCESS"
 		if mode == "show":
 			del radclientdatalist[0:3]
 			result = []
@@ -911,6 +931,12 @@ class file_management(object):
 				secret = secret.replace("\n", "")
 				result.append({"IP Block": ipblock, "Shared Secret": secret})
 				del ipblock,secret,radclientdatalist[0:5]
+			return result
+		if mode == "showraw":
+			del radclientdatalist[0:3]
+			result = ""
+			for line in radclientdatalist:
+				result += line
 			return result
 		if mode == "clear":
 			if enteredclients == []:
@@ -928,6 +954,7 @@ class file_management(object):
 						newclients.append(currentclient)
 				self.freeradius_client_editor("clear", [])
 				self.freeradius_client_editor("append", newclients)
+			return "SUCCESS"
 
 
 
@@ -2051,14 +2078,6 @@ class command_line_interpreter(object):
 			print "                            |  "
 		elif arguments == "debug auto-complete":
 			self.imum.install_radiuid_completion()
-		elif arguments == "debug maxlines":
-			print maxloglines
-		elif arguments == "debug clear all":
-			self.filemgmt.freeradius_client_editor("clear", [])
-		elif arguments == "debug clear ones":
-			self.filemgmt.freeradius_client_editor("clear", [{'IP Block': '1.1.1.1/8'}])
-		elif arguments == "debug clear fives":
-			self.filemgmt.freeradius_client_editor("clear", [{'IP Block': '5.5.5.5/8'}])
 		######################### TARGETS #############################
 		elif arguments == "targets":
 			self.filemgmt.initialize_config("quiet")
@@ -2078,7 +2097,7 @@ class command_line_interpreter(object):
 			print "\n - show log                                                  |     Show the RadiUID log file"
 			print " - show run (xml | set)                                      |     Show the RadiUID configuration in XML format (default) or as set commands"
 			print " - show config (xml | set)                                   |     Show the RadiUID configuration in XML format (default) or as set commands"
-			print " - show clients                                              |     Show the FreeRADIUS client config file"
+			print " - show clients (file | table)                               |     Show the FreeRADIUS client config file"
 			print " - show status                                               |     Show the RadiUID and FreeRADIUS service statuses"
 			print " - show mappings (<hostname>:<vsys-id> | all | consistency)  |     Show the current IP-to-User mappings of one or all targets or check consistency\n"
 		elif arguments == "show config ?":
@@ -2126,17 +2145,43 @@ class command_line_interpreter(object):
 			header = "########################## OUTPUT FROM FILE " + configfile + " ##########################"
 			print self.ui.color(header, self.ui.magenta)
 			print self.ui.color("#" * len(header), self.ui.magenta)
+			print "\n"
+			print "###############################################################"
+			print "################### Main RadiUID XML Config ###################"
+			print "###############################################################"
 			self.filemgmt.show_config_item('xml', "none", 'config')
+			print "###############################################################"
+			print "###############################################################"
+			print "\n\n"
+			clientconfig =  self.filemgmt.freeradius_client_editor("showraw", "")
+			if "FATAL" not in clientconfig:
+				print "###############################################################"
+				print "################### FreeRADIUS Client Config ##################"
+				print "###############################################################"
+				print self.filemgmt.freeradius_client_editor("showraw", "")
+				print "###############################################################"
+				print "###############################################################"
+				print "\n"
+			else:
+				print self.ui.color("********** FreeRADIUS config file doesn't exist **********", self.ui.yellow)
+				print "\n"
 			print self.ui.color("#" * len(header), self.ui.magenta)
 			print self.ui.color("#" * len(header), self.ui.magenta)
 		elif arguments == "show clients" or arguments == "show clients table":
 			self.filemgmt.logwriter("cli", "##### COMMAND '" + arguments + "' ISSUED FROM CLI BY USER '" + self.imum.currentuser()+ "' #####")
-			header = "########################## OUTPUT FROM FILE /etc/raddb/clients.conf ##########################"
+			header = "########################## CURRENT FREERADIUS RADIUS CLIENTS ##########################"
 			print self.ui.color(header, self.ui.magenta)
 			print self.ui.color("#" * len(header), self.ui.magenta)
-			print "\n\n"
-			print self.ui.make_table(["IP Block", "Shared Secret"], self.filemgmt.freeradius_client_editor("show", ""))
-			print "\n\n"
+			print "\n"
+			clientinfo = self.filemgmt.freeradius_client_editor("show", "")
+			if "FATAL" in clientinfo:
+				self.filemgmt.logwriter("cli", self.ui.color(clientinfo, self.ui.red))
+				print "\n\n"
+				print self.ui.color("Something Went Wrong!", self.ui.red)
+			else:
+				print self.ui.make_table(["IP Block", "Shared Secret"], clientinfo)
+				print "\n\n"
+				print self.ui.color("Success!", self.ui.green)
 			print self.ui.color("#" * len(header), self.ui.magenta)
 			print self.ui.color("#" * len(header), self.ui.magenta)
 		elif arguments == "show clients file":
@@ -2415,12 +2460,23 @@ class command_line_interpreter(object):
 			print self.ui.color(header, self.ui.magenta)
 			print self.ui.color("#" * len(header), self.ui.magenta)
 			if self.filemgmt.ip_checker("cidr", sys.argv[3]) == "pass":
-				print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " +"**************** " + sys.argv[3] + " looks like a legit IPv4 CIDR Block****************\n"
-				newclient = self.filemgmt.freeradius_client_editor("append", [{'Shared Secret': sys.argv[4], 'IP Block': sys.argv[3]}])
-				print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " +"**************** New clients added ****************\n"
-				print self.ui.make_table(["IP Block", "Shared Secret"], self.filemgmt.freeradius_client_editor("show", ""))
-				print "\n\n"
-				print self.ui.color("Success!", self.ui.green)
+				if len(sys.argv) > 4:
+					print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " +"**************** " + sys.argv[3] + " looks like a legit IPv4 CIDR Block****************\n"
+					newclient = self.filemgmt.freeradius_client_editor("append", [{'Shared Secret': sys.argv[4], 'IP Block': sys.argv[3]}])
+					if "FATAL" in newclient:
+						self.filemgmt.logwriter("cli", self.ui.color(newclient, self.ui.red))
+						print "\n\n"
+						print self.ui.color("Something Went Wrong!", self.ui.red)
+					else:
+						print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " +"**************** New clients added ****************\n"
+						print self.ui.make_table(["IP Block", "Shared Secret"], self.filemgmt.freeradius_client_editor("show", ""))
+						print "\n\n"
+						print self.ui.color("Success!", self.ui.green)
+				else:
+					print "\n"
+					print self.ui.color(time.strftime("%Y-%m-%d %H:%M:%S") + ":   " +"**************** Please enter a shared secret to use for this set of clients ****************\n", self.ui.red)
+					print "\n"
+					print self.ui.color("Something Went Wrong!", self.ui.red)
 			else:
 				print "\n"
 				print self.ui.color(time.strftime("%Y-%m-%d %H:%M:%S") + ":   " +"**************** " + sys.argv[3] + " is not a legit IPv4 CIDR Block****************\n", self.ui.red)
@@ -2637,8 +2693,12 @@ class command_line_interpreter(object):
 		######################### CLEAR #############################
 		elif arguments == "clear" or arguments == "clear ?":
 			print "\n - clear log                                                   |     Delete the content in the log file"
+			print " - clear client (<ip-block> | all)                             |     Delete one or all RADIUS client IP blocks in FreeRADIUS config file"
 			print " - clear target (<hostname>:<vsys-id> | all)                   |     Delete one or all firewall targets in the config file"
 			print " - clear mappings (<hostname>:<vsys-id> | all) (<ip> | all)    |     Remove one or all IP-to-User mappings from one or all firewalls\n"
+		elif arguments == "clear client" or arguments == "clear client ?":
+			print "\n - clear client (<ip-block> | all) |  Examples: 'clear client 10.0.0.0/8'"
+			print "                                   |            'clear client all'\n"
 		elif arguments == "clear target" or arguments == "clear target ?":
 			print "\n - clear target (<hostname>:<vsys-id> | all)  |  Examples: 'clear target 192.168.1.1:vsys1'"
 			print "                                              |            'clear target pan1.domain.com:2'"
@@ -2654,6 +2714,49 @@ class command_line_interpreter(object):
 			os.system("rm -f "+ logfile)
 			self.filemgmt.write_file(logfile, "***********Logfile cleared via RadiUID command by " + self.imum.currentuser() + "***********\n")
 			print self.ui.color("********************* Cleared logfile: " + logfile + " ********************", self.ui.yellow)
+		##### CLEAR CLIENT #####
+		elif self.cat_list(sys.argv[1:3]) == "clear client" and len(re.findall("[0-9A-Za-z]", sys.argv[3])) > 0:
+			self.filemgmt.logwriter("cli", "##### COMMAND '" + arguments + "' ISSUED FROM CLI BY USER '" + self.imum.currentuser()+ "' #####")
+			header = "########################## EXECUTING COMMAND: " + arguments + " ##########################"
+			print self.ui.color(header, self.ui.magenta)
+			print self.ui.color("#" * len(header), self.ui.magenta)
+			if sys.argv[3] == "all":
+				print "\n"
+				self.filemgmt.logwriter("cli", "**************** Removing all RADIUS client IP blocks ****************")
+				clearresult = self.filemgmt.freeradius_client_editor("clear", [])
+				if "FATAL" in clearresult:
+					print "\n"
+					self.filemgmt.logwriter("cli", self.ui.color(clearresult, self.ui.red))
+					print "\n\n"
+					print self.ui.color("Something Went Wrong!", self.ui.red)
+				else:
+					print self.ui.make_table(["IP Block", "Shared Secret"], self.filemgmt.freeradius_client_editor("show", ""))
+					print "\n"
+					print self.ui.color("Success!", self.ui.green)
+			else:
+				existingclient = False
+				currentclients = self.filemgmt.freeradius_client_editor("show", "")
+				if "FATAL" in currentclients:
+					print "\n"
+					self.filemgmt.logwriter("cli", self.ui.color(currentclients, self.ui.red))
+					print "\n\n"
+					print self.ui.color("Something Went Wrong!", self.ui.red)
+				else:
+					for client in currentclients:
+						if client['IP Block'] == sys.argv[3]:
+							existingclient = True
+					if existingclient:
+						print "\n"
+						self.filemgmt.logwriter("cli", "**************** Removing client IP block " + sys.argv[3] + " ****************")
+						self.filemgmt.freeradius_client_editor("clear", [{'IP Block': sys.argv[3]}])
+						print self.ui.make_table(["IP Block", "Shared Secret"], self.filemgmt.freeradius_client_editor("show", ""))
+						print "\n"
+						print self.ui.color("Success!", self.ui.green)
+					else:
+						self.filemgmt.logwriter("cli", self.ui.color("**************** " + sys.argv[3] + " does not exist as a current client IP block ****************", self.ui.yellow))
+						print self.ui.color("Something Went Wrong!", self.ui.red)
+			print self.ui.color("#" * len(header), self.ui.magenta)
+			print self.ui.color("#" * len(header), self.ui.magenta)
 		##### CLEAR TARGET ALL #####
 		elif arguments == "clear target all":
 			self.filemgmt.logwriter("cli", "##### COMMAND '" + arguments + "' ISSUED FROM CLI BY USER '" + self.imum.currentuser()+ "' #####")
@@ -2990,7 +3093,7 @@ class command_line_interpreter(object):
 			print " - show log                                       |  Show the RadiUID log file"
 			print " - show run (xml | set)                           |  Show the RadiUID configuration in XML format (default) or as set commands"
 			print " - show config (xml | set)                        |  Show the RadiUID configuration in XML format (default) or as set commands"
-			print " - show clients                                   |  Show the FreeRADIUS client config file"
+			print " - show clients (file | table)                    |  Show the FreeRADIUS clients and config file"
 			print " - show status                                    |  Show the RadiUID and FreeRADIUS service statuses"
 			print " - show mappings (<target> | all | consistency)   |  Show the current IP-to-User mappings of one or all targets or check consistency"
 			print "-------------------------------------------------------------------------------------------------------------------------------\n"
@@ -2999,6 +3102,7 @@ class command_line_interpreter(object):
 			print " - set maxloglines <number-of-lines>              |  Set the max number of lines allowed in the log ('0' turns circular logging off)"
 			print " - set userdomain                                 |  Set the domain name prepended to User-ID mappings"
 			print " - set timeout                                    |  Set the timeout (in minutes) for User-ID mappings sent to the firewall targets"
+			print " - set client <ip-block> <shared-secret>          |  Set configuration elements for RADIUS clients to send accounting data FreeRADIUS"
 			print " - set target <hostname>:<vsys-id> [parameters]   |  Set configuration elements for existing or new firewall targets"
 			print "-------------------------------------------------------------------------------------------------------------------------------\n"
 			print " - push (<hostname>:<vsys-id> | all) [parameters] |  Manually push a User-ID mapping to one or all firewall targets"
@@ -3006,6 +3110,7 @@ class command_line_interpreter(object):
 			print " - tail log (<# of lines>)                        |  Watch the RadiUID log file in real time"
 			print "-------------------------------------------------------------------------------------------------------------------------------\n"
 			print " - clear log                                      |  Delete the content in the log file"
+			print " - clear client (<ip-block> | all)                |  Delete one or all RADIUS client IP blocks in FreeRADIUS config file"
 			print " - clear target (<hostname>:<vsys-id> | all)      |  Delete one or all firewall targets in the config file"
 			print " - clear mappings [parameters]                    |  Remove one or all IP-to-User mappings from one or all firewalls"
 			print "-------------------------------------------------------------------------------------------------------------------------------\n"
