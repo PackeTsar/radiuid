@@ -1601,7 +1601,7 @@ _radiuid_complete()
       target)
         local targets=$(for target in `radiuid targets`; do echo $target ; done)
         if [ "$prev2" == "set" ]; then
-          COMPREPLY=( $(compgen -W "${targets} <NEW-HOSTNAME>:<VSYS-ID>" -- ${cur}) )
+          COMPREPLY=( $(compgen -W "${targets} - <NEW-HOSTNAME>:<VSYS-ID>" -- ${cur}) )
         elif [ "$prev2" == "clear" ]; then
           COMPREPLY=( $(compgen -W "${targets} all" -- ${cur}) )
         fi
@@ -1734,9 +1734,6 @@ bind 'set show-all-if-ambiguous on'"""
 		for ip in iplist:
 			newwrite = "\nclient " + ip + " {\n    secret      = " + dict_edits[
 				ip] + "\n    shortname   = Created_By_RadiUID\n }\n"
-			f = open(clientconfpath, 'a')
-			f.write(newwrite)
-			f.close()
 			print newwrite
 		oktowrite = self.ui.yesorno("OK to write to client.conf file?")
 		if oktowrite == "yes":
@@ -1744,6 +1741,10 @@ bind 'set show-all-if-ambiguous on'"""
 			print "##################################################################################"
 			print "\n"
 			self.ui.progress("Writing: ", 1)
+			newclients = []
+			for client in dict_edits:
+				newclients.append({"IP Block": client, "Shared Secret": dict_edits[client]})
+			self.filemgmt.freeradius_client_editor("append", newclients)
 			print "\n\n\n"
 			print "****************Restarting the FreeRADIUS service to effect changes...****************\n\n"
 			self.ui.progress("Starting/Restarting: ", 1)
