@@ -1580,7 +1580,7 @@ _radiuid_complete()
         ;;
       log)
         if [ "$prev2" == "tail" ]; then
-          COMPREPLY=( $(compgen -W "<number-of-lines> <cr>" -- $cur) )
+          COMPREPLY=( $(compgen -W "- <number-of-lines> <cr>" -- $cur) )
         fi
         ;;
       all)
@@ -1627,9 +1627,12 @@ _radiuid_complete()
       fi
     fi
   elif [ $COMP_CWORD -eq 5 ]; then
+    prev3=${COMP_WORDS[COMP_CWORD-3]}
     prev4=${COMP_WORDS[COMP_CWORD-4]}
     if [ "$prev4" == "push" ]; then
-      COMPREPLY=( $(compgen -W "<username> -" -- $cur) )
+      if [ "$prev3" != "all" ]; then
+        COMPREPLY=( $(compgen -W "<username> -" -- $cur) )
+      fi
     fi
   elif [ $COMP_CWORD -eq 6 ]; then
     prev4=${COMP_WORDS[COMP_CWORD-4]}
@@ -2905,20 +2908,21 @@ class command_line_interpreter(object):
 		######################### EDIT #############################
 		elif arguments == "edit" or arguments == "edit ?":
 			print "\n - edit config      |     Edit the RadiUID config file"
-			print " - edit clients     |     Edit list of client IPs for FreeRADIUS\n"
+			print " - edit clients     |     Edit RADIUS client config file for FreeRADIUS\n"
 		elif arguments == "edit config":
 			self.filemgmt.logwriter("cli", "##### COMMAND '" + arguments + "' ISSUED FROM CLI BY USER '" + self.imum.currentuser()+ "' #####")
 			print self.ui.color("****************** You are about to edit the RadiUID config file in VI ******************", self.ui.yellow)
-			print self.ui.color("****************** It is recommend you use 'set' commands instead of this ******************", self.ui.yellow)
+			print self.ui.color("**************** It is recommend you use 'set' commands instead of this *****************", self.ui.yellow)
 			print self.ui.color("********************* Confirm that you know how to use the VI editor ********************", self.ui.yellow)
 			raw_input("Hit CTRL-C to quit. Hit ENTER to continue\n>>>>>")
 			os.system("vi " + configfile)
 		elif arguments == "edit clients":
 			self.filemgmt.logwriter("cli", "##### COMMAND '" + arguments + "' ISSUED FROM CLI BY USER '" + self.imum.currentuser()+ "' #####")
 			print self.ui.color("****************** You are about to edit the FreeRADIUS client file in VI ******************", self.ui.yellow)
-			print self.ui.color("*********************** Confirm that you know how to use the VI editor ********************", self.ui.yellow)
+			print self.ui.color("***** It is recommend you use 'set client' and 'clear client' commands instead of this *****", self.ui.yellow)
+			print self.ui.color("*********************** Confirm that you know how to use the VI editor *********************", self.ui.yellow)
 			raw_input("Hit CTRL-C to quit. Hit ENTER to continue\n>>>>>")
-			os.system("vi /etc/raddb/clients.conf")
+			os.system("vi " + clientconfpath)
 		######################### RADIUID SERVICE CONTROL #############################
 		elif arguments == "service" or arguments == "service ?":
 			print "\n - Usage: radiuid service (radiuid | freeradius | all) (start | stop | restart)"
@@ -3143,7 +3147,7 @@ class command_line_interpreter(object):
 			print " - clear mappings [parameters]                    |  Remove one or all IP-to-User mappings from one or all firewalls"
 			print "-------------------------------------------------------------------------------------------------------------------------------\n"
 			print " - edit config                                    |  Edit the RadiUID config file"
-			print " - edit clients                                   |  Edit list of client IPs for FreeRADIUS"
+			print " - edit clients                                   |  Edit RADIUS client config file for FreeRADIUS"
 			print "-------------------------------------------------------------------------------------------------------------------------------\n"
 			print " - service [parameters]                           |  Control the RadiUID and FreeRADIUS system services"
 			print "-------------------------------------------------------------------------------------------------------------------------------\n"
