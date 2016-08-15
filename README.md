@@ -30,6 +30,26 @@ RadiUID runs as a system service on CentOS 7 and very easy to configure and use.
 
 
 
+####   SCREENSHOTS   ####
+--------------------------------------
+
+**The main list of CLI command options**
+![RadiUID][all-args]
+
+**Output from the `show log` command**
+![RadiUID][show-log]
+
+**Output from the `show config` command**
+![RadiUID][show-config]
+
+**Output from the `show config set` command**
+![RadiUID][show-config-set]
+
+**Pushing a mapping using the `push` command and checking the current mappings using the `show mappings` command**
+![RadiUID][push-and-show]
+
+
+
 ####   REQUIREMENTS   ####
 --------------------------------------
 
@@ -193,3 +213,8 @@ If you would like to help out by contributing code or reporting issues, please d
 Visit the GitHub page (https://github.com/PackeTsar/radiuid) and either report an issue or fork the project, commit some changes, and submit a pull request.
 
 [logo]: http://www.packetsar.com/wp-content/uploads/radiuid-logo-tiny-100.png
+[all-args]: http://www.packetsar.com/wp-content/uploads/radiuid-all-args.png
+[show-log]: http://www.packetsar.com/wp-content/uploads/radiuid-show-log.png
+[show-config]: http://www.packetsar.com/wp-content/uploads/radiuid-show-config.png
+[show-config-set]: http://www.packetsar.com/wp-content/uploads/radiuid-show-config-set.png
+[push-and-show]: http://www.packetsar.com/wp-content/uploads/radiuid-push-and-show.png
