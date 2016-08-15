@@ -3,6 +3,7 @@
 An application to extract User-to-IP mappings from RADIUS accounting data and send them to Palo Alto firewalls for use by the User-ID function.
 
 
+
 ####   VERSION   ####
 -----------------------------------------
 The version of RadiUID documented here is: **v2.0.0**
@@ -181,8 +182,6 @@ RadiUID pushes ephemeral User-ID information to the firewall whenever new RADIUS
 - The `show config set` command was added to display the current configuration as a series of `set` commands which can be copied and pasted to configure the application.
 
 - The `show clients`, `set client`, and `clear client` commands were added to allow you to more easily control the RADIUS clients configured in the FreeRADIUS clients.conf file. Now it can all be administered using RadiUID commands. The `show config set` output even includes the current RADIUS clients as `set client` commands.
-
-
 
 
 
