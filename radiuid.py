@@ -1853,7 +1853,7 @@ class installer_maintenance_utility(object):
 				elif checkservice == 'yes':
 					print self.ui.color("\n\n***** Great Success!! Looks like FreeRADIUS installed and started up successfully.", self.ui.green)
 					print self.ui.color("***** We will be adding client IP and shared secret info to FreeRADIUS later in this wizard.", self.ui.green)
-					print self.ui.color("***** If you need to manually edit the FreeRADIUS config file later, you can run 'radiuid edit clients' in the CLI", self.ui.green)
+					print self.ui.color("***** If you need to edit the FreeRADIUS clients later, you can use 'set clients' and 'clear clients' in the CLI", self.ui.green)
 					print self.ui.color("***** You can also manually open the file for editing. It is located at /etc/raddb/clients.conf", self.ui.green)
 					raw_input(self.ui.color("\n***** Hit ENTER to continue...\n\n>>>>>", self.ui.cyan))
 			if freeradiusinstall == 'no':
