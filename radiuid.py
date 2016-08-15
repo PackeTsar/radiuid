@@ -15,7 +15,7 @@ import commands
 import xml.etree.ElementTree
 
 ##### Inform RadiUID version here #####
-version = "dev2.0.0"
+version = "2.0.0"
 
 ##### Set some default configs #####
 etcconfigfile = '/etc/radiuid/radiuid.conf'
