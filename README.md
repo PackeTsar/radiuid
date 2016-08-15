@@ -25,16 +25,16 @@ RadiUID uses FreeRADIUS as a backend service to listen on RADIUS accounting port
 
 RadiUID then parses these logs, pulls down the User and IP mapping information and pushes those mappings to the Palo Alto firewall using the published RESTful XML API.
 
-RadiUID runs as a system service on CentOS 7 and very easy to configure and use. All configuration and interaction with RadiUID is via command line on the Linux BASH shell. Once the installer completes, RadiUID can be invoked from the command shell by typing "radiuid" followed by the desired command. Hit the [TAB] key for command options or hit [ENTER] for the list of options!
+RadiUID runs as a system service on CentOS 7 and very easy to configure and use. All configuration and interaction with RadiUID is via command line on the Linux BASH shell. Once the installer completes, RadiUID can be invoked from the command shell by typing `radiuid` followed by the desired command. Hit the [TAB] key for command options or hit [ENTER] for the list of options!
 
 
 
 ####   REQUIREMENTS   ####
 --------------------------------------
 
-OS:			**CentOS 7 Minimal Install (recommended to update to latest patches)**
+OS:			**CentOS 7 Minimal Install** *(recommended to update to latest patches)*
 
-Interpreter:		**Python 2.7.5 (Included in current release of CentOS 7)**
+Interpreter:		**Python 2.7.X** *(Included in current release of CentOS 7)*
 
 PAN-OS Version:		**6.X and 7.X**
 
@@ -79,18 +79,12 @@ NOTE: You need to be logged in as root or have sudo privileges on the system to 
 
 	[6]: Run the RadiUID program in install mode to perform the installation
 		----NOTE: Make sure that you have the .conf file in the same directory as the .py directory for the initial install
-
 		> sudo python radiuid.py install
 
 	[7]: Follow the on-screen prompts to install FreeRADIUS and the RadiUID application
 
 
 	[8]: The installer should let you know if everything installed correctly and services are running, but in the next section are the CLI commands you can run to check up on it.
-
-
-	[9]: Remember that install mode of RadiUID ('radiuid install') can be used for the initial install and also maintenance of the application:
-		-Changing settings in the RadiUID .conf file
-		-Changing client settings in FreeRADIUS
 
 
 
