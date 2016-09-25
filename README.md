@@ -210,12 +210,27 @@ RadiUID pushes ephemeral User-ID information to the firewall whenever new RADIUS
 
 **BUG FIXES:**
 
-- The RadiUID 'merge_dicts' method was throwing a `KeyError` exception and quitting the loop (service) when a FreeRADIUS log was scraped which didn't contain the three required fields (`usernameterm`, `ipaddressterm`, and the `delineatorterm`). An error handler has been added to detect the `KeyError`, dump the dictionary data to the log, and continue in the loop.
+- *ISSUE #13*: The RadiUID 'merge_dicts' method was throwing a `KeyError` exception and quitting the loop (service) when a FreeRADIUS log was scraped which didn't contain the three required fields (`usernameterm`, `ipaddressterm`, and the `delineatorterm`). An error handler has been added to detect the `KeyError`, dump the dictionary data to the log, and continue in the loop.
     - This issue was reproduced on v2.0.0 code by removing the line in the FreeRADIUS log containing the `usernameterm` text and running the loop (`radiuid run`).
     - It is highly recommended to update to v2.0.1 or later to fix this bug as it affects the stability of the RadiUID RADIUS log capturing functionality.
 
+- *ISSUE #14*: The default configured `delineatorterm` was documented as non-functional for RADIUS accounting messages from a Ruckus wireless system by Dan Hume on his blog at http://www.dhume.co.uk. He had to change the default `delineatorterm` to "Accounting-Session-ID" to make the log parsing work properly.
+    - This bug has been fixed by adding functionality for RadiUID to recognize the paragraph separations between FreeRADIUS log entries within the same file and use those paragraph separations as the delineator. To enable this functionality, you must upgrade to v2.0.1 and use the [PARAGRAPH] keyword as the `delineatorterm` value (which is now the default value in the config file). 
 
+**UPGRADE PROCESS:**
 
+Upgrading from v2.0.0 to v2.0.1 is relatively easy following the below process:
+
+1. Perform a `radiuid show config set` command and save the `set` commands displayed in a safe place
+2. Download the v2.0.1 code from the GitHub repo by using `git clone https://github.com/PackeTsar/radiuid.git`
+    - If the "radiuid" folder already exists, you may want to run the `rm -rf radiuid/` command to remove it before performing Step 2.
+3. Move to the radiuid folder created by git using the `cd radiuid/` command
+4. Perform the install using the `python radiuid.py install` command. When asked if you want to re-install the RadiUID service, answer "yes"
+5. Answer "no" to all other questions asked by the installer.
+6. Once the installer exists, you should run `radiuid show config` and see the default configuration.
+7. Take the `set` commands you saved from Step 1, and copy/paste them into the bash shell. This should reconfigure RadiUID with the proper configuration from your previous installation.
+	- To confirm this, check the config using `radiuid show config` and `radiuid show config set`
+8. Perform a `radiuid service radiuid restart` command to restart RadiUID to use the new configuration
 
 
 ####   CONTRIBUTING   ####

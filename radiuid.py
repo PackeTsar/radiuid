@@ -974,19 +974,30 @@ class data_processing(object):
 		self.ui = user_interface()
 		self.filemgmt = file_management()
 		####################################################
-	##### Search list of files for a searchterm and uses deliniator term to count instances in file, then returns a dictionary where key=instance and value=line where term was found #####
+	##### Search list of files for a searchterm and uses deliniator differentiate between log entries within the same file, then returns a dictionary where key=instance and value=line where term was found #####
 	##### Used to search through FreeRADIUS log files for usernames and IP addresses, then turn them into dictionaries to be sent to the "push" function #####
+	##### When the "[PARAGRAPH]" value is used as the delineatorterm value, it seperates the log entries using the empty "\n" line in between paragraphs
 	def search_to_dict(self, filelist, delineator, searchterm):
 		dict = {}
 		entry = 0
-		for filename in filelist:
-			self.filemgmt.logwriter("normal", 'Searching File: ' + filename + ' for ' + searchterm)
-			with open(filename, 'r') as filetext:
+		if delineator == "[PARAGRAPH]": # If the "[PARAGRAPH]" value is used as the delineatorterm value in the config file, use an empty line as the delineatorterm (paragraph seperation)
+			for filename in filelist:
+				self.filemgmt.logwriter("normal", 'Searching File: ' + filename + ' for ' + searchterm)
+				filetext = open(filename).readlines(  )
 				for line in filetext:
-					if delineator in line:
-						entry = entry + 1
 					if searchterm in line:
 						dict[entry] = line
+					elif line == "\n":
+						entry = entry + 1
+		else: # If the "[PARAGRAPH]" value is NOT used as the delineatorterm value in the config file
+			for filename in filelist:
+				self.filemgmt.logwriter("normal", 'Searching File: ' + filename + ' for ' + searchterm)
+				with open(filename, 'r') as filetext:
+					for line in filetext:
+						if delineator in line:
+							entry = entry + 1
+						if searchterm in line:
+							dict[entry] = line
 		return dict
 	##### Clean up IP addresses in dictionary #####
 	##### Removes unwanted data from the lines with useful IP addresses in them #####
