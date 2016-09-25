@@ -9,6 +9,19 @@ An application to extract User-to-IP mappings from RADIUS accounting data and se
 The version of RadiUID documented here is: **v2.0.1**
 
 
+####   TABLE OF CONTENTS   ####
+1. [WHAT IS RADIUID](#WHAT-IS-RADIUID)
+2. [HOW IT WORKS](#HOW-IT-WORKS)
+3. [SCREENSHOTS](#SCREENSHOTS)
+4. [REQUIREMENTS](#REQUIREMENTS)
+5. [TESTED ENVIRONMENTS](#TESTED-ENVIRONMENTS)
+6. [INSTALL INSTRUCTIONS](#INSTALL-INSTRUCTIONS)
+7. [COMMAND INTERFACE](#COMMAND-INTERFACE)
+8. [TIMEOUT TUNING](#TIMEOUT-TUNING)
+9. [1.1.0 TO 2.0.0 Updates](#updates-in-v110----v200)
+10. [2.0.0 TO 2.0.1 Updates](#updates-in-v200----v201)
+11. [CONTRIBUTING](#CONTRIBUTING)
+
 
 ####   WHAT IS RADIUID   ####
 -----------------------------------------
@@ -93,7 +106,7 @@ NOTE: You need to be logged in as root or have sudo privileges on the system to 
 
 
 
-####   RADIUID COMMAND INTERFACE   ####
+####   COMMAND INTERFACE   ####
 ----------------------------------------------
 
 The RadiUID system is meant to run in the background as a system service: constantly checking for new RADIUS accounting data and pushing User-ID mapping information to the firewall, but it also has an easy to use command interface. This command interface is meant to be used for regular maintenance, troubleshooting, and operation of the system.
