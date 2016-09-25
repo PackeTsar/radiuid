@@ -10,17 +10,17 @@ The version of RadiUID documented here is: **v2.0.1**
 
 
 ####   TABLE OF CONTENTS   ####
-1. [WHAT IS RADIUID](#WHAT-IS-RADIUID)
-2. [HOW IT WORKS](#HOW-IT-WORKS)
-3. [SCREENSHOTS](#SCREENSHOTS)
-4. [REQUIREMENTS](#REQUIREMENTS)
-5. [TESTED ENVIRONMENTS](#TESTED-ENVIRONMENTS)
-6. [INSTALL INSTRUCTIONS](#INSTALL-INSTRUCTIONS)
-7. [COMMAND INTERFACE](#COMMAND-INTERFACE)
-8. [TIMEOUT TUNING](#TIMEOUT-TUNING)
+1. [What is RadiUID?](#what-is-radiuid)
+2. [How it Works](#how-it-works)
+3. [Screenshots](#screenshots)
+4. [Requirements](#requirements)
+5. [Tested Environments](#tested-environments)
+6. [Install Instructions](#install-instructions)
+7. [Command Interface](#command-interface)
+8. [Timeout Tuning](#timeout-tuning)
 9. [1.1.0 TO 2.0.0 Updates](#updates-in-v110----v200)
 10. [2.0.0 TO 2.0.1 Updates](#updates-in-v200----v201)
-11. [CONTRIBUTING](#CONTRIBUTING)
+11. [Contributing](#contributing)
 
 
 ####   WHAT IS RADIUID   ####
