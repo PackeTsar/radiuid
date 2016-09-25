@@ -1,6 +1,6 @@
 #!/usr/bin/python
 
-#####        RadiUID Server v2.0.0         #####
+#####        RadiUID Server v2.0.1         #####
 #####       Written by John W Kerns        #####
 #####      http://blog.packetsar.com       #####
 ##### https://github.com/PackeTsar/radiuid #####
@@ -15,7 +15,7 @@ import commands
 import xml.etree.ElementTree
 
 ##### Inform RadiUID version here #####
-version = "2.0.0"
+version = "2.0.1"
 
 ##### Set some default configs #####
 etcconfigfile = '/etc/radiuid/radiuid.conf'
@@ -1016,9 +1016,15 @@ class data_processing(object):
 		newdict = {}
 		keydictkeylist = keydict.keys()
 		for each in keydictkeylist:
-			v = valuedict[each]
-			k = keydict[each]
-			newdict[k] = v
+			try:
+				v = valuedict[each]
+				k = keydict[each]
+				newdict[k] = v
+			except KeyError:
+				self.filemgmt.logwriter("normal", self.ui.color("Error detected in FreeRADIUS log. Looks like there were log entries missing the username, IP address, or delineatorterm", self.ui.red))
+				self.filemgmt.logwriter("normal", self.ui.color("Skipping entry. Dump of dictionaries shown below.", self.ui.red))
+				self.filemgmt.logwriter("normal", self.ui.color(str(keydict), self.ui.red))
+				self.filemgmt.logwriter("normal", self.ui.color(str(valuedict), self.ui.red))
 		self.filemgmt.logwriter("normal", "Dictionary values merged into one dictionary")
 		return newdict
 	##### Search an ordered list of values for a list of search queries and return the indices for the locations of the queries #####

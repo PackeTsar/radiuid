@@ -6,7 +6,7 @@ An application to extract User-to-IP mappings from RADIUS accounting data and se
 
 ####   VERSION   ####
 -----------------------------------------
-The version of RadiUID documented here is: **v2.0.0**
+The version of RadiUID documented here is: **v2.0.1**
 
 
 
@@ -176,7 +176,7 @@ RadiUID pushes ephemeral User-ID information to the firewall whenever new RADIUS
 
 
 
-####   UPDATES IN V2.0.0   ####
+####   UPDATES IN V1.1.0 --> V2.0.0   ####
 --------------------------------------
 
 **ADDED FEATURES:**
@@ -202,6 +202,19 @@ RadiUID pushes ephemeral User-ID information to the firewall whenever new RADIUS
 - The `show config set` command was added to display the current configuration as a series of `set` commands which can be copied and pasted to configure the application.
 
 - The `show clients`, `set client`, and `clear client` commands were added to allow you to more easily control the RADIUS clients configured in the FreeRADIUS clients.conf file. Now it can all be administered using RadiUID commands. The `show config set` output even includes the current RADIUS clients as `set client` commands.
+
+
+
+####   UPDATES IN V2.0.0 --> V2.0.1   ####
+--------------------------------------
+
+**BUG FIXES:**
+
+- The RadiUID 'merge_dicts' method was throwing a `KeyError` exception and quitting the loop (service) when a FreeRADIUS log was scraped which didn't contain the three required fields (`usernameterm`, `ipaddressterm`, and the `delineatorterm`). An error handler has been added to detect the `KeyError`, dump the dictionary data to the log, and continue in the loop.
+    - This issue was reproduced on v2.0.0 code by removing the line in the FreeRADIUS log containing the `usernameterm` text and running the loop (`radiuid run`).
+    - It is highly recommended to update to v2.0.1 or later to fix this bug as it affects the stability of the RadiUID RADIUS log capturing functionality.
+
+
 
 
 
