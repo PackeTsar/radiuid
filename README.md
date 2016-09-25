@@ -70,7 +70,7 @@ RadiUID has currently been tested with the following RADIUS servers and authenti
 
 Identity Systems: **JumpCloud RADIUS service, Windows 2012 NPS Server (with Active Directory)**
 
-Authenticators: **Meraki Wireless Access Points, Cisco Wireless (Controller-based)**
+Authenticators: **Meraki Wireless Access Points, Cisco Wireless (Controller-based), Ruckus**
 
 
 
