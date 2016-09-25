@@ -95,8 +95,8 @@ NOTE: You need to be logged in as root or have sudo privileges on the system to 
 	[5]: Change to the directory where the RadiUID main code file (radiuid.py) and config file (radiuid.conf) are stored
 		> cd radiuid
 
-	[5.1]: (OPTIONAL) Change to a development branch (perform this step only if you are prepared for a version which is under active development and may have broken features)
-		> git checkout dev-X.X.X
+	[5.1]: (OPTIONAL) Change to the development branch (perform this step only if you are prepared for a version which is under active development and may have broken features)
+		> git checkout devel
 
 	[6]: Run the RadiUID program in install mode to perform the installation
 		----NOTE: Make sure that you have the .conf file in the same directory as the .py directory for the initial install
