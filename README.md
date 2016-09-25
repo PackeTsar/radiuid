@@ -80,32 +80,16 @@ Authenticators: **Meraki Wireless Access Points, Cisco Wireless (Controller-base
 The install of RadiUID is very quick and straightforward using the built-in installer.
 NOTE: You need to be logged in as root or have sudo privileges on the system to install RadiUID
 
-	[1]: Install CentOS 7 Minimal Install with appropriate IP and OS settings
-
-
-	[2]: Update CentOS 7 to latest patches (recommended)
-		> sudo yum update -y
-
-	[3]: Install the Git client (unless you already have the RadiUID files)
-		> sudo yum install git -y
-
-	[4]: Download the RadiUID repo to any location on the box
-		> git clone https://github.com/PackeTsar/radiuid.git
-
-	[5]: Change to the directory where the RadiUID main code file (radiuid.py) and config file (radiuid.conf) are stored
-		> cd radiuid
-
-	[5.1]: (OPTIONAL) Change to the development branch (perform this step only if you are prepared for a version which is under active development and may have broken features)
-		> git checkout devel
-
-	[6]: Run the RadiUID program in install mode to perform the installation
-		----NOTE: Make sure that you have the .conf file in the same directory as the .py directory for the initial install
-		> sudo python radiuid.py install
-
-	[7]: Follow the on-screen prompts to install FreeRADIUS and the RadiUID application
-
-
-	[8]: The installer should let you know if everything installed correctly and services are running, but in the next section are the CLI commands you can run to check up on it.
+1. Install CentOS 7 Minimal Install with appropriate IP and OS settings
+2. Update CentOS 7 to latest patches (recommended): `sudo yum update -y`
+3. Install the Git client (unless you already have the RadiUID files): `sudo yum install git -y`
+4. Download the RadiUID repo to any location on the box: `git clone https://github.com/PackeTsar/radiuid.git`
+5. Change to the directory where the RadiUID main code file (radiuid.py) and config file (radiuid.conf) are stored: `cd radiuid`
+	- (OPTIONAL) Change to the development branch (perform this step only if you are prepared for a version which is under active development and may have broken features): `git checkout devel`
+6. Run the RadiUID program in install mode to perform the installation: `sudo python radiuid.py install`
+	- NOTE: Make sure that you have the .conf file in the same directory as the .py directory for the initial install
+7. Follow the on-screen prompts to install FreeRADIUS and the RadiUID application
+	- The installer should let you know if everything installed correctly and services are running, but in the next section are the CLI commands you can run to check up on it.
 
 
 
