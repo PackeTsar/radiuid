@@ -10,6 +10,7 @@ The version of RadiUID documented here is: **v2.0.1**
 
 
 ####   TABLE OF CONTENTS   ####
+-----------------------------------------
 1. [What is RadiUID?](#what-is-radiuid)
 2. [How it Works](#how-it-works)
 3. [Screenshots](#screenshots)
