@@ -445,15 +445,17 @@ class file_management(object):
 	#######################################################
 	##### List all files in a directory path and subdirs #####
 	##### Used to enumerate files in the FreeRADIUS accounting log path #####
-	def list_files(self, path):
+	def list_files(self, mode, path):
 		filelist = []
 		for root, directories, filenames in os.walk(path):
 			for filename in filenames:
 				entry = os.path.join(root, filename)
 				filelist.append(entry)
-				self.logwriter("normal", "Found File: " + entry + "...   Adding to file list")
+				if mode == "noisy":
+					self.logwriter("normal", "Found File: " + entry + "...   Adding to file list")
 		if len(filelist) == 0:
-			self.logwriter("normal", "No Accounting Logs Found. Nothing to Do.")
+			if mode == "noisy":
+				self.logwriter("normal", "No Accounting Logs Found. Nothing to Do.")
 			return filelist
 		else:
 			return filelist
@@ -1334,7 +1336,7 @@ class radiuid_main_process(object):
 		self.filemgmt.publish_config("noisy")
 		self.initialize()
 		while __name__ == "__main__":
-			filelist = self.filemgmt.list_files(radiuslogpath)
+			filelist = self.filemgmt.list_files("noisy", radiuslogpath)
 			if len(filelist) > 0:
 				usernames = self.dpr.search_to_dict(filelist, delineatorterm, usernameterm)
 				ipaddresses = self.dpr.search_to_dict(filelist, delineatorterm, ipaddressterm)
@@ -1520,7 +1522,7 @@ _radiuid_complete()
   elif [ $COMP_CWORD -eq 2 ]; then
     case "$prev" in
       show)
-        COMPREPLY=( $(compgen -W "log run config clients status mappings" -- $cur) )
+        COMPREPLY=( $(compgen -W "log acct-logs run config clients status mappings" -- $cur) )
         ;;
       "set")
         COMPREPLY=( $(compgen -W "logfile maxloglines radiuslogpath userdomain timeout target client" -- $cur) )
@@ -2166,6 +2168,7 @@ class command_line_interpreter(object):
 		######################### SHOW #############################
 		elif arguments == "show" or arguments == "show ?":
 			print "\n - show log                                                  |     Show the RadiUID log file"
+			print " - show acct-logs                                            |     Show the log files currently in the FreeRADIUS accounting directory"
 			print " - show run (xml | set)                                      |     Show the RadiUID configuration in XML format (default) or as set commands"
 			print " - show config (xml | set)                                   |     Show the RadiUID configuration in XML format (default) or as set commands"
 			print " - show clients (file | table)                               |     Show the FreeRADIUS client config file"
@@ -2199,6 +2202,21 @@ class command_line_interpreter(object):
 			print self.ui.color(header, self.ui.magenta)
 			print self.ui.color("#" * len(header), self.ui.magenta)
 			os.system("more " + logfile)
+			print self.ui.color("#" * len(header), self.ui.magenta)
+			print self.ui.color("#" * len(header), self.ui.magenta)
+		elif arguments == "show acct-logs":
+			self.filemgmt.logwriter("cli", "##### COMMAND '" + arguments + "' ISSUED FROM CLI BY USER '" + self.imum.currentuser()+ "' #####")
+			header = "########################## FILES IN DIRECTORY " + radiuslogpath + " ##########################"
+			print self.ui.color(header, self.ui.magenta)
+			print self.ui.color("#" * len(header), self.ui.magenta)
+			print "\n"
+			filelist = self.filemgmt.list_files("quiet", radiuslogpath)
+			if len(filelist) > 0:
+				for file in filelist:
+					print file
+			else:
+				print self.ui.color("***** Directory " + radiuslogpath + " is currently empty *****", self.ui.red)
+			print "\n"
 			print self.ui.color("#" * len(header), self.ui.magenta)
 			print self.ui.color("#" * len(header), self.ui.magenta)
 		elif arguments == "show run set" or arguments == "show config set":
@@ -3143,8 +3161,9 @@ class command_line_interpreter(object):
 			print self.ui.color(header, self.ui.magenta)
 			print self.ui.color("#" * len(header), self.ui.magenta)
 			print self.ui.color("\n\n***** Are you sure you want to re-install/upgrade RadiUID using version " + version + "?*****", self.ui.yellow)
-			answer = raw_input(self.ui.color(">>>>> If you are sure you want to do this, type in 'reinstall' and hit ENTER >>>>", self.ui.yellow))
-			if answer == "reinstall":
+			print self.ui.color("***** This will overwrite your current RadiUID configuration with the default configuration.*****", self.ui.yellow)
+			answer = raw_input(self.ui.color(">>>>> If you are sure you want to do this, type in 'CONFIRM' and hit ENTER >>>>", self.ui.yellow))
+			if answer.lower() == "confirm":
 				print "\n\n****************Re-installing/upgrading the RadiUID service...****************\n"
 				self.imum.copy_radiuid()
 				self.imum.install_radiuid()
@@ -3153,7 +3172,7 @@ class command_line_interpreter(object):
 				raw_input(self.ui.color(">>>>> You will need to log out and log back in to activate the RadiUID CLI auto-completion functionality\n>>>>> Hit ENTER to finish\n>>>>>", self.ui.cyan))
 				print self.ui.color("Success!", self.ui.green)
 			else:
-				print self.ui.color("\n\n***** Cancelling reinstall of RadiUID *****", self.ui.yellow)
+				print self.ui.color("\n\n***** Reinstall\Upgrade of RadiUID Cancelled *****\n", self.ui.yellow)
 			print self.ui.color("#" * len(header), self.ui.magenta)
 			print self.ui.color("#" * len(header), self.ui.magenta)
 		######################### VERSION #############################
@@ -3183,6 +3202,7 @@ class command_line_interpreter(object):
 			print " - install                                        |  Run the RadiUID Install/Maintenance Utility"
 			print "-------------------------------------------------------------------------------------------------------------------------------\n"
 			print " - show log                                       |  Show the RadiUID log file"
+			print " - show acct-logs                                 |  Show the log files currently in the FreeRADIUS accounting directory"
 			print " - show run (xml | set)                           |  Show the RadiUID configuration in XML format (default) or as set commands"
 			print " - show config (xml | set)                        |  Show the RadiUID configuration in XML format (default) or as set commands"
 			print " - show clients (file | table)                    |  Show the FreeRADIUS clients and config file"
