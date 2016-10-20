@@ -1516,7 +1516,7 @@ _radiuid_complete()
   prev=${COMP_WORDS[COMP_CWORD-1]}
   prev2=${COMP_WORDS[COMP_CWORD-2]}
   if [ $COMP_CWORD -eq 1 ]; then
-    COMPREPLY=( $(compgen -W "run install show set push tail clear edit service version" -- $cur) )
+    COMPREPLY=( $(compgen -W "run install show set push tail clear edit service reinstall version" -- $cur) )
   elif [ $COMP_CWORD -eq 2 ]; then
     case "$prev" in
       show)
@@ -1914,6 +1914,15 @@ class installer_maintenance_utility(object):
 				radiuidrunning = self.imum.check_service_running('radiuid')
 				if radiuidrunning == "yes":
 					print self.ui.color("***** Very nice....Great Success!!!", self.ui.green)
+					radiuidreinstall = self.ui.yesorno("Do you want to re-install the RadiUID service anyways?")
+					if radiuidreinstall == 'yes':
+						print "\n\n****************Re-installing the RadiUID service...****************\n"
+						self.imum.copy_radiuid()
+						self.imum.install_radiuid()
+						print "\n"
+						self.imum.install_radiuid_completion()
+						raw_input(self.ui.color(">>>>> You will need to log out and log back in to activate the RadiUID CLI auto-completion functionality\n>>>>>", self.ui.cyan))
+						print "\n\n****************We will start up the RadiUID service once we configure the .conf file****************\n"
 				if radiuidrunning == "no":
 					print self.ui.color("***** Looks like the startup failed...", self.ui.red)
 					radiuidreinstall = self.ui.yesorno("Do you want to re-install the RadiUID service?")
@@ -1927,6 +1936,15 @@ class installer_maintenance_utility(object):
 						print "\n\n****************We will start up the RadiUID service once we configure the .conf file****************\n"
 			if radiuidrestart == 'no':
 				print self.ui.color("~~~ OK, leaving it off...", self.ui.yellow)
+		radiuidreinstall = self.ui.yesorno("Do you want to re-install the RadiUID service?")
+		if radiuidreinstall == 'yes':
+			print "\n\n****************Re-installing the RadiUID service...****************\n"
+			self.imum.copy_radiuid()
+			self.imum.install_radiuid()
+			print "\n"
+			self.imum.install_radiuid_completion()
+			raw_input(self.ui.color(">>>>> You will need to log out and log back in to activate the RadiUID CLI auto-completion functionality\n>>>>>", self.ui.cyan))
+			print "\n\n****************We will start up the RadiUID service once we configure the .conf file****************\n"
 		if radiuidinstalled == 'no' and radiuidrunning == 'no':
 			print "\n"
 			radiuidinstall = self.ui.yesorno("Looks like RadiUID is not installed. Is it ok to install RadiUID?")
@@ -3118,6 +3136,26 @@ class command_line_interpreter(object):
 				print self.ui.color("\n\n********** FREERADIUS SUCCESSFULLY RESTARTED! **********\n\n", self.ui.green)
 			elif checkservice == "no":
 				print self.ui.color("\n\n********** FREERADIUS STARTUP UNSUCCESSFUL. SOMETHING MUST BE WRONG... **********\n\n", self.ui.red)
+		######################### REINSTALL #############################
+		elif arguments == "reinstall":
+			self.filemgmt.logwriter("cli", "##### COMMAND '" + arguments + "' ISSUED FROM CLI BY USER '" + self.imum.currentuser()+ "' #####")
+			header = "########################## RADIUID REINSTALL/UPGRADE ##########################"
+			print self.ui.color(header, self.ui.magenta)
+			print self.ui.color("#" * len(header), self.ui.magenta)
+			print self.ui.color("\n\n***** Are you sure you want to re-install/upgrade RadiUID using version " + version + "?*****", self.ui.yellow)
+			answer = raw_input(self.ui.color(">>>>> If you are sure you want to do this, type in 'reinstall' and hit ENTER >>>>", self.ui.yellow))
+			if answer == "reinstall":
+				print "\n\n****************Re-installing/upgrading the RadiUID service...****************\n"
+				self.imum.copy_radiuid()
+				self.imum.install_radiuid()
+				print "\n"
+				self.imum.install_radiuid_completion()
+				raw_input(self.ui.color(">>>>> You will need to log out and log back in to activate the RadiUID CLI auto-completion functionality\n>>>>> Hit ENTER to finish\n>>>>>", self.ui.cyan))
+				print self.ui.color("Success!", self.ui.green)
+			else:
+				print self.ui.color("\n\n***** Cancelling reinstall of RadiUID *****", self.ui.yellow)
+			print self.ui.color("#" * len(header), self.ui.magenta)
+			print self.ui.color("#" * len(header), self.ui.magenta)
 		######################### VERSION #############################
 		elif arguments == "version":
 			self.filemgmt.logwriter("cli", "##### COMMAND '" + arguments + "' ISSUED FROM CLI BY USER '" + self.imum.currentuser()+ "' #####")
@@ -3172,6 +3210,8 @@ class command_line_interpreter(object):
 			print " - edit clients                                   |  Edit RADIUS client config file for FreeRADIUS"
 			print "-------------------------------------------------------------------------------------------------------------------------------\n"
 			print " - service [parameters]                           |  Control the RadiUID and FreeRADIUS system services"
+			print "-------------------------------------------------------------------------------------------------------------------------------\n"
+			print " - reinstall                                      |  Re-install/upgrade the RadiUID service and reset configuration to defaults"
 			print "-------------------------------------------------------------------------------------------------------------------------------\n"
 			print " - version                                        |  Show the current version of RadiUID and FreeRADIUS"
 			print "-------------------------------------------------------------------------------------------------------------------------------\n"
