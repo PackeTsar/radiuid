@@ -15,7 +15,7 @@ import commands
 import xml.etree.ElementTree
 
 ##### Inform RadiUID version here #####
-version = "2.0.1"
+version = "2.0.1-dharding"
 
 ##### Set some default configs #####
 etcconfigfile = '/etc/radiuid/radiuid.conf'
@@ -1013,10 +1013,15 @@ class data_processing(object):
 	##### Removes unwanted data from the lines with useful usernames in them #####
 	def clean_names(self, dictionary):
 		newdict = {}
-		username_regex = "(\'.*\')"
 		for key, value in dictionary.iteritems():
+			if "'" in value:
+				username_regex = "(\'.*\')"
+				removequote = "'"
+			elif '"' in value:
+				username_regex = '(\".*\")'
+				removequote = '"'
 			clean1 = re.findall(username_regex, value, flags=0)[0]
-			cleaned = clean1.replace("'", "")
+			cleaned = clean1.replace(removequote, "")
 			newdict[key] = cleaned
 		self.filemgmt.logwriter("normal", "Username List Cleaned Up!")
 		return newdict
