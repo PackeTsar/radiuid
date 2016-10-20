@@ -1535,7 +1535,7 @@ _radiuid_complete()
         COMPREPLY=( $(compgen -W "log" -- $cur) )
         ;;
       "clear")
-        COMPREPLY=( $(compgen -W "log target mappings client" -- $cur) )
+        COMPREPLY=( $(compgen -W "log acct-logs target mappings client" -- $cur) )
         ;;
       edit)
         COMPREPLY=( $(compgen -W "config clients" -- $cur) )
@@ -2782,6 +2782,7 @@ class command_line_interpreter(object):
 		######################### CLEAR #############################
 		elif arguments == "clear" or arguments == "clear ?":
 			print "\n - clear log                                                   |     Delete the content in the log file"
+			print " - clear acct-logs                                             |     Delete the log files currently in the FreeRADIUS accounting directory"
 			print " - clear client (<ip-block> | all)                             |     Delete one or all RADIUS client IP blocks in FreeRADIUS config file"
 			print " - clear target (<hostname>:<vsys-id> | all)                   |     Delete one or all firewall targets in the config file"
 			print " - clear mappings (<hostname>:<vsys-id> | all) (<ip> | all)    |     Remove one or all IP-to-User mappings from one or all firewalls\n"
@@ -2803,6 +2804,31 @@ class command_line_interpreter(object):
 			os.system("rm -f "+ logfile)
 			self.filemgmt.write_file(logfile, "***********Logfile cleared via RadiUID command by " + self.imum.currentuser() + "***********\n")
 			print self.ui.color("********************* Cleared logfile: " + logfile + " ********************", self.ui.yellow)
+		##### CLEAR ACCT-LOGS #####
+		elif arguments == "clear acct-logs":
+			self.filemgmt.logwriter("cli", "##### COMMAND '" + arguments + "' ISSUED FROM CLI BY USER '" + self.imum.currentuser()+ "' #####")
+			header = "########################## EXECUTING COMMAND: " + arguments + " ##########################"
+			print self.ui.color(header, self.ui.magenta)
+			print self.ui.color("#" * len(header), self.ui.magenta)
+			print "\n"
+			filelist = self.filemgmt.list_files("quiet", radiuslogpath)
+			if len(filelist) > 0:
+				for file in filelist:
+					print file
+				print "\n\n"
+				print self.ui.color("********************* You are about to delete all files, listed above, in directory... (" + radiuslogpath + ") ********************", self.ui.yellow)
+				raw_input("Hit CTRL-C to quit. Hit ENTER to continue\n>>>>>")
+				print "\n\n"
+				self.filemgmt.remove_files(filelist)
+				self.filemgmt.logwriter("cli", "##### FreeRADIUS accounting files deleted by user '" + self.imum.currentuser()+ "' #####")
+				print "\n"
+				print self.ui.color("Success!", self.ui.green)
+			else:
+				print self.ui.color("***** Directory " + radiuslogpath + " is currently empty *****", self.ui.red)
+				print self.ui.color("***** Nothing to do *****", self.ui.red)
+			print "\n"
+			print self.ui.color("#" * len(header), self.ui.magenta)
+			print self.ui.color("#" * len(header), self.ui.magenta)
 		##### CLEAR CLIENT #####
 		elif self.cat_list(sys.argv[1:3]) == "clear client" and len(re.findall("[0-9A-Za-z]", sys.argv[3])) > 0:
 			self.filemgmt.logwriter("cli", "##### COMMAND '" + arguments + "' ISSUED FROM CLI BY USER '" + self.imum.currentuser()+ "' #####")
@@ -3222,6 +3248,7 @@ class command_line_interpreter(object):
 			print " - tail log (<# of lines>)                        |  Watch the RadiUID log file in real time"
 			print "-------------------------------------------------------------------------------------------------------------------------------\n"
 			print " - clear log                                      |  Delete the content in the log file"
+			print " - clear acct-logs                                |  Delete the log files currently in the FreeRADIUS accounting directory"
 			print " - clear client (<ip-block> | all)                |  Delete one or all RADIUS client IP blocks in FreeRADIUS config file"
 			print " - clear target (<hostname>:<vsys-id> | all)      |  Delete one or all firewall targets in the config file"
 			print " - clear mappings [parameters]                    |  Remove one or all IP-to-User mappings from one or all firewalls"
