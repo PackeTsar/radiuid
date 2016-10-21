@@ -26,15 +26,19 @@ maxtimeout = 1440
 
 ##### Detect OS #####
 osversion = "unknown"
+radservicename = "unknown"
 osdata = platform.dist()
 if osdata[0].lower() == "centos":
 	if osdata[1][0] == "6":
 		osversion = "centos6"
+		radservicename = "radiusd"
 	elif osdata[1][0] == "7":
 		osversion = "centos7"
+		radservicename = "radiusd"
 elif osdata[0].lower() == "ubuntu":
 	if int(float(osdata[1])) == 16:
 		osversion = "ubuntu16"
+		radservicename = "freeradius"
 
 
 
@@ -1432,11 +1436,12 @@ class imu_methods(object):
 		print "#########################################################################\n\n"
 	##### Install FreeRADIUS server #####
 	def install_freeradius(self):
-		os.system('yum install freeradius -y')
-		print "\n\n\n\n\n\n****************Setting FreeRADIUS as a system service...****************\n"
-		self.ui.progress("Progress: ", 1)
-		os.system('systemctl enable radiusd')
-		os.system('systemctl start radiusd')
+		if osversion == "centos7":
+			os.system('yum install freeradius -y')
+			print "\n\n\n\n\n\n****************Setting FreeRADIUS as a system service...****************\n"
+			self.ui.progress("Progress: ", 1)
+			os.system('systemctl enable radiusd')
+			os.system('systemctl start radiusd')
 	#######################################################
 	#######           UI Question Methods           #######
 	#######   Used for asking questions in the UI   #######
@@ -1869,15 +1874,15 @@ class installer_maintenance_utility(object):
 		###Check if FreeRADIUS is installed and running already
 		#########################################################################
 		print "\n\n\n\n\n\n****************Checking if FreeRADIUS is installed...****************\n"
-		freeradiusinstalled = self.imum.check_service_installed('radiusd')
-		freeradiusrunning = self.imum.check_service_running('radiusd')
+		freeradiusinstalled = self.imum.check_service_installed(radservicename)
+		freeradiusrunning = self.imum.check_service_running(radservicename)
 		if freeradiusinstalled == 'yes' and freeradiusrunning == 'yes':
 			print self.ui.color("***** Looks like the FreeRADIUS service is already installed and running...skipping the install of FreeRADIUS", self.ui.green)
 		if freeradiusinstalled == 'yes' and freeradiusrunning == 'no':
 			freeradiusrestart = self.ui.yesorno("Looks like FreeRADIUS is installed, but not running....want to start it up?")
 			if freeradiusrestart == 'yes':
-				self.imum.restart_service('radiusd')
-				freeradiusrunning = self.imum.check_service_running('radiusd')
+				self.imum.restart_service(radservicename)
+				freeradiusrunning = self.imum.check_service_running(radservicename)
 				if freeradiusrunning == 'no':
 					print self.ui.color("***** It looks like FreeRADIUS failed to start up. You may need to change its settings and restart it manually...", self.ui.red)
 					print self.ui.color("***** Use the command 'radiuid edit clients' to open and edit the FreeRADIUS client settings file manually", self.ui.red)
@@ -1890,7 +1895,7 @@ class installer_maintenance_utility(object):
 				"Looks like FreeRADIUS is not installed. It is required by RadiUID. Is it ok to install FreeRADIUS?")
 			if freeradiusinstall == 'yes':
 				self.imum.install_freeradius()
-				checkservice = self.imum.check_service_running('radiusd')
+				checkservice = self.imum.check_service_running(radservicename)
 				if checkservice == 'no':
 					print self.ui.color("\n\n***** Uh Oh... Looks like the FreeRADIUS service failed to install or start up.", self.ui.red)
 					print self.ui.color("***** It is possible that the native package manager is not able to download the install files.", self.ui.red)
@@ -2309,7 +2314,7 @@ class command_line_interpreter(object):
 			header = "########################## OUTPUT FROM COMMAND: 'systemctl status radiuid' ##########################"
 			print self.ui.color(header, self.ui.magenta)
 			print self.ui.color("#" * len(header), self.ui.magenta)
-			os.system("systemctl status radiuid")
+			os.system("service radiuid status")
 			print self.ui.color("#" * len(header), self.ui.magenta)
 			print self.ui.color("#" * len(header), self.ui.magenta)
 			serviceinstalled = self.imum.check_service_installed("radiuid")
@@ -2324,14 +2329,14 @@ class command_line_interpreter(object):
 			header = "########################## OUTPUT FROM COMMAND: 'systemctl status radiusd' ##########################"
 			print self.ui.color(header, self.ui.magenta)
 			print self.ui.color("#" * len(header), self.ui.magenta)
-			os.system("systemctl status radiusd")
+			os.system("service " + radservicename + " status")
 			print self.ui.color("#" * len(header), self.ui.magenta)
 			print self.ui.color("#" * len(header), self.ui.magenta)
-			serviceinstalled = self.imum.check_service_installed("radiusd")
+			serviceinstalled = self.imum.check_service_installed(radservicename)
 			if serviceinstalled == "no":
 				print self.ui.color("\n\n********** FREERADIUS IS NOT INSTALLED YET **********\n\n", self.ui.yellow)
 			elif serviceinstalled == "yes":
-				checkservice = self.imum.check_service_running("radiusd")
+				checkservice = self.imum.check_service_running(radservicename)
 				if checkservice == "yes":
 					print self.ui.color("\n\n********** FREERADIUS IS CURRENTLY RUNNING **********\n\n", self.ui.green)
 				elif checkservice == "no":
