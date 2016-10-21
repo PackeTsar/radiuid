@@ -12,6 +12,7 @@ import time
 import urllib
 import urllib2
 import commands
+import platform
 import xml.etree.ElementTree
 
 ##### Inform RadiUID version here #####
@@ -21,6 +22,20 @@ version = "2.0.1-dharding"
 etcconfigfile = '/etc/radiuid/radiuid.conf'
 clientconfpath = '/etc/raddb/clients.conf'
 maxtimeout = 1440
+
+
+##### Detect OS #####
+osversion = "unknown"
+osdata = platform.dist()
+if osdata[0].lower() == "centos":
+	if osdata[1][0] == "6":
+		osversion = "centos6"
+	elif osdata[1][0] == "7":
+		osversion = "centos7"
+elif osdata[0].lower() == "ubuntu":
+	if int(float(osdata[1])) == 16:
+		osversion = "ubuntu16"
+
 
 
 
@@ -1378,15 +1393,16 @@ class imu_methods(object):
 	##### Check if a particular systemd service is installed #####
 	##### Used to check if FreeRADIUS and RadiUID have already been installed #####
 	def check_service_installed(self, service):
-		checkdata = commands.getstatusoutput("systemctl status " + service)
-		installed = 'temp'
-		for line in checkdata:
-			line = str(line)
-			if 'not-found' in line:
-				installed = 'no'
-			else:
-				installed = 'yes'
-		return installed
+		if centos7:
+			checkdata = commands.getstatusoutput("systemctl status " + service)
+			installed = 'temp'
+			for line in checkdata:
+				line = str(line)
+				if 'not-found' in line:
+					installed = 'no'
+				else:
+					installed = 'yes'
+			return installed
 	##### Check if a particular systemd service is running #####
 	##### Used to check if FreeRADIUS and RadiUID are currently running #####
 	def check_service_running(self, service):
@@ -3206,6 +3222,9 @@ class command_line_interpreter(object):
 			self.filemgmt.logwriter("cli", "##### COMMAND '" + arguments + "' ISSUED FROM CLI BY USER '" + self.imum.currentuser()+ "' #####")
 			header = "########################## CURRENT RADIUID AND FREERADIUS VERSIONS ##########################"
 			print self.ui.color(header, self.ui.magenta)
+			print "-------------------------------------- OPERATING SYSTEM --------------------------------------"
+			print "***** Current OS is "+ self.ui.color(osdata[0] + " " + osdata[1] + " " + osdata[2], self.ui.green) + " (" + osversion + ") *****"
+			print "----------------------------------------------------------------------------------------------\n"
 			print "------------------------------------------ RADIUID -------------------------------------------"
 			print "***** Currently running RadiUID "+ self.ui.color(version, self.ui.green) + " *****"
 			print "----------------------------------------------------------------------------------------------\n"
