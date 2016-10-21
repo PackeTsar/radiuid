@@ -1393,16 +1393,23 @@ class imu_methods(object):
 	##### Check if a particular systemd service is installed #####
 	##### Used to check if FreeRADIUS and RadiUID have already been installed #####
 	def check_service_installed(self, service):
-		if centos7:
+		if osversion == "centos7":
 			checkdata = commands.getstatusoutput("systemctl status " + service)
-			installed = 'temp'
-			for line in checkdata:
-				line = str(line)
-				if 'not-found' in line:
-					installed = 'no'
-				else:
-					installed = 'yes'
-			return installed
+			lookfor = 'not-found'
+		elif osversion == "centos6":
+			checkdata = commands.getstatusoutput("service " + service + " status")
+			lookfor = 'unrecognized'
+		elif osversion == "ubuntu16":
+			checkdata = commands.getstatusoutput("service " + service + " status")
+			lookfor = 'not-found'
+		installed = 'temp'
+		for line in checkdata:
+			line = str(line)
+			if lookfor in line:
+				installed = 'no'
+			else:
+				installed = 'yes'
+		return installed
 	##### Check if a particular systemd service is running #####
 	##### Used to check if FreeRADIUS and RadiUID are currently running #####
 	def check_service_running(self, service):
