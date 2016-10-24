@@ -214,31 +214,43 @@ if float(ElementTree.VERSION[:3]) < 1.3:
 		import xml.etree13.ElementTree as ElementTree
 	except ImportError:
 		print ui.color("***** WARNING: Looks like you are running an old version of the xml.etree.ElementTree module (" + ElementTree.VERSION + ") *****", ui.red)
-		print ui.color("***** WARNING: RadiUID will not operate correctly without version 1.3.0 or later. Please run the command '" + runcmd + "install xml-update' to update it", ui.red)
+		print ui.color("***** WARNING: RadiUID will not operate correctly without version 1.3.0 or later.", ui.red)
 		print ui.color("Please run the command '", ui.red) + ui.color(runcmd + " request xml-update", ui.cyan) + ui.color("' to update the module for RadiUID\n\n", ui.red)
 ##### Check OS Version #####
-osversion = "unknown"
-radservicename = "unknown"
-osdata = platform.dist()
-if osdata[0].lower() == "centos":
-	if osdata[1][0] == "6":
-		osversion = "centos6"
-		radservicename = "radiusd"
-		clientconfpath = '/etc/raddb/clients.conf'
-		systemd = False
-	elif osdata[1][0] == "7":
-		osversion = "centos7"
-		radservicename = "radiusd"
-		clientconfpath = '/etc/raddb/clients.conf'
-		systemd = True
-elif osdata[0].lower() == "ubuntu":
-	if int(float(osdata[1])) == 16:
-		osversion = "ubuntu16"
-		radservicename = "freeradius"
-		clientconfpath = '/etc/freeradius/clients.conf'
-		systemd = True
-
-
+osversion = ""
+for each in platform.dist():
+	osversion = osversion + each + " "
+##### Check For SystemD #####
+checksystemd = commands.getstatusoutput("systemctl")
+if len(checksystemd[1]) > 50:
+	systemd = True
+else:
+	systemd = False
+##### Check for Package Manager #####
+checkpkgmgr = {}
+checknames = ["yum", "apt", "apt-get"]
+for mgr in checknames:
+	checkpkgmgr.update({len(commands.getstatusoutput(mgr)[1]): mgr})
+pkgmgr = checkpkgmgr[sorted(list(checkpkgmgr), key=int)[len(sorted(list(checkpkgmgr), key=int)) - 1]]
+##### Check for FreeRADIUS Service Name #####
+checkradname = {}
+checknames = ["radiusd", "freeradius"]
+if systemd:
+	for name in checknames:
+		checkradname.update({len(commands.getstatusoutput("systemctl status " + name)[1]): name})
+elif not systemd:
+	for name in checknames:
+		checkradname.update({len(commands.getstatusoutput("service " + name + " status")[1]): name})
+radservicename = checkradname[sorted(list(checkradname), key=int)[len(sorted(list(checkradname), key=int)) - 1]]
+##### Check for FreeRADIUS Client Config File Path #####
+confpaths = ['/etc/raddb/clients.conf', '/etc/freeradius/clients.conf']
+checkclientpath = {}
+for path in confpaths:
+	checkclientpath.update({commands.getstatusoutput("ls " + path)[0]: path})
+try:
+	clientconfpath = checkclientpath[0]
+except KeyError:
+	clientconfpath = '/etc/raddb/clients.conf'
 
 
 
@@ -1265,10 +1277,10 @@ class palo_alto_firewall_interaction(object):
 			encodedpassword = urllib.quote_plus(target['password'])
 			url = 'https://' + target['hostname'] + '/api/?type=keygen&user=' + encodedusername + '&password=' + encodedpassword
 			try:
-				if osversion == "centos7" or osversion == "ubuntu16":
+				try:
 					gcontext = ssl.SSLContext(ssl.PROTOCOL_TLSv1)
 					response = urllib2.urlopen(url, context=gcontext).read()
-				elif osversion == "centos6":
+				except AttributeError:
 					response = urllib2.urlopen(url).read()
 			except urllib2.URLError:
 				response = "FATAL: Firewall Inaccessible"
@@ -1303,10 +1315,10 @@ class palo_alto_firewall_interaction(object):
 				self.filemgmt.logwriter("normal", "IP Address: " + self.ui.color(entry, self.ui.cyan) + "\t\tUsername: " + self.ui.color(ipanduserdict[entry], self.ui.cyan))
 			for eachurl in urllist:
 				try:
-					if osversion == "centos7" or osversion == "ubuntu16":
+					try:
 						gcontext = ssl.SSLContext(ssl.PROTOCOL_TLSv1)
 						response = urllib2.urlopen(eachurl, context=gcontext).read()
-					elif osversion == "centos6":
+					except AttributeError:
 						response = urllib2.urlopen(eachurl).read()
 				except urllib2.HTTPError:
 					response = "FATAL: Firewall Hung"
@@ -1332,11 +1344,11 @@ class palo_alto_firewall_interaction(object):
 		result = {}
 		for target in targetlist: 
 			url = 'https://' + target['hostname'] + '/api/?key=' + target['apikey'] + "&type=op&vsys=vsys" + target['vsys'] + "&cmd=" + encodedcall
-			if osversion == "centos7" or osversion == "ubuntu16":
+			try:
 				gcontext = ssl.SSLContext(ssl.PROTOCOL_TLSv1)
 				result.update({target['hostname'] + ":vsys" + target['vsys']: urllib2.urlopen(url, context=gcontext).read()})
-			elif osversion == "centos6":
-				result.update({target['hostname'] + ":vsys" + target['vsys']: urllib2.urlopen(url).read()})
+			except AttributeError:
+				result.update({target['hostname'] + ":vsys" + target['vsys']: urllib2.urlopen(url).read()})	
 			self.filemgmt.logwriter("normal", self.ui.color("Successfully pulled UID's from " + target['hostname'] + ":vsys" + target['vsys'], self.ui.green))
 		return result
 	def clear_uids (self, targetlist, userip):
@@ -1449,27 +1461,20 @@ class imu_methods(object):
 	##### Input is action (start, stop, restart, status) and service name #####
 	##### Output is a dictionary of commands run, BASH output for each command, and service status #####
 	def service_control(self, action, service):
-			if osversion == "centos7": # If OS distro is CentOS 7
+			if systemd: # If the OS has SystemD
 				beforecmd = "systemctl status " + service # Set proper command to run before the action
 				actioncmd = "systemctl " + action + " " + service # Set command which will perform the action
 				aftercmd = "systemctl status " + service # Set proper command to run after the action
 				activeword = "active (running)" # Set the keyword to recognize for a running service
 				deadword = "inactive (dead)" # Set the keyword to recognize for a stopped service
 				notfoundword = "not-found" # Set the keyword to recognize for a unrecognized/not installed service
-			elif osversion == "centos6": # If OS distro is CentOS 6
+			else:
 				beforecmd = "service " + service + " status"
 				actioncmd = "service " + service + " " + action
 				aftercmd = "service " + service + " status"
 				activeword = "running"
 				deadword = "stopped"
 				notfoundword = "unrecognized service"
-			elif osversion == "ubuntu16": # If OS distro is Ubuntu 16
-				beforecmd = "service " + service + " status"
-				actioncmd = "service " + service + " " + action
-				aftercmd = "service " + service + " status"
-				activeword = "active (running)"
-				deadword = "inactive (dead)"
-				notfoundword = "not-found"
 			before = commands.getstatusoutput(beforecmd) # Run the before command
 			action = commands.getstatusoutput(actioncmd) # Run the action command
 			after = commands.getstatusoutput(aftercmd) # Run the after command
@@ -1489,26 +1494,18 @@ class imu_methods(object):
 			return result
 	##### Install FreeRADIUS server #####
 	def install_freeradius(self):
-		if osversion == "centos7":
-			os.system('yum install freeradius -y')
-			print "\n\n\n\n\n\n****************Setting FreeRADIUS as a system service...****************\n"
-			self.ui.progress("Progress: ", 1)
-			os.system('systemctl enable radiusd')
-			os.system('systemctl start radiusd')
-		elif osversion == "centos6":
-			os.system('yum install freeradius -y')
-			print "\n\n\n\n\n\n****************Setting FreeRADIUS as a system service...****************\n"
-			self.ui.progress("Progress: ", 1)
-			os.system('service radiusd start')
-		elif osversion == "ubuntu16":
-			print "\n\n\n\n\n\n****************Installing System Updates****************\n"
-			os.system('apt-get upgrade -y')
-			print "\n\n\n\n\n\n****************Installing FreeRADIUS****************\n"
-			os.system('apt-get install freeradius -y')
+		os.system(pkgmgr + ' install freeradius -y')
 		if self.service_control("status", radservicename)["status"] == "running":
 			print self.ui.color("****************FreeRADIUS is Now Running!****************", self.ui.green)
 		else:
 			print self.ui.color("****************Something went wrong with the FreeRADIUS install****************", self.ui.red)
+			print self.ui.color("****************You may need to run some system updates for it to install correctly****************", self.ui.red)
+
+
+
+
+
+
 	#######################################################
 	#######           UI Question Methods           #######
 	#######   Used for asking questions in the UI   #######
@@ -1956,16 +1953,14 @@ bind 'set show-all-if-ambiguous on'"""
 			print "\n\n\n"
 			print "****************Restarting the FreeRADIUS service to effect changes...****************\n\n"
 			self.ui.progress("Starting/Restarting: ", 1)
-			os.system('systemctl restart radiusd')
-			os.system('systemctl status radiusd')
-			checkservice = self.check_service_running('radiusd')
-			if checkservice == 'no':
+			checkservice = self.service_control("restart", radservicename)
+			if checkservice["status"] != "running":
 				print self.ui.color("\n\n***** Uh Oh... Looks like the FreeRADIUS service failed to start back up.", self.ui.red)
 				print self.ui.color("***** We may have made some adverse changes to the config file.", self.ui.red)
 				print self.ui.color("***** Visit the FreeRADIUS config file at " + clientconfpath + " and remove the bad changes.", self.ui.red)
 				print self.ui.color("***** Then try to start the FreeRADIUS service by issuing the 'radiuid restart freeradius' command", self.ui.red)
 				raw_input(self.ui.color("Hit ENTER to continue...\n\n>>>>>", self.ui.cyan))
-			elif checkservice == 'yes':
+			else:
 				print self.ui.color("\n\n***** Great Success!! Looks like FreeRADIUS restarted and is back up now!", self.ui.green)
 				print self.ui.color("***** If you need to manually edit the FreeRADIUS config file, it is located at " + clientconfpath, self.ui.green)
 				raw_input(self.ui.color("\nHit ENTER to continue...\n\n>>>>>", self.ui.cyan))
@@ -2053,35 +2048,33 @@ class installer_maintenance_utility(object):
 		###Check if FreeRADIUS is installed and running already
 		#########################################################################
 		print "\n\n\n\n\n\n****************Checking if FreeRADIUS is installed...****************\n"
-		freeradiusinstalled = self.imum.check_service_installed(radservicename)
-		freeradiusrunning = self.imum.check_service_running(radservicename)
-		if freeradiusinstalled == 'yes' and freeradiusrunning == 'yes':
+		radcheck = self.imum.service_control("status", radservicename)
+		if radcheck["status"] == "running":
 			print self.ui.color("***** Looks like the FreeRADIUS service is already installed and running...skipping the install of FreeRADIUS", self.ui.green)
-		if freeradiusinstalled == 'yes' and freeradiusrunning == 'no':
+		elif radcheck["status"] == "dead":
 			freeradiusrestart = self.ui.yesorno("Looks like FreeRADIUS is installed, but not running....want to start it up?")
 			if freeradiusrestart == 'yes':
-				self.imum.restart_service(radservicename)
-				freeradiusrunning = self.imum.check_service_running(radservicename)
-				if freeradiusrunning == 'no':
+				radcheck = self.imum.service_control("start", radservicename)
+				if radcheck["status"] == "dead":
 					print self.ui.color("***** It looks like FreeRADIUS failed to start up. You may need to change its settings and restart it manually...", self.ui.red)
 					print self.ui.color("***** Use the command 'radiuid edit clients' to open and edit the FreeRADIUS client settings file manually", self.ui.red)
-				if freeradiusrunning == 'yes':
+				if radcheck["status"] == "running":
 					print self.ui.color("***** Very nice....Great Success!!!", self.ui.green)
 			if freeradiusrestart == 'no':
 				print self.ui.color("~~~ OK, leaving it off...", self.ui.yellow)
-		if freeradiusinstalled == 'no' and freeradiusrunning == 'no':
+		elif radcheck["status"] == "not-found":
 			freeradiusinstall = self.ui.yesorno(
 				"Looks like FreeRADIUS is not installed. It is required by RadiUID. Is it ok to install FreeRADIUS?")
 			if freeradiusinstall == 'yes':
 				self.imum.install_freeradius()
-				checkservice = self.imum.check_service_running(radservicename)
-				if checkservice == 'no':
+				radcheck = self.imum.service_control("status", radservicename)
+				if radcheck["status"] != "running":
 					print self.ui.color("\n\n***** Uh Oh... Looks like the FreeRADIUS service failed to install or start up.", self.ui.red)
 					print self.ui.color("***** It is possible that the native package manager is not able to download the install files.", self.ui.red)
 					print self.ui.color("***** Make sure that you have internet access and your package manager is able to download the FreeRADIUS install files", self.ui.red)
 					raw_input(self.ui.color("Hit ENTER to quit the program...\n", self.ui.cyan))
 					quit()
-				elif checkservice == 'yes':
+				if radcheck["status"] == "running":
 					print self.ui.color("\n\n***** Great Success!! Looks like FreeRADIUS installed and started up successfully.", self.ui.green)
 					print self.ui.color("***** We will be adding client IP and shared secret info to FreeRADIUS later in this wizard.", self.ui.green)
 					print self.ui.color("***** If you need to edit the FreeRADIUS clients later, you can use 'set clients' and 'clear clients' in the CLI", self.ui.green)
@@ -2094,85 +2087,51 @@ class installer_maintenance_utility(object):
 		###Check if RadiUID is installed and running already
 		#########################################################################
 		print "\n\n\n\n\n\n****************Checking if RadiUID is already installed...****************\n"
-		radiuidinstalled = self.imum.check_service_installed('radiuid')
-		radiuidrunning = self.imum.check_service_running('radiuid')
-		if radiuidinstalled == 'yes' and radiuidrunning == 'yes':
+		uidcheck = self.imum.service_control("status", "radiuid")
+		if uidcheck["status"] == "running":
 			print self.ui.color("***** Looks like the RadiUID service is already installed and running...skipping the install of RadiUID\n", self.ui.green)
 			radiuidreinstall = self.ui.yesorno("Do you want to re-install the RadiUID service?")
-			if radiuidreinstall == 'yes':
-				print self.ui.color("***** You are about to re-install the RadiUID service...", self.ui.yellow)
-				print self.ui.color("***** If you continue, you will have to proceed with the wizard to the next step where we configure the settings in the config file...", self.ui.yellow)
-				raw_input(self.ui.color(">>>>> Hit CTRL-C to quit. Hit ENTER to continue\n>>>>>", self.ui.cyan))
-				print "\n\n****************Re-installing the RadiUID service...****************\n"
-				self.imum.copy_radiuid("replace-config")
-				self.imum.install_radiuid()
-				print "\n"
-				self.imum.install_radiuid_completion()
-				raw_input(self.ui.color(">>>>> You will need to log out and log back in to activate the RadiUID CLI auto-completion functionality\n>>>>>", self.ui.cyan))
-				print "\n\n****************We will start up the RadiUID service once we configure the .conf file****************\n"
-			if radiuidreinstall == 'no':
-				print "~~~ Yea, probably best to leave it alone..."
-		if radiuidinstalled == 'yes' and radiuidrunning == 'no':
-			print "\n"
-			print self.ui.color("***** Looks like RadiUID is installed, but not running....", self.ui.yellow)
+		elif uidcheck["status"] == "dead":
+			print self.ui.color("\n***** Looks like RadiUID is installed, but not running....", self.ui.yellow)
 			radiuidrestart = self.ui.yesorno("Do you want to start it up?")
 			if radiuidrestart == 'yes':
-				self.imum.restart_service('radiuid')
+				uidcheck = self.imum.service_control("start", "radiuid")
 				self.ui.progress('Checking for Successful Startup', 3)
-				os.system("systemctl status radiuid")
-				radiuidrunning = self.imum.check_service_running('radiuid')
-				if radiuidrunning == "yes":
-					print self.ui.color("***** Very nice....Great Success!!!", self.ui.green)
-					radiuidreinstall = self.ui.yesorno("Do you want to re-install the RadiUID service anyways?")
-					if radiuidreinstall == 'yes':
-						print "\n\n****************Re-installing the RadiUID service...****************\n"
-						self.imum.copy_radiuid("replace-config")
-						self.imum.install_radiuid()
-						print "\n"
-						self.imum.install_radiuid_completion()
-						raw_input(self.ui.color(">>>>> You will need to log out and log back in to activate the RadiUID CLI auto-completion functionality\n>>>>>", self.ui.cyan))
-						print "\n\n****************We will start up the RadiUID service once we configure the .conf file****************\n"
-				if radiuidrunning == "no":
+				if uidcheck["status"] == "running":
+					print self.ui.color("***** Great Success!!! Successful startup of RadiUID", self.ui.green)
+					radiuidreinstall = self.ui.yesorno("Do you want to re-install the RadiUID service?")
+				if uidcheck["status"] != "running":
 					print self.ui.color("***** Looks like the startup failed...", self.ui.red)
 					radiuidreinstall = self.ui.yesorno("Do you want to re-install the RadiUID service?")
-					if radiuidreinstall == 'yes':
-						print "\n\n****************Re-installing the RadiUID service...****************\n"
-						self.imum.copy_radiuid("replace-config")
-						self.imum.install_radiuid()
-						print "\n"
-						self.imum.install_radiuid_completion()
-						raw_input(self.ui.color(">>>>> You will need to log out and log back in to activate the RadiUID CLI auto-completion functionality\n>>>>>", self.ui.cyan))
-						print "\n\n****************We will start up the RadiUID service once we configure the .conf file****************\n"
-			if radiuidrestart == 'no':
+			elif radiuidrestart == 'no':
 				print self.ui.color("~~~ OK, leaving it off...", self.ui.yellow)
-		radiuidreinstall = self.ui.yesorno("Do you want to re-install the RadiUID service?")
+				radiuidreinstall = self.ui.yesorno("Do you want to re-install the RadiUID service?")
+		else:
+			print self.ui.color("***** Looks like RadiUID is not yet installed...", self.ui.yellow)
+			radiuidreinstall = self.ui.yesorno("Do you want to install the RadiUID service?")
 		if radiuidreinstall == 'yes':
-			print "\n\n****************Re-installing the RadiUID service...****************\n"
+			print "\n\n****************Installing the RadiUID service...****************\n"
 			self.imum.copy_radiuid("replace-config")
 			self.imum.install_radiuid()
 			print "\n"
 			self.imum.install_radiuid_completion()
 			raw_input(self.ui.color(">>>>> You will need to log out and log back in to activate the RadiUID CLI auto-completion functionality\n>>>>>", self.ui.cyan))
 			print "\n\n****************We will start up the RadiUID service once we configure the .conf file****************\n"
-		if radiuidinstalled == 'no' and radiuidrunning == 'no':
-			print "\n"
-			radiuidinstall = self.ui.yesorno("Looks like RadiUID is not installed. Is it ok to install RadiUID?")
-			if radiuidinstall == 'yes':
-				print "\n\n****************Installing the RadiUID service...****************\n"
-				self.imum.copy_radiuid("replace-config")
-				self.imum.install_radiuid()
-				print "\n"
-				self.imum.install_radiuid_completion()
-				raw_input(self.ui.color(">>>>> You will need to log out and log back in to activate the RadiUID CLI auto-completion functionality\n>>>>>", self.ui.cyan))
-				print "\n\n****************We will start up the RadiUID service once we configure the .conf file****************\n"
-	
-			if radiuidinstall == 'no':
-				print self.ui.color("***** The install of RadiUID is required. Quitting the installer", self.ui.red)
-				quit()
 		print "\n\n\n\n"
+		print "****************Checking xml.etree.ElementTree version****************\n"
+		if float(ElementTree.VERSION[:3]) < 1.3:
+			print self.ui.color("***** It looks like your xml.etree.ELementTree python module is too old for RadiUID.", self.ui.yellow)
+			xmlupdate = self.ui.yesorno("Is it OK to download and install a newer version from the PackeTsar site?")
+			print "\n\n"
+			if xmlupdate == "yes":
+				self.imum.update_xml_etree()
+			else:
+				print self.ui.color("***** OK we won't update it. You will likely run into problems with RadiUID without this.\n", self.ui.yellow)
+				raw_input(self.ui.color("Hit ENTER to acknowledge\n>>>>>", self.ui.cyan))
 		#########################################################################
 		###Read current .conf settings into interpreter
 		#########################################################################
+		print "\n\n\n\n"
 		editradiuidconf = self.ui.yesorno("Do you want to edit the settings in the RadiUID .conf file (if you just installed or reinstalled RadiUID, then you should do this)?")
 		if editradiuidconf == "yes":
 			self.filemgmt.initialize_config("quiet")
@@ -2256,12 +2215,11 @@ class installer_maintenance_utility(object):
 				print "\n\n****************Creating log directory: "+ newlogfiledir + "****************\n"
 				os.system('mkdir -p ' + newlogfiledir)
 				print "\n\n****************Starting/Restarting the RadiUID service...****************\n"
-				self.imum.restart_service('radiuid')
-				radiuidrunning = self.imum.check_service_running('radiuid')
-				if radiuidrunning == "yes":
+				radiuidrunning = self.imum.service_control("restart", "radiuid")
+				if radiuidrunning["status"] == "running":
 					print self.ui.color("***** RadiUID successfully started up!!!", self.ui.green)
-				raw_input(self.ui.color(">>>>> Hit ENTER to continue...\n\n>>>>>", self.ui.cyan))
-				if radiuidrunning == "no":
+					raw_input(self.ui.color(">>>>> Hit ENTER to continue...\n\n>>>>>", self.ui.cyan))
+				else:
 					print self.ui.color("***** Something went wrong. Looks like the installation or startup failed... ", self.ui.red)
 					print self.ui.color("***** Please make sure you are installing RadiUID on a support platform", self.ui.red)
 					print self.ui.color("***** You can manually edit the RadiUID config file by entering 'radiuid edit config' in the CLI", self.ui.red)
@@ -3558,7 +3516,7 @@ class command_line_interpreter(object):
 			header = "########################## CURRENT RADIUID AND FREERADIUS VERSIONS ##########################"
 			print self.ui.color(header, self.ui.magenta)
 			print "-------------------------------------- OPERATING SYSTEM --------------------------------------"
-			print "***** Current OS is "+ self.ui.color(osdata[0] + " " + osdata[1] + " " + osdata[2], self.ui.green) + " (" + osversion + ") *****"
+			print "***** Current OS is " + self.ui.color(osversion, self.ui.green) + "*****"
 			print "----------------------------------------------------------------------------------------------\n"
 			print "------------------------------------------ RADIUID -------------------------------------------"
 			print "***** Currently running RadiUID "+ self.ui.color(version, self.ui.green) + " *****"
