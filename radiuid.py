@@ -233,15 +233,25 @@ for mgr in checknames:
 	checkpkgmgr.update({len(commands.getstatusoutput(mgr)[1]): mgr})
 pkgmgr = checkpkgmgr[sorted(list(checkpkgmgr), key=int)[len(sorted(list(checkpkgmgr), key=int)) - 1]]
 ##### Check for FreeRADIUS Service Name #####
-checkradname = {}
-checknames = ["radiusd", "freeradius"]
-if systemd:
-	for name in checknames:
-		checkradname.update({len(commands.getstatusoutput("systemctl status " + name)[1]): name})
-elif not systemd:
-	for name in checknames:
-		checkradname.update({len(commands.getstatusoutput("service " + name + " status")[1]): name})
-radservicename = checkradname[sorted(list(checkradname), key=int)[len(sorted(list(checkradname), key=int)) - 1]]
+def check_rad_name():
+	global radservicename
+	checkradname = {}
+	checknames = ["radiusd", "freeradius"]
+	if systemd:
+		for name in checknames:
+			checkradname.update({len(commands.getstatusoutput("systemctl status " + name)[1]) - len(name): name})
+	elif not systemd:
+		for name in checknames:
+			if "stopped" in commands.getstatusoutput("service " + name + " status")[1]:
+				checkradname.update({1000: name})
+			checkradname.update({len(commands.getstatusoutput("service " + name + " status")[1]) - len(name): name})
+	radservicename = checkradname[sorted(list(checkradname), key=int)[len(sorted(list(checkradname), key=int)) - 1]]
+	if len(checkradname) < 2: # If the result dictionary has only 1 key, then the service is likely not installed
+		radservicename = "uninstalled"
+	else:
+		radservicename = checkradname[sorted(list(checkradname), key=int)[len(sorted(list(checkradname), key=int)) - 1]]
+	return radservicename
+check_rad_name()
 ##### Check for FreeRADIUS Client Config File Path #####
 confpaths = ['/etc/raddb/clients.conf', '/etc/freeradius/clients.conf']
 checkclientpath = {}
@@ -1363,8 +1373,13 @@ class palo_alto_firewall_interaction(object):
 			url1 = 'https://' + target['hostname'] + '/api/?key=' + target['apikey'] + "&type=op&vsys=vsys" + target['vsys'] + "&cmd=" + encodedcall1
 			url2 = 'https://' + target['hostname'] + '/api/?key=' + target['apikey'] + "&type=op&vsys=vsys" + target['vsys'] + "&cmd=" + encodedcall2
 			result.update({target['hostname'] + ":vsys" + target['vsys']: {}})
-			result1 = urllib2.urlopen(url1).read()
-			result2 = urllib2.urlopen(url2).read()
+			try:
+				gcontext = ssl.SSLContext(ssl.PROTOCOL_TLSv1)
+				result1 = urllib2.urlopen(url1, context=gcontext).read()
+				result2 = urllib2.urlopen(url2, context=gcontext).read()
+			except:
+				result1 = urllib2.urlopen(url1).read()
+				result2 = urllib2.urlopen(url2).read()
 			result[target['hostname'] + ":vsys" + target['vsys']].update({"DP-CLEAR": result1})
 			result[target['hostname'] + ":vsys" + target['vsys']].update({"MP-CLEAR": result2})
 		return result
@@ -1495,11 +1510,16 @@ class imu_methods(object):
 	##### Install FreeRADIUS server #####
 	def install_freeradius(self):
 		os.system(pkgmgr + ' install freeradius -y')
+		check_rad_name()
+		self.service_control("start", radservicename)
+		time.sleep(3)
 		if self.service_control("status", radservicename)["status"] == "running":
 			print self.ui.color("****************FreeRADIUS is Now Running!****************", self.ui.green)
+			return "PASS"
 		else:
 			print self.ui.color("****************Something went wrong with the FreeRADIUS install****************", self.ui.red)
 			print self.ui.color("****************You may need to run some system updates for it to install correctly****************", self.ui.red)
+			return "FAIL"
 
 
 
@@ -1982,6 +2002,7 @@ bind 'set show-all-if-ambiguous on'"""
 		print "***** Performing a test import of the new module xml.etree13.ElementTree *****\n"
 		time.sleep(2)
 		try:
+			global ElementTree
 			import xml.etree13.ElementTree as ElementTree
 			print self.ui.color("***** Import successful *****\n", self.ui.green)
 			self.ui.progress("Checking Module Version", 1)
@@ -2066,15 +2087,14 @@ class installer_maintenance_utility(object):
 			freeradiusinstall = self.ui.yesorno(
 				"Looks like FreeRADIUS is not installed. It is required by RadiUID. Is it ok to install FreeRADIUS?")
 			if freeradiusinstall == 'yes':
-				self.imum.install_freeradius()
-				radcheck = self.imum.service_control("status", radservicename)
-				if radcheck["status"] != "running":
+				radcheck = self.imum.install_freeradius()
+				if radcheck == "FAIL":
 					print self.ui.color("\n\n***** Uh Oh... Looks like the FreeRADIUS service failed to install or start up.", self.ui.red)
 					print self.ui.color("***** It is possible that the native package manager is not able to download the install files.", self.ui.red)
 					print self.ui.color("***** Make sure that you have internet access and your package manager is able to download the FreeRADIUS install files", self.ui.red)
 					raw_input(self.ui.color("Hit ENTER to quit the program...\n", self.ui.cyan))
 					quit()
-				if radcheck["status"] == "running":
+				elif radcheck == "PASS":
 					print self.ui.color("\n\n***** Great Success!! Looks like FreeRADIUS installed and started up successfully.", self.ui.green)
 					print self.ui.color("***** We will be adding client IP and shared secret info to FreeRADIUS later in this wizard.", self.ui.green)
 					print self.ui.color("***** If you need to edit the FreeRADIUS clients later, you can use 'set clients' and 'clear clients' in the CLI", self.ui.green)
