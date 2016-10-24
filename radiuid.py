@@ -1480,27 +1480,29 @@ class imu_methods(object):
 				beforecmd = "systemctl status " + service # Set proper command to run before the action
 				actioncmd = "systemctl " + action + " " + service # Set command which will perform the action
 				aftercmd = "systemctl status " + service # Set proper command to run after the action
-				activeword = "active (running)" # Set the keyword to recognize for a running service
-				deadword = "inactive (dead)" # Set the keyword to recognize for a stopped service
-				notfoundword = "not-found" # Set the keyword to recognize for a unrecognized/not installed service
+				activewords = ["active (running)"] # Set the keyword to recognize for a running service
+				deadwords = ["inactive (dead)"] # Set the keyword to recognize for a stopped service
+				notfoundwords = ["not-found"] # Set the keyword to recognize for a unrecognized/not installed service
 			else:
 				beforecmd = "service " + service + " status"
 				actioncmd = "service " + service + " " + action
 				aftercmd = "service " + service + " status"
-				activeword = "running"
-				deadword = "stopped"
-				notfoundword = "unrecognized service"
+				activewords = ["running"]
+				deadwords = ["stopped", "dead"]
+				notfoundwords = ["unrecognized service"]
 			before = commands.getstatusoutput(beforecmd) # Run the before command
 			action = commands.getstatusoutput(actioncmd) # Run the action command
 			after = commands.getstatusoutput(aftercmd) # Run the after command
-			if notfoundword in after[1]: # If the 'not found' keyword is seen in the output
-				status = "not-found" # Set service status to 'not-found'
-			elif deadword in after[1]: # If the 'service dead' keyword is seen in the output
-				status = "dead" # Set service status to 'dead'
-			elif activeword in after[1]: # If the 'service running' keyword is seen in the output
-				status = "running" # Set service status to 'running'
-			else: # If none of the keywords are found
-				status = "unknown"  # Set service status to 'unknown'
+			status = "unknown"
+			for word in notfoundwords:
+				if word in after[1]: # If the 'not found' keyword is seen in the output
+					status = "not-found" # Set service status to 'not-found'
+			for word in deadwords:
+				if word in after[1]: # If the 'service dead' keyword is seen in the output
+					status = "dead" # Set service status to 'dead'
+			for word in activewords:
+				if word in after[1]: # If the 'service running' keyword is seen in the output
+					status = "running" # Set service status to 'running'
 			result = {} # Create the result dictionary
 			result.update({"beforecmd": beforecmd, "before": before[1]}) # Update the result with the pre-action information
 			result.update({"actioncmd": actioncmd, "action": action[1]}) # Update the result with the action information
@@ -1539,7 +1541,7 @@ class imu_methods(object):
 			newsetting = setting
 		else:
 			print self.ui.color("~~~ Changed setting to: " + newsetting, self.ui.yellow)
-		return newsetting
+		return str(newsetting)
 	##### Create dictionary with client IP and shared password entries for FreeRADIUS server #####
 	##### Used to ask questions during install about IP blocks and shared secret to use for FreeRADIUS server #####
 	def freeradius_create_changes(self):
