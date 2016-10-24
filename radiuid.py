@@ -14,7 +14,7 @@ import urllib
 import urllib2
 import commands
 import platform
-import xml.etree.ElementTree
+import xml.etree.ElementTree as ElementTree
 
 ##### Inform RadiUID version here #####
 version = "2.0.1-dharding2"
@@ -22,26 +22,6 @@ version = "2.0.1-dharding2"
 ##### Set some default configs #####
 etcconfigfile = '/etc/radiuid/radiuid.conf'
 maxtimeout = 1440
-
-
-##### Detect OS #####
-osversion = "unknown"
-radservicename = "unknown"
-osdata = platform.dist()
-if osdata[0].lower() == "centos":
-	if osdata[1][0] == "6":
-		osversion = "centos6"
-		radservicename = "radiusd"
-		clientconfpath = '/etc/raddb/clients.conf'
-	elif osdata[1][0] == "7":
-		osversion = "centos7"
-		radservicename = "radiusd"
-		clientconfpath = '/etc/raddb/clients.conf'
-elif osdata[0].lower() == "ubuntu":
-	if int(float(osdata[1])) == 16:
-		osversion = "ubuntu16"
-		radservicename = "freeradius"
-		clientconfpath = '/etc/freeradius/clients.conf'
 
 
 
@@ -208,6 +188,57 @@ class user_interface(object):
 			    #                                                     #  \n\
 			      #                                                 #    \n\
 			        ###############################################      \n", self.blue)
+
+
+
+
+
+
+
+
+#########################################################################
+################################ OS CHECKS ##############################
+#########################################################################
+#######            Used to check OS and module versions           #######
+#########################################################################
+#########################################################################
+ui = user_interface()
+##### Detect running command #####
+if "radiuid.py" in sys.argv[0]:
+	runcmd = "python " + sys.argv[0]
+else:
+	runcmd = "radiuid"
+##### Check ETree Version #####
+if float(ElementTree.VERSION[:3]) < 1.3:
+	try:
+		import xml.etree13.ElementTree as ElementTree
+	except ImportError:
+		print ui.color("***** WARNING: Looks like you are running an old version of the xml.etree.ElementTree module (" + ElementTree.VERSION + ") *****", ui.red)
+		print ui.color("***** WARNING: RadiUID will not operate correctly without version 1.3.0 or later. Please run the command '" + runcmd + "install xml-update' to update it", ui.red)
+		print ui.color("Please run the command '", ui.red) + ui.color(runcmd + " request xml-update", ui.cyan) + ui.color("' to update the module for RadiUID\n\n", ui.red)
+##### Check OS Version #####
+osversion = "unknown"
+radservicename = "unknown"
+osdata = platform.dist()
+if osdata[0].lower() == "centos":
+	if osdata[1][0] == "6":
+		osversion = "centos6"
+		radservicename = "radiusd"
+		clientconfpath = '/etc/raddb/clients.conf'
+		systemd = False
+	elif osdata[1][0] == "7":
+		osversion = "centos7"
+		radservicename = "radiusd"
+		clientconfpath = '/etc/raddb/clients.conf'
+		systemd = True
+elif osdata[0].lower() == "ubuntu":
+	if int(float(osdata[1])) == 16:
+		osversion = "ubuntu16"
+		radservicename = "freeradius"
+		clientconfpath = '/etc/freeradius/clients.conf'
+		systemd = True
+
+
 
 
 
@@ -586,7 +617,7 @@ class file_management(object):
 			self.configcomment = re.findall(self.regex, self.xmldata, flags=0)[0]
 			self.cleanedxml = self.xmldata.replace(self.configcomment, "")
 			print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + "***********EXTRACTED XML CONFIG DATA FROM CONFIG FILE " + configfile + "***********" + "\n"
-			self.root = xml.etree.ElementTree.fromstring(self.cleanedxml)
+			self.root = ElementTree.fromstring(self.cleanedxml)
 			print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + "***********" + self.ui.color("SUCESSFULLY MOUNTED CONFIG XML ELEMENT-TREE", self.ui.green) + "***********\n"
 		if mode == 'quiet':
 			configfile = self.find_config(mode)
@@ -599,7 +630,7 @@ class file_management(object):
 			self.regex = "(?s)<!--.*-->"
 			self.configcomment = re.findall(self.regex, self.xmldata, flags=0)[0]
 			self.cleanedxml = self.xmldata.replace(self.configcomment, "")
-			self.root = xml.etree.ElementTree.fromstring(self.cleanedxml)
+			self.root = ElementTree.fromstring(self.cleanedxml)
 	##### Publish all settings to variables in the global namespace for use by other processes #####
 	##### All variables are set to strings with the exception of the targets, which is a list of dictionary items #####
 	def publish_config(self, mode):
@@ -665,22 +696,27 @@ class file_management(object):
 	##### Show formatted configuration item #####
 	def show_config_item(self, mainmode, submode, itemname):
 		if mainmode == "xml":
-			for value in self.root.iter(itemname):
-				xmldata = xml.etree.ElementTree.tostring(value, encoding="us-ascii", method="xml")
-				regexnewline = "\n.*[a-z]"
-				newline = re.findall(regexnewline, xmldata, flags=0)
-				if len(newline) > 0:
-					regexlastline = ".*</%s>" % itemname
-					#print regexlastline
-					regexlastelement = "</%s>" % itemname
-					lastline = re.findall(regexlastline, xmldata, flags=0)[0]
-					#print lastline
-					lastelement = re.findall(regexlastelement, xmldata, flags=0)[0]
-					#print lastelement
-					indent = lastline.replace(lastelement, "")
-					print indent + xmldata
-				else:
-					print "\t\t" + xmldata
+			try:
+				for value in self.root.iter(itemname):
+					xmldata = ElementTree.tostring(value, encoding="us-ascii", method="xml")
+					regexnewline = "\n.*[a-z]"
+					newline = re.findall(regexnewline, xmldata, flags=0)
+					if len(newline) > 0:
+						regexlastline = ".*</%s>" % itemname
+						#print regexlastline
+						regexlastelement = "</%s>" % itemname
+						lastline = re.findall(regexlastline, xmldata, flags=0)[0]
+						#print lastline
+						lastelement = re.findall(regexlastelement, xmldata, flags=0)[0]
+						#print lastelement
+						indent = lastline.replace(lastelement, "")
+						print indent + xmldata
+					else:
+						print "\t\t" + xmldata
+			except AttributeError:
+				print self.ui.color("\n\n***** FATAL ERROR ****\n", self.ui.red)
+				print self.ui.color("You are running an old version of xml.etree.ElementTree. Please run " + runcmd + " request xml-update\n", self.ui.red)
+				print self.ui.color("Please run the command '", self.ui.red) + self.ui.color(runcmd + " request xml-update", self.ui.cyan) + self.ui.color("' to update the module for RadiUID\n\n", self.ui.red)
 		elif mainmode == "set":
 			if submode == "installed":
 				prepend = "radiuid"
@@ -756,7 +792,7 @@ class file_management(object):
 	def add_targets(self, targetlist):
 		result = {} # Initialize Result
 		if len(self.root.findall('.//target')) == 0: # If <target> XML elements do not exist
-			targets = xml.etree.ElementTree.SubElement(self.root, 'targets') # Mount new <targets> element as variable
+			targets = ElementTree.SubElement(self.root, 'targets') # Mount new <targets> element as variable
 		targets = self.root.findall('.//targets')[0] # Mount targets element as targets
 		for targetitem in targetlist: # For each dict entry in the target list input as an arg...
 			currenttargethostname = targetitem["hostname"]
@@ -783,23 +819,23 @@ class file_management(object):
 				##### Then create the not-yet-existing parameters and set the appropriately #####
 				if targetitem > 0: # If there are parameter edits which didn't yet exist
 					for parameter in targetitem: # For each of those parameter edits
-						currentelement = xml.etree.ElementTree.SubElement(target, parameter) # Create the parameter in the target element
+						currentelement = ElementTree.SubElement(target, parameter) # Create the parameter in the target element
 						currentelement.text = targetitem[parameter] # Set the value of the parameter
 						result[currenttargethostname]["messages"].append("Created new <" + parameter + "> parameter with value '" + targetitem[parameter] + "'") # Create feedback message
 			else: # If target doesn't yet exist
-				target = xml.etree.ElementTree.SubElement(targets, 'target') # mount new target element as variable
+				target = ElementTree.SubElement(targets, 'target') # mount new target element as variable
 				result[currenttargethostname]["messages"].append("Created new target") # Create feedback message
 				##### Add the different elements for the target #####
-				hostname = xml.etree.ElementTree.SubElement(target, 'hostname') # Create and mount the hostname parameter for the target
+				hostname = ElementTree.SubElement(target, 'hostname') # Create and mount the hostname parameter for the target
 				hostname.text = targetitem['hostname'] # Set the hostname parameter value for the target
 				del hostname # Unmount the hostname parameter element
 				del targetitem['hostname'] # Remove the hostname parameter
-				vsys = xml.etree.ElementTree.SubElement(target, 'vsys') # Create and mount the vsys parameter for the target
+				vsys = ElementTree.SubElement(target, 'vsys') # Create and mount the vsys parameter for the target
 				vsys.text = targetitem['vsys'] # Set the vsys parameter value for the target
 				del vsys # Unmount the vsys parameter element
 				del targetitem['vsys'] # Remove the hostname parameter
 				for parameter in targetitem: # For each of the parameter edits
-					currentelement = xml.etree.ElementTree.SubElement(target, parameter) # Create the parameter in the target element
+					currentelement = ElementTree.SubElement(target, parameter) # Create the parameter in the target element
 					currentelement.text = targetitem[parameter] # Set the value of the parameter
 					result[currenttargethostname]["messages"].append("Created new <" + parameter + "> parameter with value '" + targetitem[parameter] + "'") # Create feedback message
 			del targetalreadyexists
@@ -868,7 +904,7 @@ class file_management(object):
 			item.tail = '\n'
 	##### Recombine comment and XML config data into single string and write to config file #####
 	def save_config(self):
-		self.newconfig = self.configcomment + "\n" + xml.etree.ElementTree.tostring(self.root)
+		self.newconfig = self.configcomment + "\n" + ElementTree.tostring(self.root)
 		f = open(configfile, 'w')
 		f.write(self.newconfig)
 		f.close()
@@ -1082,7 +1118,7 @@ class data_processing(object):
 		precordict = {}
 		for uidset in uidxmldict:
 			precordict.update({uidset: {}})
-			currentuidset = xml.etree.ElementTree.fromstring(uidxmldict[uidset])
+			currentuidset = ElementTree.fromstring(uidxmldict[uidset])
 			if type(self.filemgmt.tinyxml2dict(currentuidset)['result']) != type({}) or "<count>0</count>" in uidxmldict[uidset]:
 				none = None
 			else:
@@ -1541,26 +1577,100 @@ class imu_methods(object):
 		self.ui.progress("Copying Files: ", 2)
 	#### Install RadiUID SystemD service #####
 	def install_radiuid(self):
-		#### STARTFILE DATA START #####
-		startfile = "[Unit]" \
-		            "\n" + "Description=RadiUID User-ID Service" \
-		                   "\n" + "After=network.target" \
-		                          "\n" \
-		                          "\n" + "[Service]" \
-		                                 "\n" + "Type=simple" \
-		                                        "\n" + "User=root" \
-		                                               "\n" + "ExecStart=/bin/bash -c 'cd /bin; python radiuid run'" \
-		                                                                                                         "\n" + "Restart=on-abort" \
-		                                                                                                                "\n" \
-		                                                                                                                "\n" \
-		                                                                                                                "\n" + "[Install]" \
-		                                                                                                                       "\n" + "WantedBy=multi-user.target" \
-		##### STARTFILE DATA STOP #####
-		f = open('/etc/systemd/system/radiuid.service', 'w')
-		f.write(startfile)
-		f.close()
-		self.ui.progress("Installing: ", 2)
-		os.system('systemctl enable radiuid')
+			systemd_startfile = '''[Unit]
+Description=RadiUID User-ID Service
+After=network.target
+
+[Service]
+Type=simple
+User=root
+ExecStart=/bin/bash -c 'cd /bin; python radiuid run'
+Restart=on-abort
+
+
+[Install]
+WantedBy=multi-user.target'''
+			
+			nonsystemd_startfile = '''#!/bin/bash
+# radiuid daemon
+# chkconfig: 345 20 80
+# description: RADIUS to Palo-Alto User-ID Engine
+# processname: radiuid
+
+DAEMON_PATH="/bin/"
+
+DAEMON=radiuid
+DAEMONOPTS="run"
+
+NAME=RadiUID
+DESC="RADIUS to Palo-Alto User-ID Engine"
+PIDFILE=/var/run/$NAME.pid
+SCRIPTNAME=/etc/init.d/$NAME
+
+case "$1" in
+start)
+	printf "%-50s" "Starting $NAME..."
+	cd $DAEMON_PATH
+	PID=`$DAEMON $DAEMONOPTS > /dev/null 2>&1 & echo $!`
+	#echo "Saving PID" $PID " to " $PIDFILE
+        if [ -z $PID ]; then
+            printf "%s\n" "Fail"
+        else
+            echo $PID > $PIDFILE
+            printf "%s\n" "Ok"
+        fi
+;;
+status)
+        if [ -f $PIDFILE ]; then
+            PID=`cat $PIDFILE`
+            if [ -z "`ps axf | grep ${PID} | grep -v grep`" ]; then
+                printf "%s\n" "Process dead but pidfile exists"
+            else
+                echo "$DAEMON (pid $PID) is running..."
+            fi
+        else
+            printf "%s\n" "$DAEMON is stopped"
+        fi
+;;
+stop)
+        printf "%-50s" "Stopping $NAME"
+            PID=`cat $PIDFILE`
+            cd $DAEMON_PATH
+        if [ -f $PIDFILE ]; then
+            kill -HUP $PID
+            printf "%s\n" "Ok"
+            rm -f $PIDFILE
+        else
+            printf "%s\n" "pidfile not found"
+        fi
+;;
+
+restart)
+  	$0 stop
+  	$0 start
+;;
+
+*)
+        echo "Usage: $0 {status|start|stop|restart}"
+        exit 1
+esac'''
+			systemdpath = '/etc/systemd/system/radiuid.service'
+			nonsystemdpath = '/etc/init.d/radiuid'
+			if systemd:
+				installpath = systemdpath
+				installfile = systemd_startfile
+			elif not systemd:
+				installpath = nonsystemdpath
+				installfile = nonsystemd_startfile
+			self.ui.progress("Installing: ", 2)
+			f = open(installpath, 'w')
+			f.write(installfile)
+			f.close()
+			if systemd:
+				os.system('systemctl enable radiuid')
+			elif not systemd:
+				os.system('chmod 777 /etc/init.d/radiuid')
+				os.system('chkconfig radiuid on')
 	def install_radiuid_completion(self):
 		##### BASH SCRIPT DATA START #####
 		bash_complete_script = """#!/bin/bash
@@ -1578,12 +1688,9 @@ _radiuid_complete()
   prev=${COMP_WORDS[COMP_CWORD-1]}
   prev2=${COMP_WORDS[COMP_CWORD-2]}
   if [ $COMP_CWORD -eq 1 ]; then
-    COMPREPLY=( $(compgen -W "run install show set push tail clear edit service version" -- $cur) )
+    COMPREPLY=( $(compgen -W "run install show set push tail clear edit service request version" -- $cur) )
   elif [ $COMP_CWORD -eq 2 ]; then
     case "$prev" in
-      install)
-        COMPREPLY=( $(compgen -W "wizard xml-update reinstall" -- $cur) )
-        ;;
       show)
         COMPREPLY=( $(compgen -W "log acct-logs run config clients status mappings" -- $cur) )
         ;;
@@ -1606,8 +1713,8 @@ _radiuid_complete()
       "service")
         COMPREPLY=( $(compgen -W "radiuid freeradius all" -- $cur) )
         ;;
-      debug)
-        COMPREPLY=( $(compgen -W "auto-complete" -- $cur) )
+      "request")
+        COMPREPLY=( $(compgen -W "xml-update auto-complete reinstall freeradius-install" -- $cur) )
         ;;
       *)
         ;;
@@ -1623,7 +1730,7 @@ _radiuid_complete()
         fi
         ;;
       reinstall)
-        if [ "$prev2" == "install" ]; then
+        if [ "$prev2" == "request" ]; then
           COMPREPLY=( $(compgen -W "replace-config keep-config" -- $cur) )
         fi
         ;;
@@ -1803,11 +1910,17 @@ complete -F _radiuid_complete radiuid &&
 bind 'set show-all-if-ambiguous on'"""
 		##### BASH SCRIPT DATA STOP #####
 		##### Place script file #####
-		f = open('/etc/profile.d/radiuid-complete.sh', 'w')
+		installpath = '/etc/profile.d/radiuid-complete.sh'
+		print "\n\n***** Installing BASH Auto-Complete Script to: " + installpath + "*****\n"
+		time.sleep(2)
+		self.ui.progress("Installing: ", 1)
+		f = open(installpath, 'w')
 		f.write(bash_complete_script)
 		f.close()
+		self.ui.progress("Setting Permissions on File", 1)
 		os.system('chmod 777 /etc/profile.d/radiuid-complete.sh')
-		self.ui.progress("Setting Up Auto-Completion: ", 2)
+		print self.ui.color("All Done!\n", self.ui.green)
+		raw_input(self.ui.color("\nYou will need to log out and log back in to enable the RadiUID Auto-Complete feature\nHit ENTER to Complete>>>>>", self.ui.cyan))
 	##### Apply new settings as veriables in the namespace #####
 	##### Used to write new setting values to namespace to be picked up and used by the write_file method to write to the config file #####
 	def apply_setting(self, file_data, settingname, oldsetting, newsetting):
@@ -1859,19 +1972,31 @@ bind 'set show-all-if-ambiguous on'"""
 		elif oktowrite == "no":
 			print "~~~ OK Not writing it"
 	def update_xml_etree(self):
-		if osversion == "centos6":
-			installpath = "/usr/lib64/python2.6/xml/etree/"
-			url = "http://www.packetsar.com/wp-content/uploads/"
-			tarfilename = "xml-etree-elementtree-1.3.0.tar.gz"
-			print "\n\n***** Backing up and deleting old ElementTree files from  " + installpath + " *****\n\n"
-			commands.getstatusoutput("mkdir " + installpath + "backup")
-			commands.getstatusoutput("cp " + installpath + "* " + installpath + "backup/")
-			commands.getstatusoutput('rm -f ' + installpath + "*")
-			self.ui.progress("Downloading " + url + tarfilename, 1)
-			urllib.urlretrieve (url + tarfilename, installpath + tarfilename)
-			self.ui.progress("Extracting Files", 1)
-			commands.getstatusoutput("tar -xzvf " + installpath + "xml-etree-elementtree-1.3.0.tar.gz -C " + installpath)
-			print self.ui.color("All Done!", self.ui.green)
+		for path in sys.path:
+			check = re.findall(".*python[23]\..$", path)
+			if len(check) > 0:
+				installpath = check[0] + "/xml/etree13/"
+		print "\n\n***** Selected "+ installpath + " for location of updated etree modules *****\n"
+		commands.getstatusoutput("mkdir -p " + installpath)
+		url = "http://www.packetsar.com/wp-content/uploads/"
+		tarfilename = "xml-etree-elementtree-1.3.0.tar.gz"
+		self.ui.progress("Downloading " + url + tarfilename, 1)
+		urllib.urlretrieve (url + tarfilename, installpath + tarfilename)
+		self.ui.progress("Extracting Files to " + installpath, 1)
+		commands.getstatusoutput("tar -xzvf " + installpath + "xml-etree-elementtree-1.3.0.tar.gz -C " + installpath)
+		print "***** Performing a test import of the new module xml.etree13.ElementTree *****\n"
+		time.sleep(2)
+		try:
+			import xml.etree13.ElementTree as ElementTree
+			print self.ui.color("***** Import successful *****\n", self.ui.green)
+			self.ui.progress("Checking Module Version", 1)
+			if float(ElementTree.VERSION[:3]) < 1.3:
+				print self.ui.color("ERROR: Something went wrong. It imported, but is the wrong version", self.ui.red)
+			elif float(ElementTree.VERSION[:3]) >= 1.3:
+				print self.ui.color("SUCCESS: Successful import of xml.etree.ElementTree module version " + ElementTree.VERSION + "\n", self.ui.green)
+		except ImportError:
+			print self.ui.color("ERROR: Import of xml.etree13.ElementTree failed", self.ui.red)
+		print self.ui.color("All Done!\n\n", self.ui.green)
 
 
 
@@ -2218,12 +2343,6 @@ class command_line_interpreter(object):
 		######################### RUN #############################
 		if arguments == "run":
 			self.radiuid.looper()
-		######################### DEBUG #############################
-		elif arguments == "debug" or arguments == "debug ?":
-			print "\n - debug auto-complete      |     Manually run the 'install_radiuid_completion' function"
-			print "                            |  "
-		elif arguments == "debug auto-complete":
-			self.imum.install_radiuid_completion()
 		######################### AUTO-COMPLETE USE #############################
 		elif arguments == "targets":
 			self.filemgmt.initialize_config("quiet")
@@ -2243,65 +2362,10 @@ class command_line_interpreter(object):
 				for client in clientinfo:
 					print client["IP Block"]
 		######################### INSTALL #############################
-		elif arguments == "install" or arguments == "install ?":
-			print "\n - install wizard                                            |     Run the RadiUID Installer/Maintenance Utility"
-			print " - install xml-update                                        |     Update the Python XML.etree modules (for compatibility on old Python versions)"
-			print " - install reinstall (replace-config | keep-config)            |     Reinstall RadiUID with or without replacing the current RadiUID configuration\n"
-		elif arguments == "install reinstall" or arguments == "install reinstall ?":
-			print "\n - install reinstall replace-config                            |     Reinstall RadiUID and REPLACE current configuration with default configuration"
-			print " - install reinstall keep-config                               |     Reinstall RadiUID and KEEP current configuration with default configuration\n"
-		elif arguments == "install wizard":
+		elif arguments == "install":
 			self.filemgmt.logwriter("quiet", "##### COMMAND '" + arguments + "' ISSUED FROM CLI BY USER '" + self.imum.currentuser()+ "' #####")
 			print "\n\n\n"
 			self.imu.im_utility()
-		elif arguments == "install xml-update":
-			print self.ui.color("\n\n***** Are you sure you want to download and upgrade your Python xml.etree.ElementTree modules?*****", self.ui.yellow)
-			print self.ui.color("***** This is only required for compatibility with Python 2.6.X on older OS's like CentOS6*****", self.ui.yellow)
-			answer = raw_input(self.ui.color(">>>>> If you are sure you want to do this, type in 'CONFIRM' and hit ENTER >>>>", self.ui.yellow))
-			if answer.lower() == "confirm":
-				self.imum.update_xml_etree()
-			else:
-				print self.ui.color("\n\n***** Upgrade of xml.etree.ElementTree Cancelled *****\n", self.ui.yellow)
-		elif arguments == "install reinstall replace-config":
-			self.filemgmt.logwriter("cli", "##### COMMAND '" + arguments + "' ISSUED FROM CLI BY USER '" + self.imum.currentuser()+ "' #####")
-			header = "########################## RADIUID REINSTALL/UPGRADE ##########################"
-			print self.ui.color(header, self.ui.magenta)
-			print self.ui.color("#" * len(header), self.ui.magenta)
-			print self.ui.color("\n\n***** Are you sure you want to re-install/upgrade RadiUID using version " + version + "?*****", self.ui.yellow)
-			print self.ui.color("***** This will overwrite your current RadiUID configuration with the default configuration.*****", self.ui.yellow)
-			answer = raw_input(self.ui.color(">>>>> If you are sure you want to do this, type in 'CONFIRM' and hit ENTER >>>>", self.ui.yellow))
-			if answer.lower() == "confirm":
-				print "\n\n****************Re-installing/upgrading the RadiUID service...****************\n"
-				self.imum.copy_radiuid("replace-config")
-				self.imum.install_radiuid()
-				print "\n"
-				self.imum.install_radiuid_completion()
-				raw_input(self.ui.color(">>>>> You will need to log out and log back in to activate the RadiUID CLI auto-completion functionality\n>>>>> Hit ENTER to finish\n>>>>>", self.ui.cyan))
-				print self.ui.color("Success!", self.ui.green)
-			else:
-				print self.ui.color("\n\n***** Reinstall\Upgrade of RadiUID Cancelled *****\n", self.ui.yellow)
-			print self.ui.color("#" * len(header), self.ui.magenta)
-			print self.ui.color("#" * len(header), self.ui.magenta)
-		elif arguments == "install reinstall keep-config":
-			self.filemgmt.logwriter("cli", "##### COMMAND '" + arguments + "' ISSUED FROM CLI BY USER '" + self.imum.currentuser()+ "' #####")
-			header = "########################## RADIUID REINSTALL/UPGRADE ##########################"
-			print self.ui.color(header, self.ui.magenta)
-			print self.ui.color("#" * len(header), self.ui.magenta)
-			print self.ui.color("\n\n***** Are you sure you want to re-install/upgrade RadiUID using version " + version + "?*****", self.ui.yellow)
-			print self.ui.color("***** This will keep your current RadiUID configuration.*****", self.ui.yellow)
-			answer = raw_input(self.ui.color(">>>>> If you are sure you want to do this, type in 'CONFIRM' and hit ENTER >>>>", self.ui.yellow))
-			if answer.lower() == "confirm":
-				print "\n\n****************Re-installing/upgrading the RadiUID service...****************\n"
-				self.imum.copy_radiuid("keep-config")
-				self.imum.install_radiuid()
-				print "\n"
-				self.imum.install_radiuid_completion()
-				raw_input(self.ui.color(">>>>> You will need to log out and log back in to activate the RadiUID CLI auto-completion functionality\n>>>>> Hit ENTER to finish\n>>>>>", self.ui.cyan))
-				print self.ui.color("Success!", self.ui.green)
-			else:
-				print self.ui.color("\n\n***** Reinstall\Upgrade of RadiUID Cancelled *****\n", self.ui.yellow)
-			print self.ui.color("#" * len(header), self.ui.magenta)
-			print self.ui.color("#" * len(header), self.ui.magenta)
 		######################### SHOW #############################
 		elif arguments == "show" or arguments == "show ?":
 			print "\n - show log                                                  |     Show the RadiUID log file"
@@ -2483,7 +2547,7 @@ class command_line_interpreter(object):
 					print "\n\n"
 				else:
 					for uidset in uidxmldict:
-						currentuidset = xml.etree.ElementTree.fromstring(uidxmldict[uidset])
+						currentuidset = ElementTree.fromstring(uidxmldict[uidset])
 						print "************" + uidset + "************"
 						if type(self.filemgmt.tinyxml2dict(currentuidset)['result']) != type({}) or "<count>0</count>" in uidxmldict[uidset]:
 							print "\n" + self.ui.color("************No current mappings************", self.ui.yellow)
@@ -3402,6 +3466,92 @@ class command_line_interpreter(object):
 				print self.ui.color("\n\n********** FREERADIUS RESTART UNSUCCESSFUL. SOMETHING MUST BE WRONG... **********\n\n", self.ui.red)
 			elif svcctloutput["status"] == "not-found":
 				print self.ui.color("\n\n********** LOOKS LIKE FREERADIUS IS NOT INSTALLED. YOU NEED TO INSTALL IT **********\n\n", self.ui.red)
+		######################### REQUEST #############################
+		elif arguments == "request" or arguments == "request ?":
+			print "\n - request xml-update                                   |     Update the Python XML.etree modules (for compatibility on old Python versions)"
+			print " - request auto-complete                                |     Manually install the RadiUID BASH Auto-Completion feature"
+			print " - request freeradius-install                           |     Manually install the FreeRADIUS service for use by RadiUID"
+			print " - request reinstall (replace-config | keep-config)     |     Reinstall RadiUID with or without replacing the current RadiUID configuration\n"
+		elif arguments == "request reinstall" or arguments == "request reinstall ?":
+			print "\n - request reinstall replace-config                            |     Reinstall RadiUID and REPLACE current configuration with default configuration"
+			print " - request reinstall keep-config                               |     Reinstall RadiUID and KEEP current configuration with default configuration\n"
+		elif arguments == "request xml-update":
+			header = "########################## XML ETREE UPDATE ##########################"
+			print self.ui.color(header, self.ui.magenta)
+			print self.ui.color("#" * len(header), self.ui.magenta)
+			print self.ui.color("\n\n***** This will download and install Python XML ETree module 1.3.0 from the PackeTsar site *****", self.ui.yellow)
+			answer = raw_input(self.ui.color(">>>>> Hit CTRL-C to cancel or ENTER to confirm >>>>", self.ui.yellow))
+			self.imum.update_xml_etree()
+			print self.ui.color("#" * len(header), self.ui.magenta)
+			print self.ui.color("#" * len(header), self.ui.magenta)
+		elif arguments == "request auto-complete":
+			header = "########################## AUTO-COMPLETE INSTALL ##########################"
+			print self.ui.color(header, self.ui.magenta)
+			print self.ui.color("#" * len(header), self.ui.magenta)
+			self.imum.install_radiuid_completion()
+			print self.ui.color("#" * len(header), self.ui.magenta)
+			print self.ui.color("#" * len(header), self.ui.magenta)
+		elif arguments == "request reinstall replace-config":
+			self.filemgmt.logwriter("cli", "##### COMMAND '" + arguments + "' ISSUED FROM CLI BY USER '" + self.imum.currentuser()+ "' #####")
+			header = "########################## RADIUID REINSTALL/UPGRADE ##########################"
+			print self.ui.color(header, self.ui.magenta)
+			print self.ui.color("#" * len(header), self.ui.magenta)
+			print self.ui.color("\n\n***** Are you sure you want to re-install/upgrade RadiUID using version " + version + "?*****", self.ui.yellow)
+			print self.ui.color("***** This will overwrite your current RadiUID configuration with the default configuration.*****", self.ui.yellow)
+			answer = raw_input(self.ui.color(">>>>> If you are sure you want to do this, type in 'CONFIRM' and hit ENTER >>>>", self.ui.yellow))
+			if answer.lower() == "confirm":
+				print "\n\n****************Re-installing/upgrading the RadiUID service...****************\n"
+				self.imum.copy_radiuid("replace-config")
+				self.imum.install_radiuid()
+				svcctloutput = self.imum.service_control("restart", "radiuid")
+				print svcctloutput["after"]
+				if svcctloutput["status"] == "running":
+					print self.ui.color("\n\n********** RADIUID STARTED UP! **********\n\n", self.ui.green)
+				elif svcctloutput["status"] == "dead":
+					print self.ui.color("\n\n********** RADIUID STARTUP UNSUCCESSFUL! **********\n\n", self.ui.red)
+				elif svcctloutput["status"] == "not-found":
+					print self.ui.color("\n\n********** LOOKS LIKE RADIUID IS NOT INSTALLED. YOU NEED TO INSTALL IT **********\n\n", self.ui.red)
+				print "\n"
+				self.imum.install_radiuid_completion()
+				raw_input(self.ui.color(">>>>> You will need to log out and log back in to activate the RadiUID CLI auto-completion functionality\n>>>>> Hit ENTER to finish\n>>>>>", self.ui.cyan))
+				print self.ui.color("Success!", self.ui.green)
+			else:
+				print self.ui.color("\n\n***** Reinstall\Upgrade of RadiUID Cancelled *****\n", self.ui.yellow)
+			print self.ui.color("#" * len(header), self.ui.magenta)
+			print self.ui.color("#" * len(header), self.ui.magenta)
+		elif arguments == "request reinstall keep-config":
+			self.filemgmt.logwriter("cli", "##### COMMAND '" + arguments + "' ISSUED FROM CLI BY USER '" + self.imum.currentuser()+ "' #####")
+			header = "########################## RADIUID REINSTALL/UPGRADE ##########################"
+			print self.ui.color(header, self.ui.magenta)
+			print self.ui.color("#" * len(header), self.ui.magenta)
+			print self.ui.color("\n\n***** Are you sure you want to re-install/upgrade RadiUID using version " + version + "?*****", self.ui.yellow)
+			print self.ui.color("***** This will keep your current RadiUID configuration.*****", self.ui.yellow)
+			answer = raw_input(self.ui.color(">>>>> If you are sure you want to do this, type in 'CONFIRM' and hit ENTER >>>>", self.ui.yellow))
+			if answer.lower() == "confirm":
+				print "\n\n****************Re-installing/upgrading the RadiUID service...****************\n"
+				self.imum.copy_radiuid("keep-config")
+				self.imum.install_radiuid()
+				print "\n"
+				self.imum.install_radiuid_completion()
+				raw_input(self.ui.color(">>>>> You will need to log out and log back in to activate the RadiUID CLI auto-completion functionality\n>>>>> Hit ENTER to finish\n>>>>>", self.ui.cyan))
+				print self.ui.color("Success!", self.ui.green)
+			else:
+				print self.ui.color("\n\n***** Reinstall\Upgrade of RadiUID Cancelled *****\n", self.ui.yellow)
+			print self.ui.color("#" * len(header), self.ui.magenta)
+			print self.ui.color("#" * len(header), self.ui.magenta)
+		elif arguments == "request freeradius-install":
+			self.filemgmt.logwriter("cli", "##### COMMAND '" + arguments + "' ISSUED FROM CLI BY USER '" + self.imum.currentuser()+ "' #####")
+			header = "########################## FREERADIUS MANUAL INSTALL ##########################"
+			print self.ui.color(header, self.ui.magenta)
+			print self.ui.color("#" * len(header), self.ui.magenta)
+			print self.ui.color("\n\n***** Are you sure you want to install/reinstall FreeRADIUS?*****", self.ui.yellow)
+			answer = raw_input(self.ui.color(">>>>> If you are sure you want to do this, type in 'CONFIRM' and hit ENTER >>>>", self.ui.yellow))
+			if answer.lower() == "confirm":
+				self.imum.install_freeradius()
+			else:
+				print self.ui.color("\n\n***** Install/Reinstall of FreeRADIUS Cancelled *****\n", self.ui.yellow)
+			print self.ui.color("#" * len(header), self.ui.magenta)
+			print self.ui.color("#" * len(header), self.ui.magenta)
 		######################### VERSION #############################
 		elif arguments == "version":
 			self.filemgmt.logwriter("cli", "##### COMMAND '" + arguments + "' ISSUED FROM CLI BY USER '" + self.imum.currentuser()+ "' #####")
@@ -3429,7 +3579,7 @@ class command_line_interpreter(object):
 			print "-------------------------------------------------------------------------------------------------------------------------------\n"
 			print " - run                                            |  Run the RadiUID main program in shell mode begin pushing User-ID information"
 			print "-------------------------------------------------------------------------------------------------------------------------------\n"
-			print " - install [parameters]                           |  Run RadiUID Installer Processes"
+			print " - install                                        |  Run RadiUID Install/Maintenance Utility"
 			print "-------------------------------------------------------------------------------------------------------------------------------\n"
 			print " - show log                                       |  Show the RadiUID log file"
 			print " - show acct-logs                                 |  Show the log files currently in the FreeRADIUS accounting directory"
@@ -3461,6 +3611,8 @@ class command_line_interpreter(object):
 			print " - edit clients                                   |  Edit RADIUS client config file for FreeRADIUS"
 			print "-------------------------------------------------------------------------------------------------------------------------------\n"
 			print " - service [parameters]                           |  Control the RadiUID and FreeRADIUS system services"
+			print "-------------------------------------------------------------------------------------------------------------------------------\n"
+			print " - request [parameters]                           |  Make system-level changes for RadiUID service"
 			print "-------------------------------------------------------------------------------------------------------------------------------\n"
 			print " - version                                        |  Show the current version of RadiUID and FreeRADIUS"
 			print "-------------------------------------------------------------------------------------------------------------------------------\n"
