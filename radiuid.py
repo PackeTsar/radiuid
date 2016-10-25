@@ -17,11 +17,12 @@ import platform
 import xml.etree.ElementTree as ElementTree
 
 ##### Inform RadiUID version here #####
-version = "2.0.1-dharding2"
+version = "2.1.0"
 
-##### Set some default configs #####
+##### Set some internal settings #####
 etcconfigfile = '/etc/radiuid/radiuid.conf'
 maxtimeout = 1440
+maxuidspercall = 50
 
 
 
@@ -253,14 +254,19 @@ def check_rad_name():
 	return radservicename
 check_rad_name()
 ##### Check for FreeRADIUS Client Config File Path #####
-confpaths = ['/etc/raddb/clients.conf', '/etc/freeradius/clients.conf']
-checkclientpath = {}
-for path in confpaths:
-	checkclientpath.update({commands.getstatusoutput("ls " + path)[0]: path})
-try:
-	clientconfpath = checkclientpath[0]
-except KeyError:
-	clientconfpath = '/etc/raddb/clients.conf'
+def check_rad_config():
+	global clientconfpath
+	confpaths = ['/etc/raddb/clients.conf', '/etc/freeradius/clients.conf']
+	checkclientpath = {}
+	for path in confpaths:
+		checkclientpath.update({commands.getstatusoutput("ls " + path)[0]: path})
+	try:
+		clientconfpath = checkclientpath[0]
+	except KeyError:
+		clientconfpath = '/etc/raddb/clients.conf'
+	return clientconfpath
+check_rad_config()
+
 
 
 
@@ -1249,7 +1255,7 @@ class palo_alto_firewall_interaction(object):
 				hostxmlentries = ipuserxmldict[hostname + ":vsys" + vsys]
 				finishedurllist = []
 				while len(hostxmlentries) > 0:
-					for entry in hostxmlentries[:100]:
+					for entry in hostxmlentries[:maxuidspercall]:
 						xmluserdata = xmluserdata + entry + "\n</entry>\n"
 						hostxmlentries.remove(entry)
 					urldecoded = '<uid-message>\n\
@@ -1319,7 +1325,9 @@ class palo_alto_firewall_interaction(object):
 		xml_dict = self.xml_formatter_v67(ipanduserdict, targets)
 		urldict = self.xml_assembler_v67(xml_dict, targets)
 		for host in urldict:
-			self.filemgmt.logwriter("normal", "Pushing the below IP : User mappings to " + host + " via " + str(len(urldict[host])) + " API calls")
+			numofcalls = len(urldict[host])
+			numofcallsorig = numofcalls
+			self.filemgmt.logwriter("normal", "Pushing the below IP : User mappings to " + host + " via " + str(numofcalls) + " API calls")
 			urllist = urldict[host]
 			for entry in ipanduserdict:
 				self.filemgmt.logwriter("normal", "IP Address: " + self.ui.color(entry, self.ui.cyan) + "\t\tUsername: " + self.ui.color(ipanduserdict[entry], self.ui.cyan))
@@ -1335,7 +1343,7 @@ class palo_alto_firewall_interaction(object):
 				except urllib2.URLError:
 					response = "FATAL: Firewall Inaccessible"
 				if "success" in response:
-					self.filemgmt.logwriter("normal", self.ui.color("Successful UID push to " + host, self.ui.green))
+					self.filemgmt.logwriter("normal", self.ui.color("Successful UID push to " + host + " (" + str(numofcallsorig - numofcalls + 1) + "/" + str(numofcallsorig) + ")", self.ui.green))
 				elif "Firewall Inaccessible" in response:
 					self.filemgmt.logwriter("normal", self.ui.color('ERROR: Firewall ' + host + ' cannot be accessed at this time. Skipping it', self.ui.red))
 				elif "Invalid credentials" in response:
@@ -1348,6 +1356,7 @@ class palo_alto_firewall_interaction(object):
 					self.filemgmt.logwriter("normal", self.ui.color("Something may have gone wrong in push to " + host, self.ui.yellow))
 					self.filemgmt.logwriter("normal", "REST call: " + self.ui.color(urllib.unquote(re.sub('https:.*api', "", eachurl)), self.ui.yellow))
 					self.filemgmt.logwriter("normal", "Response: " + self.ui.color(response, self.ui.yellow))
+				numofcalls -= 1
 		self.filemgmt.remove_files(filelist)
 	def pull_uids (self, targetlist):
 		encodedcall = urllib.quote_plus("<show><user><ip-user-mapping><all></all></ip-user-mapping></user></show>")
@@ -1410,6 +1419,7 @@ class radiuid_main_process(object):
 	def initialize(self):
 		print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + "***********MAIN PROGRAM INITIALIZATION KICKED OFF...***********" + "\n"
 		##### Scrub targets for any which have incomplete settings in the 'target' variable #####
+		self.filemgmt.logwriter("normal", "***********STARTING UP USING RADIUID VERSION " + self.ui.color(version, self.ui.green) + "***********")
 		self.filemgmt.logwriter("normal", "***********CHECKING TARGETS FOR INCOMPLETE OR INCORRECT CONFIGS***********")
 		self.filemgmt.scrub_targets("noisy", "scrub")
 		self.filemgmt.logwriter("normal", "***********LOADED THE BELOW TARGETS***********")
@@ -1494,15 +1504,15 @@ class imu_methods(object):
 			action = commands.getstatusoutput(actioncmd) # Run the action command
 			after = commands.getstatusoutput(aftercmd) # Run the after command
 			status = "unknown"
-			for word in notfoundwords:
-				if word in after[1]: # If the 'not found' keyword is seen in the output
-					status = "not-found" # Set service status to 'not-found'
 			for word in deadwords:
 				if word in after[1]: # If the 'service dead' keyword is seen in the output
 					status = "dead" # Set service status to 'dead'
 			for word in activewords:
 				if word in after[1]: # If the 'service running' keyword is seen in the output
 					status = "running" # Set service status to 'running'
+			for word in notfoundwords:
+				if word in after[1]: # If the 'not found' keyword is seen in the output
+					status = "not-found" # Set service status to 'not-found'
 			result = {} # Create the result dictionary
 			result.update({"beforecmd": beforecmd, "before": before[1]}) # Update the result with the pre-action information
 			result.update({"actioncmd": actioncmd, "action": action[1]}) # Update the result with the action information
@@ -2142,7 +2152,7 @@ class installer_maintenance_utility(object):
 		print "\n\n\n\n"
 		print "****************Checking xml.etree.ElementTree version****************\n"
 		if float(ElementTree.VERSION[:3]) < 1.3:
-			print self.ui.color("***** It looks like your xml.etree.ELementTree python module is too old for RadiUID.", self.ui.yellow)
+			print self.ui.color("***** It looks like your xml.etree.ElementTree python module is too old for RadiUID.", self.ui.yellow)
 			xmlupdate = self.ui.yesorno("Is it OK to download and install a newer version from the PackeTsar site?")
 			print "\n\n"
 			if xmlupdate == "yes":
@@ -2174,6 +2184,11 @@ class installer_maintenance_utility(object):
 			global logfile
 			newlogfile = self.imum.change_setting(logfile, 'Enter full path to the new RadiUID Log File')
 			print "\n"
+			if radservicename == "radiusd":
+				raddirname = "radius"
+			else:
+				raddirname = radservicename
+			radiuslogpath = "/var/log/" + raddirname + "/radacct/"
 			newradiuslogpath = self.imum.change_setting(radiuslogpath, 'Enter path to the FreeRADIUS Accounting Logs')
 			print "\n"
 			newuserdomain = self.imum.change_setting(userdomain, 'Enter the user domain to be prefixed to User-IDs')
@@ -2210,19 +2225,19 @@ class installer_maintenance_utility(object):
 				print "\n****************New Targets Are:****************\n"
 				print self.ui.make_table(["hostname", "vsys",  'username', 'password', 'version'], newtargets)
 				print "\n\n\n"
-				raw_input(self.ui.color("\n\n>>>>> Hit ENTER to see what the new config will look like...\n\n>>>>>", self.ui.cyan))
-				print "\n\n\n"
-				##### Apply global settings to mounted config #####
-				self.filemgmt.change_config_item('logfile', newlogfile)
-				self.filemgmt.change_config_item('radiuslogpath', newradiuslogpath)
-				self.filemgmt.change_config_item('userdomain', newuserdomain)
-				self.filemgmt.change_config_item('timeout', newtimeout)
-				##### Apply target settings to mounted config #####
-				self.filemgmt.clear_targets()
-				self.filemgmt.add_targets(newtargets)
-				##### Show Config #####
-				self.filemgmt.show_config_item('xml', "none", 'config')
-				print "\n\n\n"
+			raw_input(self.ui.color("\n\n>>>>> Hit ENTER to see what the new config will look like...\n\n>>>>>", self.ui.cyan))
+			print "\n\n\n"
+			##### Apply global settings to mounted config #####
+			self.filemgmt.change_config_item('logfile', newlogfile)
+			self.filemgmt.change_config_item('radiuslogpath', newradiuslogpath)
+			self.filemgmt.change_config_item('userdomain', newuserdomain)
+			self.filemgmt.change_config_item('timeout', newtimeout)
+			##### Apply target settings to mounted config #####
+			self.filemgmt.clear_targets()
+			self.filemgmt.add_targets(newtargets)
+			##### Show Config #####
+			self.filemgmt.show_config_item('xml', "none", 'config')
+			print "\n\n\n"
 			#########################################################################
 			###Pushing settings to .conf file with the code below
 			#########################################################################
@@ -2252,6 +2267,7 @@ class installer_maintenance_utility(object):
 		#########################################################################
 		###Make changes to FreeRADIUS config file
 		#########################################################################
+		clientconfpath = check_rad_config()
 		print "\n\n\n\n\n\n****************Let's make some changes to the FreeRADIUS client config file****************\n"
 		editfreeradius = self.ui.yesorno("Do you want to make changes to FreeRADIUS by adding some IP blocks for accepted accounting clients?")
 		if editfreeradius == "yes":
