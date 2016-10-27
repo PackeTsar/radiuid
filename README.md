@@ -21,8 +21,9 @@ The version of RadiUID documented here is: **v2.1.0**
 8. [Timeout Tuning](#timeout-tuning)
 9. [1.1.0 TO 2.0.0 Updates](#updates-in-v110----v200)
 10. [2.0.0 TO 2.0.1 Updates](#updates-in-v200----v201)
-11. [Upgrade Processes](#upgrade-processes)
-11. [Contributing](#contributing)
+11. [2.0.1 TO 2.1.0 Updates](#updates-in-v201----v210)
+12. [Upgrade Processes](#upgrade-processes)
+13. [Contributing](#contributing)
 
 
 ####   WHAT IS RADIUID   ####
