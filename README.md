@@ -100,7 +100,7 @@ NOTE: You need to be logged in as root or have sudo privileges on the system to 
 
 
 1. Install OS with appropriate IP and OS settings and update to latest patches (recommended)
-	- Check out the [CentOS Minimal Server - Post-Install Setup][centos-post-install] and the [Ubuntu Server - Post Install Setup][ubuntu-post-install] for help with some of the post-install configuration steps.
+	- Check out the [CentOS Minimal Server - Post-Install Setup][centos-post-install] and the [Ubuntu Server - Post Install Setup][ubuntu-post-install] for help with some of the post-OS-install configuration steps.
 2. Install the Git client (unless you already have the RadiUID files): `sudo yum install git -y` or `sudo apt install git -y`
 3. Clone the RadiUID repo to any location on the box: `git clone https://github.com/PackeTsar/radiuid.git`
 4. Change to the directory where the RadiUID main code file (radiuid.py) and config file (radiuid.conf) are stored: `cd radiuid`
