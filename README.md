@@ -68,7 +68,7 @@ RadiUID runs as a system service on Linux and is very easy to configure and use.
 ####   REQUIREMENTS   ####
 --------------------------------------
 
-OS:			**CentOS 7 Recommended but should work on any modern Debian or RHEL distro**
+OS:			**Any modern Debian or RHEL distro** (CentOS 6 or 7, Ubuntu 14 or 16...)
 
 Interpreter:		**Python 2.7.X** *(Also works on Python 2.6.6 and up)*
 
@@ -87,7 +87,7 @@ Operating Systems: **CentOS 7, CentOS 6, Ubuntu 16 Server, Ubuntu 14 Server**
 
 Identity Systems: **JumpCloud RADIUS service, Windows 2012 NPS Server (with Active Directory)**
 
-Authenticators: **Meraki Wireless Access Points, Cisco Wireless (Controller-based), Ruckus**
+Authenticators: **Meraki Wireless Access Points, Cisco Wireless (Controller-based), Ruckus Zonedirector**
 
 
 
@@ -97,15 +97,17 @@ Authenticators: **Meraki Wireless Access Points, Cisco Wireless (Controller-base
 The install of RadiUID is very quick and straightforward using the built-in installer.
 NOTE: You need to be logged in as root or have sudo privileges on the system to install RadiUID
 
-1. Install OS with appropriate IP and OS settings
-2. Update OS to latest patches (recommended)
-3. Install the Git client (unless you already have the RadiUID files): `sudo yum install git -y` or `sudo apt install git -y`
-4. Download the RadiUID repo to any location on the box: `git clone https://github.com/PackeTsar/radiuid.git`
-5. Change to the directory where the RadiUID main code file (radiuid.py) and config file (radiuid.conf) are stored: `cd radiuid`
+
+
+1. Install OS with appropriate IP and OS settings and update to latest patches (recommended)
+	- Check out the [CentOS Minimal Server - Post-Install Setup][centos-post-install] and the [Ubuntu Server - Post Install Setup][ubuntu-post-install] for help with some of the post-install configuration steps.
+2. Install the Git client (unless you already have the RadiUID files): `sudo yum install git -y` or `sudo apt install git -y`
+3. Clone the RadiUID repo to any location on the box: `git clone https://github.com/PackeTsar/radiuid.git`
+4. Change to the directory where the RadiUID main code file (radiuid.py) and config file (radiuid.conf) are stored: `cd radiuid`
 	- (OPTIONAL) Change to the development branch (perform this step only if you are prepared for a version which is under active development and may have broken features): `git checkout devel`
-6. Run the RadiUID program in install mode to perform the installation: `sudo python radiuid.py install`
+5. Run the RadiUID program in install mode to perform the installation: `sudo python radiuid.py install`
 	- NOTE: Make sure that you have the .conf file in the same directory as the .py directory for the initial install
-7. Follow the on-screen prompts to install FreeRADIUS and the RadiUID application
+6. Follow the on-screen prompts to install FreeRADIUS and the RadiUID application
 	- The installer should let you know if everything installed correctly and services are running, but in the next section are the CLI commands you can run to check up on it.
 
 
@@ -257,12 +259,12 @@ RadiUID pushes ephemeral User-ID information to the firewall whenever new RADIUS
 
 1. Perform a `radiuid show config set` command and save the `set` commands displayed in a safe place (just in case)
 2. Download the v2.1.0 code from the GitHub repo by using `git clone https://github.com/PackeTsar/radiuid.git`
-    - If the "radiuid" folder already exists, you may want to run the `rm -rf radiuid/` command to remove it before performing Step 2.
+    - If the "radiuid" folder already exists, you may want to use git to update the clone `cd radiuid/; git pull`
 3. Move to the radiuid folder created by git using the `cd radiuid/` command
 4. Perform a quick reinstall/update of RadiUID using the command `python radiuid.py request reinstall keep-config`
 5. Type in CONFIRM and hit ENTER to confirm you want to perform the reinstall
 6. Once the installer exits, you should run `radiuid show config set` and see your configuration from before.
-7. Perform a `radiuid service all restart` command to restart RadiUID to use the new configuration
+7. Perform a `radiuid service all restart` command to restart RadiUID to use the new app version
 
 
 **Upgrading from v1.X to v2.1.0:**
@@ -270,12 +272,12 @@ RadiUID pushes ephemeral User-ID information to the firewall whenever new RADIUS
 1. Change the name of your config file (/etc/radiuid/radiuid.conf) by issuing the command `mv /etc/radiuid/radiuid.conf /etc/radiuid/radiuid.conf.backup`
 2. Grab the contents to have them handy during the install of the new version `more /etc/radiuid/radiuid.conf.backup`
 3. Download the v2.1.0 code from the GitHub repo by using `git clone https://github.com/PackeTsar/radiuid.git`
-    - If the "radiuid" folder already exists, you may want to run the `rm -rf radiuid/` command to remove it before performing Step 2.
+    - If the "radiuid" folder already exists, you may want to use git to update the clone `cd radiuid/; git pull`
 4. Move to the radiuid folder created by git using the `cd radiuid/` command
 5. Perform a full install of RadiUID using the command `python radiuid.py install`
 6. Follow the prompts and fill out the appropriate information using the information from the old configuration file
 7. Once the installer exits, you should run `radiuid show config set` and see your configuration.
-8. Perform a `radiuid service all restart` command to restart RadiUID to use the new configuration
+8. Perform a `radiuid service all restart` command to restart RadiUID to use the new app version
 
 
 
@@ -292,3 +294,6 @@ Visit the GitHub page (https://github.com/PackeTsar/radiuid) and either report a
 [show-config]: http://www.packetsar.com/wp-content/uploads/radiuid-show-config.png
 [show-config-set]: http://www.packetsar.com/wp-content/uploads/radiuid-show-config-set.png
 [push-and-show]: http://www.packetsar.com/wp-content/uploads/radiuid-push-and-show.png
+
+[centos-post-install]: https://github.com/PackeTsar/scriptfury/blob/master/CentOS_Post_Install.md
+[ubuntu-post-install]: https://github.com/PackeTsar/scriptfury/blob/master/Ubuntu_Post_Install.md
