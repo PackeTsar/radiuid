@@ -674,7 +674,7 @@ class file_management(object):
 		global targets
 		if mode == 'noisy':# to be used to initialize the RadiUID main app
 			##### Suck config values into a dictionary #####
-			configdict = self.tinyxml2dict_starter()
+			configdict = self.tinyxmltodict(self.root)['config']
 			##### Publish individual global settings values variables in main namespace #####
 			try:
 				logfile = configdict['globalsettings']['paths']['logfile']
@@ -704,7 +704,7 @@ class file_management(object):
 				print self.ui.color(time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + "****************WARNING: Could not import some important settings****************\n", self.ui.yellow)
 		if mode == 'quiet':
 			##### Suck config values into a dictionary #####
-			configdict = self.tinyxml2dict_starter()
+			configdict = self.tinyxmltodict(self.root)['config']
 			##### Publish individual global settings values variables in main namespace #####
 			try:
 				logfile = configdict['globalsettings']['paths']['logfile']
@@ -936,24 +936,92 @@ class file_management(object):
 		f = open(configfile, 'w')
 		f.write(self.newconfig)
 		f.close()
-	##### Basic XML to Dict converter used to pull configuration info from the config file #####
-	def tinyxml2dict(self, node):
-		if len(list(node)) == 0:
-			result = node.text
-		else:
-			result = dict()
-			for child in node:
-				if child.tag not in result.keys():
-					result[child.tag] = self.tinyxml2dict(child)
-				else:
-					if type(result[child.tag]) != type([]):
-						result[child.tag] = [result[child.tag], self.tinyxml2dict(child)]
-					else:
-						result[child.tag].append(self.tinyxml2dict(child))
+	##### Self-recursive method for XML conversion #####
+	def tinyxmltodict_recurse(self, node):
+		attributekey = "attributes" # Set the dictionary key name which will store XML attributes
+		if len(list(node)) == 0 and len(node.items()) == 0: # If there are no more child elements, and no element attributes
+			result = node.text # Set the element text as the result and return it
+		else: # If there are children and/or attributes
+			result = {} # Start with empty dict
+			if len(node.items()) > 0: # If attributes exist for the element
+				result.update({attributekey: {}}) # Create a nested dictionary which will store the attribute(s)
+				result[attributekey].update(dict(node.items())) # Add the attributes to attribute dictionary
+			for child in node: # For each child of this element node
+				if child.tag not in list(result): # If this child element does not have an existing key
+					result[child.tag] = self.tinyxmltodict_recurse(child) # Add the key and iterate again
+				else: # If this child element does have an existing key
+					if type(result[child.tag]) != type([]): # And it is not already a list
+						result[child.tag] = [result[child.tag], self.tinyxmltodict_recurse(child)] # Nest it in a list and iterate again
+					else: # If it is already a list
+						result[child.tag].append(self.tinyxmltodict_recurse(child)) # Append to that list
 		return result
 	##### Simple starter method for the XML to Dict conversion process #####
-	def tinyxml2dict_starter(self):
-		return self.tinyxml2dict(self.root)
+	def tinyxmltodict(self, inputdata):
+		if "<" not in str(inputdata): # If the 'less than' symbol is not in the inputdata, it is likely a file path (don't use "<" in your file names, damnit!)
+			with open(inputdata, 'r') as filetext: # Open file in read mode
+				xmldata = filetext.read() # Suck in text of file
+				filetext.close() # And close the file
+		elif 'class' in str(type(inputdata)):
+			xmldata = ElementTree.tostring(inputdata)
+		else: # If "<" is in the inputdata, then you are likely inputting XML data as a string
+			xmldata = inputdata # So set the xmldata variable as your string input
+		root = ElementTree.fromstring(xmldata) # Mount the root element
+		return {root.tag: self.tinyxmltodict_recurse(root)} # Set root element name as key and start first iteration
+	def tinydicttoxml_recurse(self, node, dictdata):
+		attributekey = "attributes" # Set the dictionary key name you used to store XML attributes
+		for element in dictdata: # For each element in the input dictionary
+			if element == attributekey: # If this dictionary key matches the key used to store XML element attributes
+				for attribute in dictdata[element]: # For each attribute in the dictionary
+					node.set(attribute, dictdata[element][attribute]) # Set the attribute for the element
+			elif type(dictdata[element]) == type(None): # If this is an empty element
+				newnode = ElementTree.SubElement(node, element) # Create a new XML subelement named by the input dict key
+			elif type(dictdata[element]) == type(""): # If this value is a string
+				newnode = ElementTree.SubElement(node, element) # Create a new XML subelement named by the input dict key
+				newnode.text = dictdata[element] # And set the text of the element as the string value
+			elif type(dictdata[element]) == type({}): # If this value is a dictionary
+				newnode = ElementTree.SubElement(node, element) # Create a new XML subelement named by the dict key
+				ElementTree.SubElement(newnode, tinydicttoxml_recurse(newnode, dictdata[element])) # And re-run the method with dict value as input
+			elif type(dictdata[element]) == type([]): # If this value is a list
+				for entry in dictdata[element]: # For each entry in the list
+					if type(entry) == type({}): # If the list entry is a dict
+						newnode = ElementTree.SubElement(node, element) # Create a new XML subelement named by the dict key
+						ElementTree.SubElement(newnode, tinydicttoxml_recurse(newnode, entry)) # And re-run the method with list entry as input
+					elif type(entry) == type(""):# If the list entry is a string
+						newnode = ElementTree.SubElement(node, element) # Create a new XML subelement named by the input dict key
+						newnode.text = entry # And set the element text as the string entry
+	def tinydicttoxml(self, dictdata):
+		if type(dictdata) != type({}) or len(list(dictdata)) > 1: # If the input is not a dict or has multiple keys
+			dictdata = {"root": dictdata} # Nest it in a new dictionary with one key named 'root'
+		xmlroot = ElementTree.Element(list(dictdata)[0]) # Create the root element using the dict key as the tag
+		tinydicttoxml_recurse(xmlroot, dictdata[list(dictdata)[0]]) # Run the recursive method to iterate the dictionary
+		return ElementTree.tostring(xmlroot).decode('UTF-8') # Then return a string output of the assembled XML object
+	def formatxml_recurse(self, node):
+		global currentindent,formatroot # Set indent length and text as global variables 
+		currentindent += 1 # Add 1 to the indentation length
+		nodenum = len(list(node)) # Count the number of child elements in the current node
+		if nodenum != 0: # If there are children
+			for child in list(node): # For each child in the current node
+				if child.text == None and len(list(child)) != 0: # If the child element has no value data and no grandchildren exist
+					child.text = "\n" + currentindent * indenttext # Set the indent for the next grandchild element
+				if nodenum == 1: # If this is the last child in the list of children
+					child.tail = "\n" + (currentindent - 2) * indenttext # Set a shortened indent for the end of the parent tag
+				else: # If this is not the last child in the list of children
+					child.tail = "\n" + (currentindent - 1) * indenttext # Set a slightly shortened indent for the next child
+				nodenum -= 1 # Subtract one from the number of children
+				self.formatxml_recurse(child) # Reiterate the method on each child element
+		currentindent -= 1 # Subtract one from the current indentation length
+		return node
+	def formatxml(self, xmldata):
+		global currentindent,indenttext # Set indent length and text as global variables
+		##### Set XML formatting info #####
+		indenttext = "\t" # Set the text to use for indenting here
+		###################################
+		currentindent = 1 # Initialize indentation as 1
+		root = ElementTree.fromstring(xmldata) # Mount the XML data to an element tree as "root"
+		root.text = "\n" + indenttext # Set initial indent of first child element
+		result = ElementTree.tostring(self.formatxml_recurse(root)) # Set the result text by calling the recursive method
+		del currentindent,indenttext # Delete the temporary indent variables
+		return result.decode('UTF-8') # Return the formatted text decoded to UTF-8
 	##### Method to trim the top off a file to meet a certain line length #####
 	def log_trimmer(self, filepath, linecount):
 		report = {"status": "processing", "messages": {}}
@@ -1042,6 +1110,102 @@ class file_management(object):
 				self.freeradius_client_editor("clear", [])
 				self.freeradius_client_editor("append", newclients)
 			return "SUCCESS"
+	##### Sort string values in a list by the numerical values in those strings #####
+	##### Input is a list of strings, each string having numbers, output is a sorted list #####
+	##### Used to sort index values for the munge method #####
+	def sortlist(self, list):
+		nums = []  # Initialize a list for the numbers
+		mappings = {}  # Initialize a mapping KV store for numbers mapped to the original strings
+		result = []  # Initialize the result
+		nonums = []  # Initialize a list for entries with no numbers
+		for entry in list:  # For each entry in the list of strings
+			if len(re.findall('[0-9]+', entry)) != 0:  # If there are numbers in this entry
+				num = int(re.search('[0-9]+', entry).group(0))  # Grab the first set of contiguous digits as a value
+				mappings.update({num: entry})  # Enter that integer as a key in the KV store with the original string as the value
+				nums.append(int(num))  # Enter that integer in a list to be sorted later
+			else:  # If there are no numbers in this entry
+				nonums.append(entry)  # Append it to the list of entries with no numbers
+		nums.sort()  # Sort the list of integers by their decimal value
+		for num in nums:  # For each integer in the list of numbers
+			result.append(mappings[num])  # Look up its mapping and put the original value in the result list
+		for nonum in nonums:
+			result.append(nonum)
+		return result
+	def munge_config(self, input):
+		result = {'status': 'working', 'messages': []} # Initialize Result Status Information
+		##### Mount the globalsettings element #####
+		for element in list(self.root):  # For each XML element in the config root
+			if element.tag == 'globalsettings':  # If its tag is 'globalsettings'
+				globalsettings = element  # Mount that element as the globalsettings variable
+		##### Get current munge rules #####
+		if len(self.root.findall('.//munge')) == 0: # If <munge> XML elements do not exist
+			if 'clear' in input.keys():
+				currentconfig = {'munge': {}}
+			else:
+				result['messages'].append({'OK': 'No munge config found. Created new munge config'})
+				currentconfig = {'munge': input}  # Set the current munge config to the input
+		else:  # If the <munge> element does exist
+			result['messages'].append({'OK': 'Existing munge config found. Editing that config'})
+			currentconfig = tinyxmltodict(ElementTree.tostring(self.root.findall('.//munge')[0]).decode('UTF-8'))  # Set the current config to the current rulebase
+			result['messages'].append({'OK': 'Deleting all munge config to prepare for XML rebuild'})
+			globalsettings.remove(globalsettings.findall('.//munge')[0])  # Remove the munge XML rules so they can be rebuilt
+		if input == {}:
+			result['messages'].append({'OK': 'Terminating before XML rebuild to remove all munge config'})
+			result['status'] = 'OK'
+			return result
+		elif 'clear' in input.keys():
+			if type(input['clear']) == type(''):  # If we are deleting a full rule
+				try:
+					rulename = input['clear']
+					del currentconfig['munge'][input['clear']]
+					result['messages'].append({'OK': 'Removed rule '+rulename+' from configuration'})
+				except KeyError:
+					result['messages'].append({'FATAL': 'Rule '+rulename+' does not exist in configuration!'})
+			elif type(input['clear']) == type({}):  # If we are deleting just one step in a rule
+				try:
+					rulename = input['clear'].keys()[0]
+					stepname = input['clear'][rulename]
+					del currentconfig['munge'][rulename][stepname]
+					result['messages'].append({'OK': 'Removed rule '+rulename+', step '+stepname+' from configuration'})
+				except KeyError:
+					result['messages'].append({'FATAL': 'Rule '+rulename+', step '+stepname+' does not exist in configuration!'})
+		else:
+			for rulename in input:
+				if rulename in currentconfig['munge'].keys():
+					result['messages'].append({'OK': 'Rule '+rulename+' already exists in configuration. Updating it'})
+					currentconfig['munge'][rulename].update(input[rulename])
+				else:
+					result['messages'].append({'OK': "Rule "+rulename+" doesn't exist yet. Creating it"})
+					currentconfig['munge'].update(input)  # Update the current config with the new information
+		##############################
+		###### BUILD XML CONFIG ######
+		##############################
+		if currentconfig['munge'] == {}:  # If the config is just empty
+			result['messages'].append({'OK': "Last rule removed. Terminating XML rebuild"})
+		else:
+			result['messages'].append({'OK': "Beginning rebuild of XML configuration"})
+			result['messages'].append({'OK': "Config to build: "+str(currentconfig)})
+			munge = ElementTree.SubElement(globalsettings, 'munge')  # Mount a new munge element in the config
+			rulelist = self.sortlist(currentconfig['munge'].keys())  # Create a sorted list of rule names
+			for rulename in rulelist:
+				rule = ElementTree.SubElement(munge, rulename)
+				### Set the rules match statement ###
+				match = ElementTree.SubElement(rule, 'match')
+				if type(currentconfig['munge'][rulename]['match']) == type({}):
+					any = ElementTree.SubElement(match, 'any')
+				else:
+					match.text = currentconfig['munge'][rulename]['match']
+				### Walk through rule steps ###
+				steplist = self.sortlist(currentconfig['munge'][rulename].keys())  # Create a sorted list of step names
+				for stepname in steplist:
+					if 'step' in stepname:
+						step = ElementTree.SubElement(rule, stepname)
+						### Set the parameters of this step ###
+						steprules = currentconfig['munge'][rulename][stepname]
+						for item in steprules:
+							srule = ElementTree.SubElement(step, item)
+							srule.text = currentconfig['munge'][rulename][stepname][item]
+		return result
 
 
 
@@ -1147,14 +1311,14 @@ class data_processing(object):
 		for uidset in uidxmldict:
 			precordict.update({uidset: {}})
 			currentuidset = ElementTree.fromstring(uidxmldict[uidset])
-			if type(self.filemgmt.tinyxml2dict(currentuidset)['result']) != type({}) or "<count>0</count>" in uidxmldict[uidset]:
+			if type(self.filemgmt.tinyxmltodict(currentuidset)['result']) != type({}) or "<count>0</count>" in uidxmldict[uidset]:
 				none = None
 			else:
-				if type(self.filemgmt.tinyxml2dict(currentuidset)['result']['entry']) != type([]):
-					uidentry = self.filemgmt.tinyxml2dict(currentuidset)['result']['entry']
+				if type(self.filemgmt.tinyxmltodict(currentuidset)['result']['entry']) != type([]):
+					uidentry = self.filemgmt.tinyxmltodict(currentuidset)['result']['entry']
 					precordict[uidset].update({uidentry['ip']: uidentry['user']})
 				else:
-					for uidentry in self.filemgmt.tinyxml2dict(currentuidset)['result']['entry']:
+					for uidentry in self.filemgmt.tinyxmltodict(currentuidset)['result']['entry']:
 						precordict[uidset].update({uidentry['ip']: uidentry['user']})
 		###### Replace Fw Names with IDs and create master UID list #######
 		fwidlist = []
@@ -1205,6 +1369,129 @@ class data_processing(object):
 			result += self.ui.color(firewall, self.ui.cyan) + "\n\n"
 		result += "\n\n\n\n\n\n################ CONSISTENCY TABLE ################\n\n"
 		result += self.ui.make_table(columnorder, corlist)
+		return result
+	##### Munge (manipulate) and filter strings from a list based on a rule set #####
+	##### Input is a list of strings and a dictionary-based rule-set #####
+	##### Output is a modified list of strings which have been manipulated based on the rule-set #####
+	def munge(self, inputdatalist, mungeruledict):
+		result = []  # Initialize the result list
+		ruleindex = {'rules': []}  # Initialize the index of rules. Used to order the rules according to their values
+		if 'debug' in mungeruledict:  # If the 'debug' config element is present in the rule-set
+			debug = True  # Set the debug variable as true
+		else:  # Otherwise
+			debug = False  # Set the debug variable as false
+		for rule in mungeruledict:  # For each rule in the provided rule-set
+			if 'rule' in rule:  # If the term 'rule' is in the key
+				ruleindex['rules'].append(rule)  # Append that value to the index under 'rules'
+				ruleindex.update({rule: []})  # Initialize a new key in the index with the rule name
+				for step in mungeruledict[rule]:  # For each step in this rule
+					if 'step' in step:  # If the term 'step' is in the key
+						ruleindex[rule].append(step)  # Add the step to the list of steps under the current rule
+				ruleindex[rule] = sortlist(ruleindex[rule])  # After all steps have been added to the rule, sort them
+		ruleindex['rules'] = sortlist(ruleindex['rules'])  # After all rules have been added to the index, sort them
+		if debug:  # If we are debugging
+			print "\n\n----- Sorted index of rules and steps: %s -----" % str(ruleindex)  # Print the index of rules and steps
+		for input in inputdatalist:  # For each input in the input list
+			if debug:  # If we are debugging
+				print "\n\n\n\n\n\n\n\n----- Input String: %s -----" % str(input)  # Notify of the input
+			inputresult = input  # Set the modifiable variable for the current input
+			added = False  # Create a variable to track if this input is done and has been added to the result list
+			interrupt = "none"  # Create a variable to allow interruption of operations based on a rule step
+			variables = {}  # Initialize a dictionary of variables for the current input (can be used across rules in the same input)
+			for rule in ruleindex['rules']:  # For each rule in the provided rule-set
+				if debug:  # If we are debugging
+					print "\n\n\n\t----- %s -----" % str(rule)  # Print a header of the rule name
+					print "\t\t----- Rule beginning with input: %s -----" % str(inputresult)  # Print th input being fed into this rule
+				if interrupt == 'accept':  # If something has set the interrupt to 'accept'
+						break  # And break the loop for this rule so the modified input can be added to the result list
+				currentrule = mungeruledict[rule]  # Pull the data for the current rule
+				if debug:  # If we are debugging
+					rulexml = formatxml(tinydicttoxml(currentrule))  # Convert the current rule to formatted XML
+					rulexml = rulexml.replace("\n", "\n\t\t\t")  # Indent the XML lines
+					rulexml = "\t\t\t" + rulexml  # Indent the first XML line
+					print "\t\t----- Loaded Rule: -----"  # Print a header for the XML rule
+					print rulexml  # And print the formatted rule
+				if type(currentrule['match']) == type({}):  # If the current rules match statement is a config element (which means it is 'any')
+					inputmatches = True  # Notify that the input matches the rule's entry match pattern
+				else:  # Otherwise
+					if re.match(currentrule['match'], str(inputresult)) != None:  # If the regex match returns anything other than None
+						inputmatches = True  # Notify that the input matches the match pattern
+					else:  # Otherwise
+						inputmatches = False # Notify that the input does not match the rule's entry match pattern
+				if inputmatches:  # If the input matched the rule entry match pattern
+					if debug:  # If we are debugging
+						print "\n\t\t----- Matched pattern %s for %s in input %s -----" % (str(currentrule['match']), str(rule),
+						str(inputresult))  # Print that the input matched the rule entry match pattern and we have started rule processing
+					for step in ruleindex[rule]:  # For each step in the current rule
+						currentstep = mungeruledict[rule][step]  # Pull the data for the current step in this rule
+						if debug:  # If we are debugging
+							print "\n\t\t----- Loaded %s: %s -----" % (str(step), str(currentstep))  # Print the step configuration
+						### NOTE: An 'accept' stops the munge on the current input and immediately adds it to the result list ###
+						if currentstep.keys()[0] == 'accept':  # If the step is an 'accept'
+							interrupt = "accept"  # Set the interrupt to 'accept'
+							if debug:  # If we are debugging
+								print "\t\t\t----- 'Accept' interrupt detected and set, breaking out of rule-set and adding input to result -----"  # Notify debug
+							break  # Break out of the current step without continuing
+						### NOTE: An 'allow' stops processing on the current rule and starts processing on the next rule (if one exists) ###
+						elif currentstep.keys()[0] == 'allow':  # If the step is an 'allow'
+							interrupt = "allow"  # Set the interrupt to 'allow'
+							if debug:  # If we are debugging
+								print "\t\t\t----- 'Allow' interrupt detected and set, breaking out of current rule and continuing with parsing -----"  # Notify debug
+							break  # Break out of the current step without continuing
+						### NOTE: A 'discard' stops all processing and discards the current input ###
+						elif currentstep.keys()[0] == 'discard':  # If the step is an 'discard'
+							interrupt = "discard"  # Set the interrupt to 'discard'
+							if debug:  # If we are debugging
+								print "\t\t\t----- 'Discard' interrupt detected and set, breaking out of rule-set and discarding input -----"  # Notify debug
+							break  # Break out of the current step without continuing
+						elif 'set-variable' in currentstep.keys():  # If the current step sets a variable
+							variablename = currentstep['set-variable']  # Grab the name of the variable
+							if 'from-string' in currentstep.keys():  # If we are setting from a static string
+								variablevalue = currentstep['from-string']  # Set the value based on the configured string
+							elif 'from-match' in currentstep.keys():  # If we are setting the variable based on a regex match
+								if type(currentstep['from-match']) == type({}):  # If the match statement is a config element (which means it is 'any')
+									matches = True  # Notify that the input matches
+									variablevalue = inputresult  # And set the value to the full input string
+								else:  # Otherwise
+									if re.findall(currentstep['from-match'], inputresult)[0] != '':  # If regex returns anything but an empty string
+										variablevalue = re.findall(currentstep['from-match'], inputresult)[0]  # Set the value as the returned string
+							variables.update({variablename: variablevalue})  # And update the dictionary of variables
+							if debug:  # If we are debugging
+								print "\t\t\t----- Setting variable %s as value %s -----" % (str(variablename), str(variablevalue))  # Notify of variable name and new value
+								print "\t\t\t----- Current variables in this rule: %s -----" % str(variables)  # Print out current variables
+						elif currentstep.keys()[0] == 'assemble':  # If the current step reassembles the input from some variables
+							variableindex = currentstep['assemble'].keys()  # Grab the list of config elements assigned to the variable names
+							variableindex = sortlist(variableindex)  # Sort the list of variable elements so we assemble them in the right order
+							if debug:  # If we are debugging
+								print "\t\t\t----- Assembling Variables: %s -----" % str(variableindex)  # Print list of variables for assembly
+							assembleresult = ''  # Initialize the result of the assembly process
+							for variableid in variableindex:  # For each variable config element name (ie: 'variable1') in the index
+								try:  # Try statement to handle a keyerror exception in case we are trying to access a variable which hasnt been assigned
+									variablename = currentstep['assemble'][variableid]  # Look up the name of the variable from the config
+									variablevalue = variables[variablename]  # Look up the current value of the variable from the current dictionary
+									assembleresult += variablevalue  # Append the current variable to the assembly result
+								except KeyError:  # If we recieve a keyerror
+									### NOTE: A KeyError will occur when the config tries to assemble from a variable which has not been configured in a previous step or rule
+									if debug:  # If we are debugging
+										print "\t\t\t#######  ERROR  ######: CANNOT FIND VARIABLE %s" % str(variablename)  # Print info about the error
+										print "\t\t\t#######  ERROR  ######: MAKE SURE YOU HAVE A PREVIOUS STEP CONFIGURED TO CREATE IT"  # Print info about the error
+							if debug:  # If we are debugging
+								print "\t\t\t----- Assemble Result: %s -----" % str(assembleresult)  # Print the result of the assembly
+							inputresult = assembleresult  # Set the result of the munge to the result of the assembly
+				else:  # If the input did not match the rule entry match pattern
+					if debug:  # If we are debugging
+						print "\t\t----- No match in %s for input %s -----" % (str(rule), str(inputresult))  # Notify that no match was made for this input
+			if interrupt != "discard":  # If the interrupt is not set to 'discard'
+				if not added:  # And the input has not been added to the result list
+					result.append(inputresult)  # Add the modified input to the result list
+					added = True  # Notify that it has been added
+					if debug:  # If we are debugging
+						if interrupt == "accept":
+							print "\t----- Input %s added to result due to 'accept' interrupt -----" % str(inputresult)  # Print of addition
+						else:
+							print "\t----- Input %s added to result due to implicit 'accept' at end of rules -----" % str(inputresult)  # Print of addition
+						print "\t----- Current result list: -----"  # Header
+						print "\t----- %s -----" % str(result)  # Print the current result list
 		return result
 
 
@@ -2545,10 +2832,10 @@ class command_line_interpreter(object):
 					for uidset in uidxmldict:
 						currentuidset = ElementTree.fromstring(uidxmldict[uidset])
 						print "************" + uidset + "************"
-						if type(self.filemgmt.tinyxml2dict(currentuidset)['result']) != type({}) or "<count>0</count>" in uidxmldict[uidset]:
+						if type(self.filemgmt.tinyxmltodict(currentuidset)['result']) != type({}) or "<count>0</count>" in uidxmldict[uidset]:
 							print "\n" + self.ui.color("************No current mappings************", self.ui.yellow)
 						else:
-							print self.ui.make_table(["ip", "user",  'type', 'idle_timeout', 'timeout', 'vsys'], self.filemgmt.tinyxml2dict(currentuidset)['result']['entry'])
+							print self.ui.make_table(["ip", "user",  'type', 'idle_timeout', 'timeout', 'vsys'], self.filemgmt.tinyxmltodict(currentuidset)['result']['entry'])
 						print "\n\n"
 			if pulluids == "yes":
 				print self.ui.color("Success!", self.ui.green)
@@ -2898,6 +3185,60 @@ class command_line_interpreter(object):
 				print self.ui.color("Something Went Wrong!", self.ui.red)
 			print self.ui.color("#" * len(header), self.ui.magenta)
 			print self.ui.color("#" * len(header), self.ui.magenta)
+		##### SET MUNGE #####
+		elif self.cat_list(sys.argv[1:3]) == "set munge" and len(re.findall("[0-9A-Za-z]", sys.argv[3])) > 0:
+			self.filemgmt.logwriter("cli", "##### COMMAND '" + arguments + "' ISSUED FROM CLI BY USER '" + self.imum.currentuser()+ "' #####")
+			header = "########################## EXECUTING COMMAND: " + arguments + " ##########################"
+			print self.ui.color(header, self.ui.magenta)
+			print self.ui.color("#" * len(header), self.ui.magenta)
+			print sys.argv[3:]
+			keepgoing = True
+			try:
+				if "." in sys.argv[3]:
+					rulenum = sys.argv[3].split(".")[0]					
+					stepnum = sys.argv[3].split(".")[1]
+					if rulenum == re.findall('[0-9]+', rulenum)[0] and stepnum == re.findall('[0-9]+', stepnum)[0]:
+						keepgoing = True
+					else:
+						print "Not numerical"
+						keepgoing = False
+				else:
+					print "no period"
+					keepgoing = False
+			except IndexError:
+				print "bad input somewhere"
+				keepgoing = False
+			if keepgoing:
+				if stepnum == '0' and sys.argv[4] == 'match':
+					keepgoing = True
+					print "good"
+				else:
+					keepgoing = False
+					print "A rule must begin with a match statement"
+			###### Parse and enter command ######
+			rule = 'rule' + rulenum
+			step = 'step' + stepnum
+			if sys.argv[4] == 'match':
+				if sys.argv[5] == 'any':
+					configinput = {rule: {'match': {'any': None}}}
+				else:
+					configinput = {rule: {'match': sys.argv[5]}}
+			print configinput
+			print self.filemgmt.munge_config(configinput)
+			print self.filemgmt.formatxml(ElementTree.tostring(self.filemgmt.root).decode('UTF-8'))
+			
+
+
+
+
+
+
+
+
+
+
+
+
 		######################### PUSH #############################
 		elif arguments == "push" or arguments == "push ?":
 			print "\n - push (<hostname>:<vsys-id> | all) [parameters]  |  Parameters: (<username>, <ip address>)"
