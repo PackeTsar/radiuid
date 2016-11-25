@@ -726,7 +726,7 @@ class file_management(object):
 		if mainmode == "xml":
 			try:
 				for value in self.root.iter(itemname):
-					xmldata = ElementTree.tostring(value, encoding="us-ascii", method="xml")
+					xmldata = self.formatxml(ElementTree.tostring(value, encoding="us-ascii", method="xml"))
 					regexnewline = "\n.*[a-z]"
 					newline = re.findall(regexnewline, xmldata, flags=0)
 					if len(newline) > 0:
@@ -932,7 +932,7 @@ class file_management(object):
 			item.tail = '\n'
 	##### Recombine comment and XML config data into single string and write to config file #####
 	def save_config(self):
-		self.newconfig = self.configcomment + "\n" + ElementTree.tostring(self.root)
+		self.newconfig = self.configcomment + "\n" + self.formatxml(ElementTree.tostring(self.root))
 		f = open(configfile, 'w')
 		f.write(self.newconfig)
 		f.close()
@@ -1146,7 +1146,7 @@ class file_management(object):
 				currentconfig = {'munge': input}  # Set the current munge config to the input
 		else:  # If the <munge> element does exist
 			result['messages'].append({'OK': 'Existing munge config found. Editing that config'})
-			currentconfig = tinyxmltodict(ElementTree.tostring(self.root.findall('.//munge')[0]).decode('UTF-8'))  # Set the current config to the current rulebase
+			currentconfig = self.tinyxmltodict(ElementTree.tostring(self.root.findall('.//munge')[0]).decode('UTF-8'))  # Set the current config to the current rulebase
 			result['messages'].append({'OK': 'Deleting all munge config to prepare for XML rebuild'})
 			globalsettings.remove(globalsettings.findall('.//munge')[0])  # Remove the munge XML rules so they can be rebuilt
 		if input == {}:
@@ -1203,8 +1203,15 @@ class file_management(object):
 						### Set the parameters of this step ###
 						steprules = currentconfig['munge'][rulename][stepname]
 						for item in steprules:
-							srule = ElementTree.SubElement(step, item)
-							srule.text = currentconfig['munge'][rulename][stepname][item]
+							if item == "assemble":
+								assemblevars = currentconfig['munge'][rulename][stepname][item]
+								assemble = ElementTree.SubElement(step, item)
+								for var in assemblevars:
+									varelement = ElementTree.SubElement(assemble, var)
+									varelement.text = currentconfig['munge'][rulename][stepname][item][var]
+							else:
+								srule = ElementTree.SubElement(step, item)
+								srule.text = currentconfig['munge'][rulename][stepname][item]
 		return result
 
 
@@ -2851,6 +2858,7 @@ class command_line_interpreter(object):
 			print " - set userdomain <domain name>                  |     Set the domain name prepended to User-ID mappings"
 			print " - set timeout <minutes>                         |     Set the timeout (in minutes) for User-ID mappings sent to the firewall targets"
 			print " - set client <ip-block> <shared-secret>         |     Set configuration elements for RADIUS clients to send accounting data FreeRADIUS"
+			print " - set munge <rule>.<step> [parameters]          |     Set munge (string processing rules) for User-IDs"
 			print " - set target <hostname>:<vsys-id> [parameters]  |     Set configuration elements for existing or new firewall targets\n"
 		elif arguments == "set logfile" or arguments == "set logfile ?":
 			print "\n - set logfile <file path>  |  Example: 'set logfile /etc/radiuid/radiuid.log'\n"
@@ -2874,6 +2882,24 @@ class command_line_interpreter(object):
 			print "                                                 |  Examples:   'set target 192.168.1.1 username admin'"
 			print "                                                 |              'set target pan1.domain.com:vsys1 password P@s$w0rd'"
 			print "                                                 |              'set target 10.0.0.10:2 username admin password P@ssword version 6\n"
+		elif arguments == "set munge" or arguments == "set munge ?":
+			print "\n - set munge <rule>.<step> [parameters] |  Parameters: match (any | <regex>)"
+			print "                                        |              set-variable <variable name> (from-match | from-string) <regex or string>"
+			print "                                        |              assemble <variable name> <variable name> ... "
+			print "                                        |              accept"
+			print "                                        |              allow"
+			print "                                        |              discard"
+			print "                                        |              "
+			print "                                        |  Examples:   The below rule-set would allow through any user with the domain \"safedomain.com\" in their User-ID,"
+			print "                                        |              then it would append the domain \"dangerous.com\" to any others"
+			print "                                        |"
+			print "                                        |              'set munge 1.0 match \".*safedomain.com.*\""
+			print "                                        |              'set munge 1.1 accept"
+			print "                                        |              'set munge 2.0 match any"
+			print "                                        |              'set munge 2.1 set-variable user from-match \".*\""
+			print "                                        |              'set munge 2.2 set-variable dngr from-string \"dangerous.com\""
+			print "                                        |              'set munge 2.3 set-variable slsh from-string \"\\\""
+			print "                                        |              'set munge 2.4 assemble dngr slsh user"
 		##### SET LOGFILE #####
 		elif self.cat_list(sys.argv[1:3]) == "set logfile" and len(re.findall("^(\/*)", sys.argv[3])) > 0:
 			self.filemgmt.logwriter("cli", "##### COMMAND '" + arguments + "' ISSUED FROM CLI BY USER '" + self.imum.currentuser()+ "' #####")
@@ -3187,58 +3213,107 @@ class command_line_interpreter(object):
 			print self.ui.color("#" * len(header), self.ui.magenta)
 		##### SET MUNGE #####
 		elif self.cat_list(sys.argv[1:3]) == "set munge" and len(re.findall("[0-9A-Za-z]", sys.argv[3])) > 0:
-			self.filemgmt.logwriter("cli", "##### COMMAND '" + arguments + "' ISSUED FROM CLI BY USER '" + self.imum.currentuser()+ "' #####")
-			header = "########################## EXECUTING COMMAND: " + arguments + " ##########################"
-			print self.ui.color(header, self.ui.magenta)
-			print self.ui.color("#" * len(header), self.ui.magenta)
-			print sys.argv[3:]
-			keepgoing = True
-			try:
-				if "." in sys.argv[3]:
-					rulenum = sys.argv[3].split(".")[0]					
-					stepnum = sys.argv[3].split(".")[1]
-					if rulenum == re.findall('[0-9]+', rulenum)[0] and stepnum == re.findall('[0-9]+', stepnum)[0]:
-						keepgoing = True
+			if len(sys.argv) == 4:
+				print "\n - set munge <rule>.<step> [parameters] |  Parameters: match (any | <regex>)"
+				print "                                        |              set-variable <variable name> (from-match | from-string) <regex or string>"
+				print "                                        |              assemble <variable name> <variable name> ... "
+				print "                                        |              accept"
+				print "                                        |              allow"
+				print "                                        |              discard"
+				print "                                        |              "
+				print "                                        |  Examples:   The below rule-set would allow through any user with the domain \"safedomain.com\" in their User-ID,"
+				print "                                        |              then it would append the domain \"dangerous.com\" to any others"
+				print "                                        |"
+				print "                                        |              'set munge 1.0 match \".*safedomain.com.*\""
+				print "                                        |              'set munge 1.1 accept"
+				print "                                        |              'set munge 2.0 match any"
+				print "                                        |              'set munge 2.1 set-variable user from-match \".*\""
+				print "                                        |              'set munge 2.2 set-variable dngr from-string \"dangerous.com\""
+				print "                                        |              'set munge 2.3 set-variable slsh from-string \"\\\""
+				print "                                        |              'set munge 2.4 assemble dngr slsh user"
+			else:
+				self.filemgmt.logwriter("cli", "##### COMMAND '" + arguments + "' ISSUED FROM CLI BY USER '" + self.imum.currentuser()+ "' #####")
+				header = "########################## EXECUTING COMMAND: " + arguments + " ##########################"
+				print self.ui.color(header, self.ui.magenta)
+				print self.ui.color("#" * len(header), self.ui.magenta)
+				print "\n"
+				#########################
+				###### CHECK INPUT ######
+				#########################
+				keepgoing = True
+				### CHECK RULE AND STEP NUMBERS ###
+				try:
+					if "." in sys.argv[3]:
+						rulenum = sys.argv[3].split(".")[0]					
+						stepnum = sys.argv[3].split(".")[1]
+						if rulenum == re.findall('[0-9]+', rulenum)[0] and stepnum == re.findall('[0-9]+', stepnum)[0]:
+							keepgoing = True
+						else:
+							print self.ui.color("Rule and step numbers must be numerical", self.ui.red)
+							keepgoing = False
 					else:
-						print "Not numerical"
+						print self.ui.color("Rule and step numbers must be seperated by a period (.)", self.ui.red)
 						keepgoing = False
-				else:
-					print "no period"
+				except IndexError:
+					print self.ui.color("Rules and Steps must be input as <rule>.<step> and must be numerical", self.ui.red)
 					keepgoing = False
-			except IndexError:
-				print "bad input somewhere"
-				keepgoing = False
-			if keepgoing:
-				if stepnum == '0' and sys.argv[4] == 'match':
-					keepgoing = True
-					print "good"
+				### SCRUB X.0 MATCH STATEMENTS ###
+				if keepgoing:
+					if stepnum == '0' or sys.argv[4] == 'match':
+						if sys.argv[4] != 'match':
+							keepgoing = False
+							print self.ui.color("A rule's '0' step (X.0) must be a match statement (ie: set munge 1.0 match \"[a-z]+$\")", self.ui.red)
+							print self.ui.color("\nThe rule's match statement is used to match a certain input and activate processing of the rule", self.ui.red)
+						elif stepnum != '0':
+							keepgoing = False
+							print self.ui.color("Only the rule's '0' step (X.0) is allowed to be a match statement (ie: set munge 1.0 match '[a-z]+'", self.ui.red)
+							print self.ui.color("\nThe rule's match statement is used to match a certain input and activate processing of the rule", self.ui.red)
+				###### Parse and enter command ######
+				if keepgoing:
+					rule = 'rule' + rulenum
+					step = 'step' + stepnum
+					action = sys.argv[4]
+					if len(sys.argv) == 5:
+						acceptableactions = ['accept', 'allow', 'discard']
+						if action not in acceptableactions:
+							keepgoing = False
+							print self.ui.color("Unrecognized action. Allowed simple actions are 'accept', 'allow', and 'discard'", self.ui.red)
+							print self.ui.color("\nAllowed complex actions are 'set-variable', and 'assemble'", self.ui.red)
+						else:
+							configinput = {rule: {step: {action: None}}}
+					elif len(sys.argv) == 6 and action == "match":
+						if sys.argv[5] == 'any':
+							configinput = {rule: {'match': {'any': None}}}
+						else:
+							configinput = {rule: {'match': sys.argv[5]}}
+					elif len(sys.argv) == 8 and action == 'set-variable':
+						variable = sys.argv[5]
+						sourcetype = sys.argv[6]
+						source = sys.argv[7]
+						acceptablesourcetypes = ['from-match', 'from-string']
+						if sourcetype not in acceptablesourcetypes:
+							keepgoing = False
+							print self.ui.color("Unrecognized source-type. Allowed source-types are 'from-match', and 'from-string'", self.ui.red)
+						else:
+							configinput = {rule: {step: {sourcetype: source, action: variable}}}
+					elif len(sys.argv) > 5 and action == 'assemble':
+						variables = sys.argv[5:]
+						variablenum = 1
+						configinput = {rule: {step: {'assemble': {}}}}
+						for variable in variables:
+							configinput[rule][step]['assemble'].update({'variable' + str(variablenum): variable})
+							variablenum += 1
+					if keepgoing:
+						self.filemgmt.munge_config(configinput)
+						self.filemgmt.save_config()
+						self.filemgmt.show_config_item('xml', "none", 'munge')
+				print "\n"
+				if keepgoing:
+					print self.ui.color("Success!", self.ui.green)
 				else:
-					keepgoing = False
-					print "A rule must begin with a match statement"
-			###### Parse and enter command ######
-			rule = 'rule' + rulenum
-			step = 'step' + stepnum
-			if sys.argv[4] == 'match':
-				if sys.argv[5] == 'any':
-					configinput = {rule: {'match': {'any': None}}}
-				else:
-					configinput = {rule: {'match': sys.argv[5]}}
-			print configinput
-			print self.filemgmt.munge_config(configinput)
-			print self.filemgmt.formatxml(ElementTree.tostring(self.filemgmt.root).decode('UTF-8'))
-			
-
-
-
-
-
-
-
-
-
-
-
-
+					print self.ui.color("Something Went Wrong!", self.ui.red)
+				print self.ui.color("#" * len(header), self.ui.magenta)
+				print self.ui.color("#" * len(header), self.ui.magenta)
 		######################### PUSH #############################
 		elif arguments == "push" or arguments == "push ?":
 			print "\n - push (<hostname>:<vsys-id> | all) [parameters]  |  Parameters: (<username>, <ip address>)"
