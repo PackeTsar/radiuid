@@ -2659,8 +2659,9 @@ class command_line_interpreter(object):
 				None
 		elif "munge-steps" in arguments:
 			try:
-				for rulename in configdict['globalsettings']['munge'][sys.argv[2]].keys():
-					print rulename
+				for stepname in configdict['globalsettings']['munge'][sys.argv[2]].keys():
+					if stepname != "match":
+						print stepname
 			except KeyError:
 				None
 		######################### INSTALL #############################
@@ -3257,6 +3258,9 @@ class command_line_interpreter(object):
 						print self.ui.color("\n\nRule and step numbers must be numerical and seperated by a period (ie: set munge 1.0 ...)\n\n", self.ui.red)
 						print helper
 						keepgoing = False
+					if len(stepnum) > 1 and stepnum[0] == "0":
+						print self.ui.color("\n\nNo leading zeros in step numbers dammit!\n\n", self.ui.red)
+						keepgoing = False
 				else:
 					print self.ui.color("\n\nRule and step numbers must be numerical and seperated by a period (ie: set munge 1.0 ...)\n\n", self.ui.red)
 					print helper
@@ -3329,32 +3333,43 @@ class command_line_interpreter(object):
 					print self.ui.color(header, self.ui.magenta)
 					print self.ui.color("#" * len(header), self.ui.magenta)
 					print "\n"
-					###### Parse and enter command ######
 					rule = 'rule' + rulenum
 					step = 'step' + stepnum
 					action = sys.argv[4]
-					if len(sys.argv) == 5 and step != "0":
-						configinput = {rule: {step: {action: None}}}
-					elif len(sys.argv) == 6 and action == "match":
-						if sys.argv[5] == 'any':
-							configinput = {rule: {'match': {'any': None}}}
-						else:
-							configinput = {rule: {'match': sys.argv[5]}}
-					elif len(sys.argv) == 8 and action == 'set-variable':
-						variable = sys.argv[5]
-						sourcetype = sys.argv[6]
-						source = sys.argv[7]
-						configinput = {rule: {step: {sourcetype: source, action: variable}}}
-					elif len(sys.argv) > 5 and action == 'assemble':
-						variables = sys.argv[5:]
-						variablenum = 1
-						configinput = {rule: {step: {'assemble': {}}}}
-						for variable in variables:
-							configinput[rule][step]['assemble'].update({'variable' + str(variablenum): variable})
-							variablenum += 1
-					self.filemgmt.munge_config(configinput)
-					self.filemgmt.save_config()
-					self.filemgmt.show_config_item('xml', "none", 'munge')
+					### Check that initial match statement exists ##
+					if stepnum != "0":
+						keepgoing = False
+						try:
+							for each in configdict['globalsettings']['munge'][rule]:
+								if each == "match":
+									keepgoing = True
+						except KeyError:
+							print self.ui.color("\n\nRule does not have initial 'match' statement yet", self.ui.red)
+							print self.ui.color("\nAll rules must begin with a step '0' and a match statement (ie: 'set munge 1.0 match any')\n\n", self.ui.red)
+					###### Parse and enter command ######
+					if keepgoing:
+						if len(sys.argv) == 5 and step != "0":
+							configinput = {rule: {step: {action: None}}}
+						elif len(sys.argv) == 6 and action == "match":
+							if sys.argv[5] == 'any':
+								configinput = {rule: {'match': {'any': None}}}
+							else:
+								configinput = {rule: {'match': sys.argv[5]}}
+						elif len(sys.argv) == 8 and action == 'set-variable':
+							variable = sys.argv[5]
+							sourcetype = sys.argv[6]
+							source = sys.argv[7]
+							configinput = {rule: {step: {sourcetype: source, action: variable}}}
+						elif len(sys.argv) > 5 and action == 'assemble':
+							variables = sys.argv[5:]
+							variablenum = 1
+							configinput = {rule: {step: {'assemble': {}}}}
+							for variable in variables:
+								configinput[rule][step]['assemble'].update({'variable' + str(variablenum): variable})
+								variablenum += 1
+						self.filemgmt.munge_config(configinput)
+						self.filemgmt.save_config()
+						self.filemgmt.show_config_item('xml', "none", 'munge')
 					print "\n"
 					if keepgoing:
 						print self.ui.color("Success!", self.ui.green)
@@ -4142,6 +4157,7 @@ class command_line_interpreter(object):
 			print " - clear log                                      |  Delete the content in the log file"
 			print " - clear acct-logs                                |  Delete the log files currently in the FreeRADIUS accounting directory"
 			print " - clear client (<ip-block> | all)                |  Delete one or all RADIUS client IP blocks in FreeRADIUS config file"
+			print " - clear munge (<rule> | all) (<step> | all)      |  Delete one or all munge rules in the config file"
 			print " - clear target (<hostname>:<vsys-id> | all)      |  Delete one or all firewall targets in the config file"
 			print " - clear mappings [parameters]                    |  Remove one or all IP-to-User mappings from one or all firewalls"
 			print "-------------------------------------------------------------------------------------------------------------------------------\n"
