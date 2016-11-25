@@ -2018,7 +2018,7 @@ _radiuid_complete()
         COMPREPLY=( $(compgen -W "log acct-logs run config clients status mappings" -- $cur) )
         ;;
       "set")
-        COMPREPLY=( $(compgen -W "logfile maxloglines radiuslogpath userdomain timeout target client" -- $cur) )
+        COMPREPLY=( $(compgen -W "logfile maxloglines radiuslogpath userdomain timeout target client munge" -- $cur) )
         ;;
       push)
         local targets=$(for target in `radiuid targets`; do echo $target ; done)
@@ -2028,7 +2028,7 @@ _radiuid_complete()
         COMPREPLY=( $(compgen -W "log" -- $cur) )
         ;;
       "clear")
-        COMPREPLY=( $(compgen -W "log acct-logs target mappings client" -- $cur) )
+        COMPREPLY=( $(compgen -W "log acct-logs target mappings client munge" -- $cur) )
         ;;
       edit)
         COMPREPLY=( $(compgen -W "config clients" -- $cur) )
@@ -2128,6 +2128,14 @@ _radiuid_complete()
           COMPREPLY=( $(compgen -W "${targets} all" -- ${cur}) )
         fi
         ;;
+      munge)
+        if [ "$prev2" == "set" ]; then
+          COMPREPLY=( $(compgen -W " - <rule>.<step>" -- ${cur}) )
+        elif [ "$prev2" == "clear" ]; then
+          local rules=$(for rule in `radiuid munge-rules`; do echo $rule ; done)
+          COMPREPLY=( $(compgen -W "${rules} all" -- ${cur}) )
+        fi
+        ;;
       *)
         ;;
     esac
@@ -2148,6 +2156,19 @@ _radiuid_complete()
         COMPREPLY=( $(compgen -W "<shared-secret> -" -- $cur) )
       fi
     fi
+    if [ "$prev2" == "munge" ]; then
+      if [ "$prev3" == "clear" ]; then
+        if [ "$prev" != "all" ]; then
+          local steps=$(for step in `radiuid munge-steps $prev`; do echo $step ; done)
+          COMPREPLY=( $(compgen -W "${steps} all" -- $cur) )
+        fi
+      fi
+    fi
+    if [ "$prev2" == "munge" ]; then
+      if [ "$prev3" == "set" ]; then
+        COMPREPLY=( $(compgen -W "match accept allow assemble discard set-variable" -- $cur) )
+      fi
+    fi
   elif [ $COMP_CWORD -eq 5 ]; then
     prev3=${COMP_WORDS[COMP_CWORD-3]}
     prev4=${COMP_WORDS[COMP_CWORD-4]}
@@ -2156,7 +2177,23 @@ _radiuid_complete()
         COMPREPLY=( $(compgen -W "<username> -" -- $cur) )
       fi
     fi
+    if [ "$prev3" == "munge" ]; then
+      if [ "$prev" == "set-variable" ]; then
+        COMPREPLY=( $(compgen -W "- <variable-name>" -- $cur) )
+      fi
+    fi
+    if [ "$prev3" == "munge" ]; then
+      if [ "$prev" == "assemble" ]; then
+        COMPREPLY=( $(compgen -W "- <variable-name>" -- $cur) )
+      fi
+    fi
+    if [ "$prev3" == "munge" ]; then
+      if [ "$prev" == "match" ]; then
+        COMPREPLY=( $(compgen -W "any <regex-pattern>" -- $cur) )
+      fi
+    fi
   elif [ $COMP_CWORD -eq 6 ]; then
+    prev2=${COMP_WORDS[COMP_CWORD-2]}
     prev4=${COMP_WORDS[COMP_CWORD-4]}
     prev5=${COMP_WORDS[COMP_CWORD-5]}
     if [ "$prev4" == "mappings" ]; then
@@ -2169,6 +2206,20 @@ _radiuid_complete()
     if [ "$prev4" == "target" ]; then
       if [ "$prev5" == "set" ]; then
         COMPREPLY=( $(compgen -W "username password version" -- $cur) )
+      fi
+    fi
+    if [ "$prev4" == "munge" ]; then
+      if [ "$prev5" == "set" ]; then
+        if [ "$prev2" == "assemble" ]; then
+          COMPREPLY=( $(compgen -W "- <variable-name>" -- $cur) )
+        fi
+      fi
+    fi
+    if [ "$prev4" == "munge" ]; then
+      if [ "$prev5" == "set" ]; then
+        if [ "$prev2" == "set-variable" ]; then
+          COMPREPLY=( $(compgen -W "from-match from-string" -- $cur) )
+        fi
       fi
     fi
   elif [ $COMP_CWORD -eq 8 ]; then
@@ -2222,6 +2273,12 @@ _radiuid_complete()
         ;;
       version)
         COMPREPLY=( $(compgen -W "<pan-os-version> -" -- $cur) )
+        ;;
+      from-match)
+        COMPREPLY=( $(compgen -W "<regex-pattern> -" -- $cur) )
+        ;;
+      from-string)
+        COMPREPLY=( $(compgen -W "<string> -" -- $cur) )
         ;;
       *)
         ;;
@@ -3324,6 +3381,11 @@ class command_line_interpreter(object):
 					print self.ui.color("\nAllowed complex actions are 'set-variable', and 'assemble'\n\n", self.ui.red)
 					print "\n\n###### Acceptable actions for this step number: ######\n"
 					print "\n\n - set munge "+sys.argv[3]+" (accept | allow | assemble | discard | set-variable) [parameters]\n\n"
+				elif stepnum == "0" and sys.argv[4] != "match":
+					print self.ui.color("\n\nA rule's '0' step (X.0) must be a match statement (ie: set munge 1.0 match \"[a-z]+$\")\n", self.ui.red)
+					print self.ui.color("The rule's match statement is used to match a certain input and activate processing of the rule\n\n", self.ui.red)
+					print "\n\n###### Acceptable actions for this step number: ######\n"
+					print "\n\n - set munge "+sys.argv[3]+" match (any | <regex pattern>)\n\n"
 				else:
 					###############################
 					######## PROCESS INPUT ########
@@ -3580,7 +3642,7 @@ class command_line_interpreter(object):
 			itemexists = False
 			if len(sys.argv) >= 4:
 				rulelist = []
-				steplist = []
+				steplist = ['all']
 				try:
 					for rulename in configdict['globalsettings']['munge'].keys():
 						rulelist.append(rulename)
@@ -3604,7 +3666,7 @@ class command_line_interpreter(object):
 				else:
 					print "\n" + self.ui.color(time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + "****************ERROR: That rule does not exist****************\n", self.ui.red)
 				if itemexists:
-					if len(sys.argv) == 4:
+					if len(sys.argv) > 4 and sys.argv[4] == "all":
 						print "\n\n"
 						print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " +"****************Removing munge "+ rule + "****************\n"
 						self.filemgmt.munge_config({'clear': rule})
@@ -3616,8 +3678,12 @@ class command_line_interpreter(object):
 						self.filemgmt.munge_config({'clear': {rule: step}})
 						print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " +"****************Writing config change to: "+ configfile + "****************\n"
 						self.filemgmt.save_config()
-					print "\n"
-					print self.ui.color("Success!", self.ui.green)
+					else:
+						itemexists = False
+						print "\n" + self.ui.color(time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + "****************ERROR: Missing <step> or 'all' term after rule name****************\n", self.ui.red)
+					if itemexists:
+						print "\n"
+						print self.ui.color("Success!", self.ui.green)
 				else:
 					print "\n"
 					print self.ui.color("Something Went Wrong!", self.ui.red)
