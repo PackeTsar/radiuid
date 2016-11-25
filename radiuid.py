@@ -1,6 +1,6 @@
 #!/usr/bin/python
 
-#####        RadiUID Server v2.1.0         #####
+#####        RadiUID Server v2.2.0         #####
 #####       Written by John W Kerns        #####
 #####      http://blog.packetsar.com       #####
 ##### https://github.com/PackeTsar/radiuid #####
@@ -17,7 +17,7 @@ import platform
 import xml.etree.ElementTree as ElementTree
 
 ##### Inform RadiUID version here #####
-version = "2.1.0"
+version = "dev2.2.0"
 
 ##### Set some internal settings #####
 etcconfigfile = '/etc/radiuid/radiuid.conf'
@@ -2166,7 +2166,12 @@ _radiuid_complete()
     fi
     if [ "$prev2" == "munge" ]; then
       if [ "$prev3" == "set" ]; then
-        COMPREPLY=( $(compgen -W "match accept allow assemble discard set-variable" -- $cur) )
+        IFS='.' read -a myarray <<< "$prev"
+        if [ "${myarray[1]}" == "0" ]; then
+          COMPREPLY=( $(compgen -W "match" -- $cur) )
+        elif [ "${myarray[1]}" != "0" ]; then
+          COMPREPLY=( $(compgen -W "accept allow assemble discard set-variable" -- $cur) )
+        fi
       fi
     fi
   elif [ $COMP_CWORD -eq 5 ]; then
