@@ -1742,13 +1742,17 @@ class palo_alto_firewall_interaction(object):
 				self.pull_api_key(mode, targetlist)
 	##### Accepts IP-to-User mappings as a dict in, uses the xml-formatter and xml-assembler to generate a list of URLS, then opens those URLs and logs response codes  #####
 	def push_uids(self, ipanduserdict, filelist):
+		print ipanduserdict
 		if tomunge:
 			modipanduserdict = {}
 			for entry in ipanduserdict:
 				try:
 					newuname = self.dpr.munge([ipanduserdict[entry]], mungeconfig)[0]
 					modipanduserdict.update({entry: newuname})
-					self.filemgmt.logwriter("normal", "Munge Engine modified input: "+self.ui.color(ipanduserdict[entry], self.ui.cyan)+"    into: "+self.ui.color(newuname, self.ui.cyan))
+					if newuname == ipanduserdict[entry]:
+						self.filemgmt.logwriter("normal", "Munge Engine left input: "+self.ui.color(ipanduserdict[entry], self.ui.cyan)+" alone")
+					else:
+						self.filemgmt.logwriter("normal", "Munge Engine modified input: "+self.ui.color(ipanduserdict[entry], self.ui.cyan)+"    into: "+self.ui.color(newuname, self.ui.cyan))
 				except IndexError:
 					self.filemgmt.logwriter("normal", "Munge Engine discarded input: "+self.ui.color(ipanduserdict[entry], self.ui.cyan))
 		else:
