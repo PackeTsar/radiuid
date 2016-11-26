@@ -1581,11 +1581,17 @@ class data_processing(object):
 									matches = True  # Notify that the input matches
 									variablevalue = inputresult  # And set the value to the full input string
 								else:  # Otherwise
-									if re.findall(currentstep['from-match'], inputresult)[0] != '':  # If regex returns anything but an empty string
-										variablevalue = re.findall(currentstep['from-match'], inputresult)[0]  # Set the value as the returned string
+									try:  # Try a regex search for the match
+										if re.findall(currentstep['from-match'], inputresult)[0] != '':  # If regex returns anything but an empty string
+											variablevalue = re.findall(currentstep['from-match'], inputresult)[0]  # Set the value as the returned string
+									except IndexError:  # If regex returns nothing
+										variablevalue = ''  # Set an empty string for the variable
 							variables.update({variablename: variablevalue})  # And update the dictionary of variables
 							if debug:  # If we are debugging
-								print "\t\t\t----- Setting variable %s as value %s -----" % (str(variablename), str(variablevalue))  # Notify of variable name and new value
+								if variablevalue == '':
+									print "\t\t\t----- No match from regex, setting an empty string value for variable %s -----" % (str(variablename))  # Notify of variable name and new value
+								else:
+									print "\t\t\t----- Setting variable %s as value %s -----" % (str(variablename), str(variablevalue))  # Notify of variable name and new value
 								print "\t\t\t----- Current variables in this rule: %s -----" % str(variables)  # Print out current variables
 						elif currentstep.keys()[0] == 'assemble':  # If the current step reassembles the input from some variables
 							variableindex = currentstep['assemble'].keys()  # Grab the list of config elements assigned to the variable names
