@@ -1187,7 +1187,7 @@ class file_management(object):
 							result.append('set munge '+rulenum+'.0 match "'+step.text+'"')
 					else:
 						stepnum = step.tag.replace("step", "")
-						simpleactions = ['accept', 'allow', 'discard']
+						simpleactions = ['accept', 'continue', 'discard']
 						for entry in list(step):
 							if entry.tag in simpleactions:
 								result.append('set munge '+rulenum+'.'+stepnum+' '+entry.tag)
@@ -1560,11 +1560,11 @@ class data_processing(object):
 							if debug:  # If we are debugging
 								print "\t\t\t----- 'Accept' interrupt detected and set, breaking out of rule-set and adding input to result -----"  # Notify debug
 							break  # Break out of the current step without continuing
-						### NOTE: An 'allow' stops processing on the current rule and starts processing on the next rule (if one exists) ###
-						elif currentstep.keys()[0] == 'allow':  # If the step is an 'allow'
-							interrupt = "allow"  # Set the interrupt to 'allow'
+						### NOTE: An 'continue' stops processing on the current rule and starts processing on the next rule (if one exists) ###
+						elif currentstep.keys()[0] == 'continue':  # If the step is an 'continue'
+							interrupt = "continue"  # Set the interrupt to 'continue'
 							if debug:  # If we are debugging
-								print "\t\t\t----- 'Allow' interrupt detected and set, breaking out of current rule and continuing with parsing -----"  # Notify debug
+								print "\t\t\t----- 'Continue' interrupt detected and set, breaking out of current rule and continuing with parsing -----"  # Notify debug
 							break  # Break out of the current step without continuing
 						### NOTE: A 'discard' stops all processing and discards the current input ###
 						elif currentstep.keys()[0] == 'discard':  # If the step is an 'discard'
@@ -2327,7 +2327,7 @@ _radiuid_complete()
         if [ "${myarray[1]}" == "0" ]; then
           COMPREPLY=( $(compgen -W "match" -- $cur) )
         elif [ "${myarray[1]}" != "0" ]; then
-          COMPREPLY=( $(compgen -W "accept allow assemble discard set-variable" -- $cur) )
+          COMPREPLY=( $(compgen -W "accept continue assemble discard set-variable" -- $cur) )
         fi
       fi
     fi
@@ -3122,7 +3122,7 @@ class command_line_interpreter(object):
 			print "                                        |              set-variable <variable name> (from-match | from-string) <regex or string>"
 			print "                                        |              assemble <variable name> <variable name> ... "
 			print "                                        |              accept"
-			print "                                        |              allow"
+			print "                                        |              continue"
 			print "                                        |              discard"
 			print "                                        |              "
 			print "                                        |  Examples:   The below rule-set would allow through any user with the domain \"safedomain.com\" in their User-ID,"
@@ -3457,7 +3457,7 @@ class command_line_interpreter(object):
 						"\n                                        |              set-variable <variable name> (from-match | from-string) <regex or string>"\
 						"\n                                        |              assemble <variable name> <variable name> ... "\
 						"\n                                        |              accept"\
-						"\n                                        |              allow"\
+						"\n                                        |              continue"\
 						"\n                                        |              discard"\
 						"\n                                        |              "\
 						"\n                                        |  Examples:   The below rule-set would allow through any user with the domain \"safedomain.com\" in their User-ID,"\
@@ -3499,13 +3499,13 @@ class command_line_interpreter(object):
 				keepgoing = False
 			### INTERCEPT BAD OR INCOMPLETE INPUTS AND SHOW HELPERS ###
 			if keepgoing:
-				acceptableactions = ['accept', 'allow', 'discard', 'set-variable', 'assemble']
+				acceptableactions = ['accept', 'continue', 'discard', 'set-variable', 'assemble']
 				if len(sys.argv) == 4 and sys.argv[3] != "debug":
 					if stepnum == "0":
 						print "\n\n - set munge "+sys.argv[3]+" match (any | <regex pattern>)\n\n"
 						print "        NOTE: The match statement on the '0' step is used to determine when to process the rule\n\n"
 					else:
-						print "\n\n - set munge "+sys.argv[3]+" (accept | allow | assemble | discard | set-variable) [parameters]\n\n"
+						print "\n\n - set munge "+sys.argv[3]+" (accept | continue | assemble | discard | set-variable) [parameters]\n\n"
 				elif len(sys.argv) == 5 and sys.argv[4] == "set-variable" and stepnum != "0":
 					print "\n\n - set munge "+sys.argv[3]+" set-variable <variable name> (from-match | from-string) <regex or string>\n\n"
 				elif len(sys.argv) == 6 and sys.argv[4] == "set-variable" and stepnum != "0":
@@ -3531,12 +3531,12 @@ class command_line_interpreter(object):
 					print self.ui.color("\n\nOnly the rule's '0' step (X.0) is allowed to be a match statement (ie: set munge 1.0 match '[a-z]+')\n", self.ui.red)
 					print self.ui.color("The rule's match statement is used to match a certain input and activate processing of the rule\n\n", self.ui.red)
 					print "\n\n###### Acceptable actions for this step number: ######\n"
-					print " - set munge "+sys.argv[3]+" (accept | allow | assemble | discard | set-variable) [parameters]\n\n"
+					print " - set munge "+sys.argv[3]+" (accept | continue | assemble | discard | set-variable) [parameters]\n\n"
 				elif len(sys.argv) == 6 and sys.argv[4] == "match" and stepnum != "0":
 					print self.ui.color("\n\nOnly the rule's '0' step (X.0) is allowed to be a match statement (ie: set munge 1.0 match '[a-z]+')\n", self.ui.red)
 					print self.ui.color("The rule's match statement is used to match a certain input and activate processing of the rule\n\n", self.ui.red)
 					print "\n\n###### Acceptable actions for this step number: ######\n"
-					print " - set munge "+sys.argv[3]+" (accept | allow | assemble | discard | set-variable) [parameters]\n\n"
+					print " - set munge "+sys.argv[3]+" (accept | continue | assemble | discard | set-variable) [parameters]\n\n"
 				elif len(sys.argv) == 5 and sys.argv[4] != "match" and stepnum == "0":
 					print self.ui.color("\n\nA rule's '0' step (X.0) must be a match statement (ie: set munge 1.0 match \"[a-z]+$\")\n", self.ui.red)
 					print self.ui.color("The rule's match statement is used to match a certain input and activate processing of the rule\n\n", self.ui.red)
@@ -3548,10 +3548,10 @@ class command_line_interpreter(object):
 					print "\n\n###### Acceptable actions for this step number: ######\n"
 					print "\n\n - set munge "+sys.argv[3]+" match (any | <regex pattern>)\n\n"
 				elif len(sys.argv) == 5 and stepnum != "0" and sys.argv[4] not in acceptableactions:
-					print self.ui.color("\n\nUnrecognized action. Allowed simple actions are 'accept', 'allow', and 'discard'", self.ui.red)
+					print self.ui.color("\n\nUnrecognized action. Allowed simple actions are 'accept', 'continue', and 'discard'", self.ui.red)
 					print self.ui.color("\nAllowed complex actions are 'set-variable', and 'assemble'\n\n", self.ui.red)
 					print "\n\n###### Acceptable actions for this step number: ######\n"
-					print "\n\n - set munge "+sys.argv[3]+" (accept | allow | assemble | discard | set-variable) [parameters]\n\n"
+					print "\n\n - set munge "+sys.argv[3]+" (accept | continue | assemble | discard | set-variable) [parameters]\n\n"
 				elif stepnum == "0" and sys.argv[4] != "match":
 					print self.ui.color("\n\nA rule's '0' step (X.0) must be a match statement (ie: set munge 1.0 match \"[a-z]+$\")\n", self.ui.red)
 					print self.ui.color("The rule's match statement is used to match a certain input and activate processing of the rule\n\n", self.ui.red)
