@@ -1653,7 +1653,10 @@ class palo_alto_firewall_interaction(object):
 				ipaddresses = ipanduserdict.keys()
 				for ip in ipaddresses:
 					username = ipanduserdict[ip]
-					entry = '<entry name="%s\%s" ip="%s" timeout="%s">' % (userdomain, username, ip, timeout)
+					if userdomain == "none":
+						entry = '<entry name="%s" ip="%s" timeout="%s">' % (username, ip, timeout)
+					else:
+						entry = '<entry name="%s\%s" ip="%s" timeout="%s">' % (userdomain, username, ip, timeout)
 					xmldict[hostname].append(entry)
 					entry = ''
 			else:
@@ -2226,7 +2229,7 @@ _radiuid_complete()
         ;;
       userdomain)
         if [ "$prev2" == "set" ]; then
-          COMPREPLY=( $(compgen -W "<domain-name> -" -- $cur) )
+          COMPREPLY=( $(compgen -W "<domain-name> none" -- $cur) )
         fi
         ;;
       timeout)
@@ -3076,7 +3079,7 @@ class command_line_interpreter(object):
 			print "\n - set logfile <file path>                       |     Set the RadiUID logfile path"
 			print " - set radiuslogpath <directory path>            |     Set the path used to find FreeRADIUS accounting log files"
 			print " - set maxloglines <number-of-lines>             |     Set the max number of lines allowed in the log ('0' turns circular logging off)"
-			print " - set userdomain <domain name>                  |     Set the domain name prepended to User-ID mappings"
+			print " - set userdomain (none | <domain name>)         |     Set the domain name prepended to User-ID mappings"
 			print " - set timeout <minutes>                         |     Set the timeout (in minutes) for User-ID mappings sent to the firewall targets"
 			print " - set client <ip-block> <shared-secret>         |     Set configuration elements for RADIUS clients to send accounting data FreeRADIUS"
 			print " - set munge <rule>.<step> [parameters]          |     Set munge (string processing rules) for User-IDs"
@@ -3089,7 +3092,8 @@ class command_line_interpreter(object):
 			print "\n - set maxloglines <number-of-lines>  |  Examples: 'set maxloglines 1000'   (circular logging enabled at 1000 lines)"
 			print "                                      |            'set maxloglines 0'      (circular logging disabled)"
 		elif arguments == "set userdomain" or arguments == "set userdomain ?":
-			print "\n - set userdomain <domain name>  |  Example: 'set userdomain domain.com'\n"
+			print "\n - set userdomain (none | <domain name>)  |  Examples: 'set userdomain domain.com'"
+			print "                                          |            'set userdomain none'\n"
 		elif arguments == "set timeout" or arguments == "set timeout ?":
 			print "\n - set timeout <minutes>  |  Example: 'set timeout 60'\n"
 		elif arguments == "set client" or arguments == "set client ?":
@@ -3229,9 +3233,10 @@ class command_line_interpreter(object):
 						elif message.keys()[0] == "WARNING":
 							print "\n" + self.ui.color(time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + "****************" + message.keys()[0] + ": " + message.values()[0] + "****************\n", self.ui.yellow)
 				elif domaincheck["status"] == "pass":
-					for message in domaincheck["messages"]:
-						if message.keys()[0] == "WARNING":
-							print "\n" + self.ui.color(time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + "****************" + message.keys()[0] + ": " + message.values()[0] + "****************\n", self.ui.yellow)
+					if sys.argv[3] != "none":
+						for message in domaincheck["messages"]:
+							if message.keys()[0] == "WARNING":
+								print "\n" + self.ui.color(time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + "****************" + message.keys()[0] + ": " + message.values()[0] + "****************\n", self.ui.yellow)
 					self.filemgmt.change_config_item('userdomain', sys.argv[3])
 					print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " +"****************Writing config change to: "+ configfile + "****************\n"
 					self.filemgmt.save_config()
@@ -4396,7 +4401,7 @@ class command_line_interpreter(object):
 			print " - set logfile                                    |  Set the RadiUID logfile path"
 			print " - set radiuslogpath                              |  Set the path used to find FreeRADIUS accounting log files"
 			print " - set maxloglines <number-of-lines>              |  Set the max number of lines allowed in the log ('0' turns circular logging off)"
-			print " - set userdomain                                 |  Set the domain name prepended to User-ID mappings"
+			print " - set userdomain (none | <domain name>)          |  Set the domain name prepended to User-ID mappings"
 			print " - set timeout                                    |  Set the timeout (in minutes) for User-ID mappings sent to the firewall targets"
 			print " - set client <ip-block> <shared-secret>          |  Set configuration elements for RADIUS clients to send accounting data FreeRADIUS"
 			print " - set munge <rule>.<step> [parameters]           |  Set munge (string processing rules) for User-IDs"
