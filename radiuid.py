@@ -672,6 +672,8 @@ class file_management(object):
 		global usernameterm
 		global delineatorterm
 		global targets
+		global mungeconfig
+		global tomunge
 		if mode == 'noisy':# to be used to initialize the RadiUID main app
 			##### Suck config values into a dictionary #####
 			configdict = self.tinyxmltodict(self.root)['config']
@@ -702,6 +704,12 @@ class file_management(object):
 					targets = [targets]
 			except KeyError:
 				print self.ui.color(time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + "****************WARNING: Could not import some important settings****************\n", self.ui.yellow)
+			try:
+				mungeconfig = configdict['globalsettings']['munge']
+				tomunge = True
+				print self.ui.color(time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + "***********SUCCESSFULLY IMPORTED THE MUNGE CONFIGURATION***********\n", self.ui.green)
+			except KeyError:
+				tomunge = False
 		if mode == 'quiet':
 			##### Suck config values into a dictionary #####
 			configdict = self.tinyxmltodict(self.root)['config']
@@ -721,6 +729,11 @@ class file_management(object):
 					targets = [targets]
 			except KeyError:
 				return "WARNING: Could not import some important settings"
+			try:
+				mungeconfig = configdict['globalsettings']['munge']
+				tomunge = True
+			except KeyError:
+				tomunge = False
 	##### Show formatted configuration item #####
 	def show_config_item(self, mainmode, submode, itemname):
 		if mainmode == "xml":
@@ -782,6 +795,10 @@ class file_management(object):
 				for client in clients:
 					setclientlist.append(" set client " + client['IP Block'] + " " + client['Shared Secret'])
 			#### Compile set commands for uninstalled and installed CLI format ####
+			setmunge = ""
+			if tomunge:
+				for line in self.show_munge_config_set():
+					setmunge += prepend + " " + line + "\n!\n"
 			settargets = ""
 			if rawtargetsetlist:
 				for settarget in rawtargetsetlist:
@@ -800,6 +817,8 @@ class file_management(object):
 			textconfig = ""
 			textconfig += header + "!\n" + setcommands + "!\n"
 			textconfig += prepend + " clear client all\n!\n" + setclients + "!\n"
+			if tomunge:
+				textconfig += prepend + " clear munge all\n!\n" + setmunge + "!\n"
 			textconfig += prepend + " clear target all\n!\n" + settargets
 			textconfig += "!\n!\n###########################################################\n"
 			textconfig += "###########################################################\n"
@@ -980,7 +999,7 @@ class file_management(object):
 				newnode.text = dictdata[element] # And set the text of the element as the string value
 			elif type(dictdata[element]) == type({}): # If this value is a dictionary
 				newnode = ElementTree.SubElement(node, element) # Create a new XML subelement named by the dict key
-				ElementTree.SubElement(newnode, tinydicttoxml_recurse(newnode, dictdata[element])) # And re-run the method with dict value as input
+				ElementTree.SubElement(newnode, self.tinydicttoxml_recurse(newnode, dictdata[element])) # And re-run the method with dict value as input
 			elif type(dictdata[element]) == type([]): # If this value is a list
 				for entry in dictdata[element]: # For each entry in the list
 					if type(entry) == type({}): # If the list entry is a dict
@@ -993,7 +1012,7 @@ class file_management(object):
 		if type(dictdata) != type({}) or len(list(dictdata)) > 1: # If the input is not a dict or has multiple keys
 			dictdata = {"root": dictdata} # Nest it in a new dictionary with one key named 'root'
 		xmlroot = ElementTree.Element(list(dictdata)[0]) # Create the root element using the dict key as the tag
-		tinydicttoxml_recurse(xmlroot, dictdata[list(dictdata)[0]]) # Run the recursive method to iterate the dictionary
+		self.tinydicttoxml_recurse(xmlroot, dictdata[list(dictdata)[0]]) # Run the recursive method to iterate the dictionary
 		return ElementTree.tostring(xmlroot).decode('UTF-8') # Then return a string output of the assembled XML object
 	def formatxml_recurse(self, node):
 		global currentindent,formatroot # Set indent length and text as global variables 
@@ -1131,6 +1150,83 @@ class file_management(object):
 		for nonum in nonums:
 			result.append(nonum)
 		return result
+	def show_munge_config_set(self):
+		result = []
+		for element in list(self.root):  # For each XML element in the config root
+			if element.tag == 'globalsettings':  # If its tag is 'globalsettings'
+				globalsettings = element  # Mount that element as the globalsettings variable
+		mungeexists = False
+		for element in list(globalsettings):
+			if element.tag == 'munge':
+				munge = element
+				mungeexists = True
+		if not mungeexists:
+			return []
+		else:
+			for rule in list(munge):
+				rulenum = rule.tag.replace("rule", "")
+				for step in rule:
+					setvar = False
+					if step.tag == 'match':
+						if len(list(step)) > 0:
+							result.append("set munge "+rulenum+".0 match any")
+						else:
+							if "\\" in step.text:  # Adjust backslashes so it presents correctly as a set command
+								regexlist = list(step.text)
+								newregex = ""
+								index = 0
+								for each in regexlist:
+									if each == "\\":
+										break
+									else:
+										index += 1
+								regexlist[index] = "\\\\"
+								for each in regexlist:
+									newregex += each
+								step.text = newregex
+							result.append('set munge '+rulenum+'.0 match "'+step.text+'"')
+					else:
+						stepnum = step.tag.replace("step", "")
+						simpleactions = ['accept', 'allow', 'discard']
+						for entry in list(step):
+							if entry.tag in simpleactions:
+								result.append('set munge '+rulenum+'.'+stepnum+' '+entry.tag)
+							else:
+								if 'from-' in entry.tag:
+									setvar = True
+									sourcetype = entry.tag
+									source = entry.text
+									if "\\" in source:  # Adjust backslashes so it presents correctly as a set command
+										regexlist = list(source)
+										newregex = ""
+										index = 0
+										for each in regexlist:
+											if each == "\\":
+												break
+											else:
+												index += 1
+										regexlist[index] = "\\\\"
+										for each in regexlist:
+											newregex += each
+										source = newregex
+								elif 'set-variable' in entry.tag:
+									setvar = True
+									var = entry.text
+								elif 'assemble' in entry.tag:
+									vardict = {}
+									varstring = ""
+									for variable in list(entry):
+										vardict.update({variable.tag: variable.text})
+									for var in self.sortlist(vardict.keys()):
+										varstring += " "+vardict[var]
+									result.append('set munge '+rulenum+'.'+stepnum+' assemble'+varstring)
+									
+					if setvar:
+						result.append('set munge '+rulenum+'.'+stepnum+' set-variable '+var+' '+sourcetype+' "'+source+'"')
+									
+							
+		return result
+							
 	def munge_config(self, input):
 		result = {'status': 'working', 'messages': []} # Initialize Result Status Information
 		##### Mount the globalsettings element #####
@@ -1187,31 +1283,35 @@ class file_management(object):
 			result['messages'].append({'OK': "Config to build: "+str(currentconfig)})
 			munge = ElementTree.SubElement(globalsettings, 'munge')  # Mount a new munge element in the config
 			rulelist = self.sortlist(currentconfig['munge'].keys())  # Create a sorted list of rule names
+			print rulelist
 			for rulename in rulelist:
-				rule = ElementTree.SubElement(munge, rulename)
-				### Set the rules match statement ###
-				match = ElementTree.SubElement(rule, 'match')
-				if type(currentconfig['munge'][rulename]['match']) == type({}):
-					any = ElementTree.SubElement(match, 'any')
+				if rulename == 'debug':
+					rule = ElementTree.SubElement(munge, rulename)
 				else:
-					match.text = currentconfig['munge'][rulename]['match']
-				### Walk through rule steps ###
-				steplist = self.sortlist(currentconfig['munge'][rulename].keys())  # Create a sorted list of step names
-				for stepname in steplist:
-					if 'step' in stepname:
-						step = ElementTree.SubElement(rule, stepname)
-						### Set the parameters of this step ###
-						steprules = currentconfig['munge'][rulename][stepname]
-						for item in steprules:
-							if item == "assemble":
-								assemblevars = currentconfig['munge'][rulename][stepname][item]
-								assemble = ElementTree.SubElement(step, item)
-								for var in assemblevars:
-									varelement = ElementTree.SubElement(assemble, var)
-									varelement.text = currentconfig['munge'][rulename][stepname][item][var]
-							else:
-								srule = ElementTree.SubElement(step, item)
-								srule.text = currentconfig['munge'][rulename][stepname][item]
+					rule = ElementTree.SubElement(munge, rulename)
+					### Set the rules match statement ###
+					match = ElementTree.SubElement(rule, 'match')
+					if type(currentconfig['munge'][rulename]['match']) == type({}):
+						any = ElementTree.SubElement(match, 'any')
+					else:
+						match.text = currentconfig['munge'][rulename]['match']
+					### Walk through rule steps ###
+					steplist = self.sortlist(currentconfig['munge'][rulename].keys())  # Create a sorted list of step names
+					for stepname in steplist:
+						if 'step' in stepname:
+							step = ElementTree.SubElement(rule, stepname)
+							### Set the parameters of this step ###
+							steprules = currentconfig['munge'][rulename][stepname]
+							for item in steprules:
+								if item == "assemble":
+									assemblevars = currentconfig['munge'][rulename][stepname][item]
+									assemble = ElementTree.SubElement(step, item)
+									for var in assemblevars:
+										varelement = ElementTree.SubElement(assemble, var)
+										varelement.text = currentconfig['munge'][rulename][stepname][item][var]
+								else:
+									srule = ElementTree.SubElement(step, item)
+									srule.text = currentconfig['munge'][rulename][stepname][item]
 		return result
 
 
@@ -1318,14 +1418,14 @@ class data_processing(object):
 		for uidset in uidxmldict:
 			precordict.update({uidset: {}})
 			currentuidset = ElementTree.fromstring(uidxmldict[uidset])
-			if type(self.filemgmt.tinyxmltodict(currentuidset)['result']) != type({}) or "<count>0</count>" in uidxmldict[uidset]:
+			if type(self.filemgmt.tinyxmltodict(currentuidset)['response']['result']) != type({}) or "<count>0</count>" in uidxmldict[uidset]:
 				none = None
 			else:
-				if type(self.filemgmt.tinyxmltodict(currentuidset)['result']['entry']) != type([]):
-					uidentry = self.filemgmt.tinyxmltodict(currentuidset)['result']['entry']
+				if type(self.filemgmt.tinyxmltodict(currentuidset)['response']['result']['entry']) != type([]):
+					uidentry = self.filemgmt.tinyxmltodict(currentuidset)['response']['result']['entry']
 					precordict[uidset].update({uidentry['ip']: uidentry['user']})
 				else:
-					for uidentry in self.filemgmt.tinyxmltodict(currentuidset)['result']['entry']:
+					for uidentry in self.filemgmt.tinyxmltodict(currentuidset)['response']['result']['entry']:
 						precordict[uidset].update({uidentry['ip']: uidentry['user']})
 		###### Replace Fw Names with IDs and create master UID list #######
 		fwidlist = []
@@ -1377,13 +1477,34 @@ class data_processing(object):
 		result += "\n\n\n\n\n\n################ CONSISTENCY TABLE ################\n\n"
 		result += self.ui.make_table(columnorder, corlist)
 		return result
+	##### Sort string values in a list by the numerical values in those strings #####
+	##### Input is a list of strings, each string having numbers, output is a sorted list #####
+	##### Used to sort index values for the munge method #####
+	def sortlist(self, list):
+		nums = []  # Initialize a list for the numbers
+		mappings = {}  # Initialize a mapping KV store for numbers mapped to the original strings
+		result = []  # Initialize the result
+		nonums = []  # Initialize a list for entries with no numbers
+		for entry in list:  # For each entry in the list of strings
+			if len(re.findall('[0-9]+', entry)) != 0:  # If there are numbers in this entry
+				num = int(re.search('[0-9]+', entry).group(0))  # Grab the first set of contiguous digits as a value
+				mappings.update({num: entry})  # Enter that integer as a key in the KV store with the original string as the value
+				nums.append(int(num))  # Enter that integer in a list to be sorted later
+			else:  # If there are no numbers in this entry
+				nonums.append(entry)  # Append it to the list of entries with no numbers
+		nums.sort()  # Sort the list of integers by their decimal value
+		for num in nums:  # For each integer in the list of numbers
+			result.append(mappings[num])  # Look up its mapping and put the original value in the result list
+		for nonum in nonums:
+			result.append(nonum)
+		return result
 	##### Munge (manipulate) and filter strings from a list based on a rule set #####
 	##### Input is a list of strings and a dictionary-based rule-set #####
 	##### Output is a modified list of strings which have been manipulated based on the rule-set #####
 	def munge(self, inputdatalist, mungeruledict):
 		result = []  # Initialize the result list
 		ruleindex = {'rules': []}  # Initialize the index of rules. Used to order the rules according to their values
-		if 'debug' in mungeruledict:  # If the 'debug' config element is present in the rule-set
+		if 'debug' in mungeruledict.keys():  # If the 'debug' config element is present in the rule-set
 			debug = True  # Set the debug variable as true
 		else:  # Otherwise
 			debug = False  # Set the debug variable as false
@@ -1394,8 +1515,8 @@ class data_processing(object):
 				for step in mungeruledict[rule]:  # For each step in this rule
 					if 'step' in step:  # If the term 'step' is in the key
 						ruleindex[rule].append(step)  # Add the step to the list of steps under the current rule
-				ruleindex[rule] = sortlist(ruleindex[rule])  # After all steps have been added to the rule, sort them
-		ruleindex['rules'] = sortlist(ruleindex['rules'])  # After all rules have been added to the index, sort them
+				ruleindex[rule] = self.sortlist(ruleindex[rule])  # After all steps have been added to the rule, sort them
+		ruleindex['rules'] = self.sortlist(ruleindex['rules'])  # After all rules have been added to the index, sort them
 		if debug:  # If we are debugging
 			print "\n\n----- Sorted index of rules and steps: %s -----" % str(ruleindex)  # Print the index of rules and steps
 		for input in inputdatalist:  # For each input in the input list
@@ -1413,7 +1534,7 @@ class data_processing(object):
 						break  # And break the loop for this rule so the modified input can be added to the result list
 				currentrule = mungeruledict[rule]  # Pull the data for the current rule
 				if debug:  # If we are debugging
-					rulexml = formatxml(tinydicttoxml(currentrule))  # Convert the current rule to formatted XML
+					rulexml = self.filemgmt.formatxml(self.filemgmt.tinydicttoxml(currentrule))  # Convert the current rule to formatted XML
 					rulexml = rulexml.replace("\n", "\n\t\t\t")  # Indent the XML lines
 					rulexml = "\t\t\t" + rulexml  # Indent the first XML line
 					print "\t\t----- Loaded Rule: -----"  # Print a header for the XML rule
@@ -1468,7 +1589,7 @@ class data_processing(object):
 								print "\t\t\t----- Current variables in this rule: %s -----" % str(variables)  # Print out current variables
 						elif currentstep.keys()[0] == 'assemble':  # If the current step reassembles the input from some variables
 							variableindex = currentstep['assemble'].keys()  # Grab the list of config elements assigned to the variable names
-							variableindex = sortlist(variableindex)  # Sort the list of variable elements so we assemble them in the right order
+							variableindex = self.sortlist(variableindex)  # Sort the list of variable elements so we assemble them in the right order
 							if debug:  # If we are debugging
 								print "\t\t\t----- Assembling Variables: %s -----" % str(variableindex)  # Print list of variables for assembly
 							assembleresult = ''  # Initialize the result of the assembly process
@@ -1516,6 +1637,7 @@ class palo_alto_firewall_interaction(object):
 		##### Instantiate external object dependencies #####
 		self.ui = user_interface()
 		self.filemgmt = file_management() #push_uids uses flmgmt to remove files after push
+		self.dpr = data_processing()
 	#######################################################
 	#######         XML Processing Methods          #######
 	####### Used for PAN Interaction XML Generation #######
@@ -1530,7 +1652,8 @@ class palo_alto_firewall_interaction(object):
 				xmldict[hostname] = []
 				ipaddresses = ipanduserdict.keys()
 				for ip in ipaddresses:
-					entry = '<entry name="%s\%s" ip="%s" timeout="%s">' % (userdomain, ipanduserdict[ip], ip, timeout)
+					username = ipanduserdict[ip]
+					entry = '<entry name="%s\%s" ip="%s" timeout="%s">' % (userdomain, username, ip, timeout)
 					xmldict[hostname].append(entry)
 					entry = ''
 			else:
@@ -1616,15 +1739,26 @@ class palo_alto_firewall_interaction(object):
 				self.pull_api_key(mode, targetlist)
 	##### Accepts IP-to-User mappings as a dict in, uses the xml-formatter and xml-assembler to generate a list of URLS, then opens those URLs and logs response codes  #####
 	def push_uids(self, ipanduserdict, filelist):
-		xml_dict = self.xml_formatter_v67(ipanduserdict, targets)
+		if tomunge:
+			modipanduserdict = {}
+			for entry in ipanduserdict:
+				try:
+					newuname = self.dpr.munge([ipanduserdict[entry]], mungeconfig)[0]
+					modipanduserdict.update({entry: newuname})
+					self.filemgmt.logwriter("normal", "Munge Engine modified input: "+self.ui.color(ipanduserdict[entry], self.ui.cyan)+"    into: "+self.ui.color(newuname, self.ui.cyan))
+				except IndexError:
+					self.filemgmt.logwriter("normal", "Munge Engine discarded input: "+self.ui.color(ipanduserdict[entry], self.ui.cyan))
+		else:
+			modipanduserdict = ipanduserdict
+		xml_dict = self.xml_formatter_v67(modipanduserdict, targets)
 		urldict = self.xml_assembler_v67(xml_dict, targets)
 		for host in urldict:
 			numofcalls = len(urldict[host])
 			numofcallsorig = numofcalls
 			self.filemgmt.logwriter("normal", "Pushing the below IP : User mappings to " + host + " via " + str(numofcalls) + " API calls")
 			urllist = urldict[host]
-			for entry in ipanduserdict:
-				self.filemgmt.logwriter("normal", "IP Address: " + self.ui.color(entry, self.ui.cyan) + "\t\tUsername: " + self.ui.color(ipanduserdict[entry], self.ui.cyan))
+			for entry in modipanduserdict:
+				self.filemgmt.logwriter("normal", "IP Address: " + self.ui.color(entry, self.ui.cyan) + "\t\tUsername: " + self.ui.color(modipanduserdict[entry], self.ui.cyan))
 			for eachurl in urllist:
 				try:
 					try:
@@ -2037,7 +2171,7 @@ _radiuid_complete()
         COMPREPLY=( $(compgen -W "radiuid freeradius all" -- $cur) )
         ;;
       "request")
-        COMPREPLY=( $(compgen -W "xml-update auto-complete reinstall freeradius-install" -- $cur) )
+        COMPREPLY=( $(compgen -W "xml-update munge-test auto-complete reinstall freeradius-install" -- $cur) )
         ;;
       *)
         ;;
@@ -2055,6 +2189,11 @@ _radiuid_complete()
       reinstall)
         if [ "$prev2" == "request" ]; then
           COMPREPLY=( $(compgen -W "replace-config keep-config" -- $cur) )
+        fi
+        ;;
+      munge-test)
+        if [ "$prev2" == "request" ]; then
+          COMPREPLY=( $(compgen -W "- <string-to-parse>" -- $cur) )
         fi
         ;;
       client)
@@ -2162,6 +2301,11 @@ _radiuid_complete()
           local steps=$(for step in `radiuid munge-steps $prev`; do echo $step ; done)
           COMPREPLY=( $(compgen -W "${steps} all" -- $cur) )
         fi
+      fi
+    fi
+    if [ "$prev2" == "munge-test" ]; then
+      if [ "$prev3" == "request" ]; then
+        COMPREPLY=( $(compgen -W "<cr> debug" -- $cur) )
       fi
     fi
     if [ "$prev2" == "munge" ]; then
@@ -2726,6 +2870,8 @@ class command_line_interpreter(object):
 						print stepname
 			except KeyError:
 				None
+		elif arguments == "test":
+			print self.filemgmt.show_munge_config_set()
 		######################### INSTALL #############################
 		elif arguments == "install":
 			self.filemgmt.logwriter("quiet", "##### COMMAND '" + arguments + "' ISSUED FROM CLI BY USER '" + self.imum.currentuser()+ "' #####")
@@ -2914,10 +3060,10 @@ class command_line_interpreter(object):
 					for uidset in uidxmldict:
 						currentuidset = ElementTree.fromstring(uidxmldict[uidset])
 						print "************" + uidset + "************"
-						if type(self.filemgmt.tinyxmltodict(currentuidset)['result']) != type({}) or "<count>0</count>" in uidxmldict[uidset]:
+						if type(self.filemgmt.tinyxmltodict(currentuidset)['response']['result']) != type({}) or "<count>0</count>" in uidxmldict[uidset]:
 							print "\n" + self.ui.color("************No current mappings************", self.ui.yellow)
 						else:
-							print self.ui.make_table(["ip", "user",  'type', 'idle_timeout', 'timeout', 'vsys'], self.filemgmt.tinyxmltodict(currentuidset)['result']['entry'])
+							print self.ui.make_table(["ip", "user",  'type', 'idle_timeout', 'timeout', 'vsys'], self.filemgmt.tinyxmltodict(currentuidset)['response']['result']['entry'])
 						print "\n\n"
 			if pulluids == "yes":
 				print self.ui.color("Success!", self.ui.green)
@@ -3323,6 +3469,11 @@ class command_line_interpreter(object):
 					if len(stepnum) > 1 and stepnum[0] == "0":
 						print self.ui.color("\n\nNo leading zeros in step numbers dammit!\n\n", self.ui.red)
 						keepgoing = False
+				elif sys.argv[3] == 'debug':
+					configinput = {'debug': None}
+					self.filemgmt.munge_config(configinput)
+					self.filemgmt.save_config()
+					self.filemgmt.show_config_item('xml', "none", 'munge')
 				else:
 					print self.ui.color("\n\nRule and step numbers must be numerical and seperated by a period (ie: set munge 1.0 ...)\n\n", self.ui.red)
 					print helper
@@ -3334,7 +3485,7 @@ class command_line_interpreter(object):
 			### INTERCEPT BAD OR INCOMPLETE INPUTS AND SHOW HELPERS ###
 			if keepgoing:
 				acceptableactions = ['accept', 'allow', 'discard', 'set-variable', 'assemble']
-				if len(sys.argv) == 4:
+				if len(sys.argv) == 4 and sys.argv[3] != "debug":
 					if stepnum == "0":
 						print "\n\n - set munge "+sys.argv[3]+" match (any | <regex pattern>)\n\n"
 						print "        NOTE: The match statement on the '0' step is used to determine when to process the rule\n\n"
@@ -3446,9 +3597,9 @@ class command_line_interpreter(object):
 					print self.ui.color("#" * len(header), self.ui.magenta)
 		######################### PUSH #############################
 		elif arguments == "push" or arguments == "push ?":
-			print "\n - push (<hostname>:<vsys-id> | all) [parameters]  |  Parameters: (<username>, <ip address>)"
+			print "\n - push (<hostname>:<vsys-id> | all) [parameters]  |  Parameters: (<username>, <ip address>, bypass-munge)"
 			print "                                                   |              "
-			print "                                                   |  Examples:   'push 192.168.1.1:vsys1 administrator 10.0.0.1'"
+			print "                                                   |  Examples:   'push 192.168.1.1:vsys1 administrator 10.0.0.1 bypass-munge'"
 			print "                                                   |              'push pan1.domain.com:3 jsmith 172.30.50.100'"
 			print "                                                   |              'push all jsmith 172.30.50.100'\n"
 		elif self.cat_list(sys.argv[1:2]) == "push" and len(re.findall("[0-9A-Za-z]", sys.argv[2])) > 0:
@@ -3458,6 +3609,10 @@ class command_line_interpreter(object):
 			print self.ui.color("#" * len(header), self.ui.magenta)
 			keepgoing = "yes"
 			pushuser = "yes"
+			if len(sys.argv) > 5:
+				if sys.argv[5] == 'bypass-munge':
+					global tomunge
+					tomunge = False
 			##### Check target hostname against config and check for necessary parameters #####
 			if len(sys.argv[3:5]) != 2:
 				self.filemgmt.logwriter("cli", self.ui.color("********************* ERROR: Some parameters are missing. Use '", self.ui.red) + self.ui.color(runcmd + " push ?", self.ui.cyan) + self.ui.color("' to see proper use and examples.********************", self.ui.red))
@@ -4092,12 +4247,38 @@ class command_line_interpreter(object):
 		######################### REQUEST #############################
 		elif arguments == "request" or arguments == "request ?":
 			print "\n - request xml-update                                   |     Update the Python XML.etree modules (for compatibility on old Python versions)"
+			print " - request munge-test <string-to-parse> (debug)         |     Test and debug the Munge Engine using a provided string"
 			print " - request auto-complete                                |     Manually install the RadiUID BASH Auto-Completion feature"
 			print " - request freeradius-install                           |     Manually install the FreeRADIUS service for use by RadiUID"
 			print " - request reinstall (replace-config | keep-config)     |     Reinstall RadiUID with or without replacing the current RadiUID configuration\n"
 		elif arguments == "request reinstall" or arguments == "request reinstall ?":
 			print "\n - request reinstall replace-config                            |     Reinstall RadiUID and REPLACE current configuration with default configuration"
 			print " - request reinstall keep-config                               |     Reinstall RadiUID and KEEP current configuration with default configuration\n"
+		elif arguments == "request munge-test" or arguments == "request munge-test ?":
+			print "\n - request munge-test <string-to-parse> (debug)\n"
+		elif self.cat_list(sys.argv[1:3]) == "request munge-test" and re.findall("^[0-9A-Za-z]", sys.argv[3]) > 0:
+			if len(sys.argv) > 4:
+				if sys.argv[4] == 'debug':
+					try:
+						mungeconfig.update({'debug': None})
+					except NameError:
+						pass
+			header = "########################## MUNGE TEST ##########################"
+			print self.ui.color(header, self.ui.magenta)
+			print self.ui.color("#" * len(header), self.ui.magenta)
+			try:
+				returnedstring = self.dp.munge([sys.argv[3]], mungeconfig)[0]
+				print "\n\n"
+				print "String input from command line:  " + self.ui.color(sys.argv[3], self.ui.cyan)
+				print "\n"
+				print "String returned by Munge Engine: " + self.ui.color(returnedstring, self.ui.cyan)
+			except NameError:
+				print self.ui.color("\n\n********** NO MUNGE RULES CURRENTLY CONFIGURED! **********\n\n", self.ui.red)
+			except IndexError:
+				print self.ui.color("\n\nNo string returned by Munge Engine. It was discarded", self.ui.yellow)
+			print "\n\n"
+			print self.ui.color("#" * len(header), self.ui.magenta)
+			print self.ui.color("#" * len(header), self.ui.magenta)
 		elif arguments == "request xml-update":
 			header = "########################## XML ETREE UPDATE ##########################"
 			print self.ui.color(header, self.ui.magenta)
