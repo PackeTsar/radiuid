@@ -1192,7 +1192,11 @@ class file_management(object):
 							if entry.tag in simpleactions:
 								result.append('set munge '+rulenum+'.'+stepnum+' '+entry.tag)
 							else:
-								if 'from-' in entry.tag:
+								if 'from-match' in entry.tag and len(list(entry)) > 0:
+									setvar = True
+									sourcetype = entry.tag
+									source = "any"
+								elif 'from-' in entry.tag:
 									setvar = True
 									sourcetype = entry.tag
 									source = entry.text
@@ -1222,7 +1226,10 @@ class file_management(object):
 									result.append('set munge '+rulenum+'.'+stepnum+' assemble'+varstring)
 									
 					if setvar:
-						result.append('set munge '+rulenum+'.'+stepnum+' set-variable '+var+' '+sourcetype+' "'+source+'"')
+						if source == "any":
+							result.append('set munge '+rulenum+'.'+stepnum+' set-variable '+var+' '+sourcetype+' '+source)
+						else:
+							result.append('set munge '+rulenum+'.'+stepnum+' set-variable '+var+' '+sourcetype+' "'+source+'"')
 									
 							
 		return result
@@ -1309,6 +1316,9 @@ class file_management(object):
 									for var in assemblevars:
 										varelement = ElementTree.SubElement(assemble, var)
 										varelement.text = currentconfig['munge'][rulename][stepname][item][var]
+								elif item == "from-match" and type(currentconfig['munge'][rulename][stepname][item]) == type({}):  # If it is a 'from-match any'
+									srule = ElementTree.SubElement(step, item)
+									srule = ElementTree.SubElement(srule, 'any')
 								else:
 									srule = ElementTree.SubElement(step, item)
 									srule.text = currentconfig['munge'][rulename][stepname][item]
@@ -2437,7 +2447,7 @@ _radiuid_complete()
         COMPREPLY=( $(compgen -W "<pan-os-version> -" -- $cur) )
         ;;
       from-match)
-        COMPREPLY=( $(compgen -W "<regex-pattern> -" -- $cur) )
+        COMPREPLY=( $(compgen -W "<regex-pattern> any" -- $cur) )
         ;;
       from-string)
         COMPREPLY=( $(compgen -W "<string> -" -- $cur) )
@@ -3128,13 +3138,13 @@ class command_line_interpreter(object):
 			print "                                        |  Examples:   The below rule-set would allow through any user with the domain \"safedomain.com\" in their User-ID,"
 			print "                                        |              then it would append the domain \"dangerous.com\" to any others"
 			print "                                        |"
-			print "                                        |              'set munge 1.0 match \".*safedomain.com.*\""
-			print "                                        |              'set munge 1.1 accept"
-			print "                                        |              'set munge 2.0 match any"
-			print "                                        |              'set munge 2.1 set-variable user from-match \".*\""
-			print "                                        |              'set munge 2.2 set-variable dngr from-string \"dangerous.com\""
-			print "                                        |              'set munge 2.3 set-variable slsh from-string \"\\\""
-			print "                                        |              'set munge 2.4 assemble dngr slsh user"
+			print "                                        |              set munge 1.0 match \".*safedomain.com.*\""
+			print "                                        |              set munge 1.1 accept"
+			print "                                        |              set munge 2.0 match any"
+			print "                                        |              set munge 2.1 set-variable user from-match \".*\""
+			print "                                        |              set munge 2.2 set-variable dngr from-string \"dangerous.com\""
+			print "                                        |              set munge 2.3 set-variable slsh from-string \"\\\""
+			print "                                        |              set munge 2.4 assemble dngr slsh user"
 		##### SET LOGFILE #####
 		elif self.cat_list(sys.argv[1:3]) == "set logfile" and len(re.findall("^(\/*)", sys.argv[3])) > 0:
 			self.filemgmt.logwriter("cli", "##### COMMAND '" + arguments + "' ISSUED FROM CLI BY USER '" + self.imum.currentuser()+ "' #####")
@@ -3463,13 +3473,13 @@ class command_line_interpreter(object):
 						"\n                                        |  Examples:   The below rule-set would allow through any user with the domain \"safedomain.com\" in their User-ID,"\
 						"\n                                        |              then it would append the domain \"dangerous.com\" to any others"\
 						"\n                                        |"\
-						"\n                                        |              'set munge 1.0 match \".*safedomain.com.*\""\
-						"\n                                        |              'set munge 1.1 accept"\
-						"\n                                        |              'set munge 2.0 match any"\
-						"\n                                        |              'set munge 2.1 set-variable user from-match \".*\""\
-						"\n                                        |              'set munge 2.2 set-variable dngr from-string \"dangerous.com\""\
-						"\n                                        |              'set munge 2.3 set-variable slsh from-string \"\\\""\
-						"\n                                        |              'set munge 2.4 assemble dngr slsh user"
+						"\n                                        |              set munge 1.0 match \".*safedomain.com.*\""\
+						"\n                                        |              set munge 1.1 accept"\
+						"\n                                        |              set munge 2.0 match any"\
+						"\n                                        |              set munge 2.1 set-variable user from-match \".*\""\
+						"\n                                        |              set munge 2.2 set-variable dngr from-string \"dangerous.com\""\
+						"\n                                        |              set munge 2.3 set-variable slsh from-string \"\\\""\
+						"\n                                        |              set munge 2.4 assemble dngr slsh user"
 			### CHECK RULE AND STEP NUMBERS ###
 			try:
 				if "." in sys.argv[3]:
@@ -3507,16 +3517,16 @@ class command_line_interpreter(object):
 					else:
 						print "\n\n - set munge "+sys.argv[3]+" (accept | continue | assemble | discard | set-variable) [parameters]\n\n"
 				elif len(sys.argv) == 5 and sys.argv[4] == "set-variable" and stepnum != "0":
-					print "\n\n - set munge "+sys.argv[3]+" set-variable <variable name> (from-match | from-string) <regex or string>\n\n"
+					print "\n\n - set munge "+sys.argv[3]+" set-variable <variable name> (from-match | from-string) (any | <regex | <string>)\n\n"
 				elif len(sys.argv) == 6 and sys.argv[4] == "set-variable" and stepnum != "0":
-					print "\n\n - set munge "+sys.argv[3]+" set-variable "+sys.argv[5]+" (from-match | from-string) <regex or string>\n\n"
+					print "\n\n - set munge "+sys.argv[3]+" set-variable "+sys.argv[5]+" (from-match | from-string) (any | <regex | <string>)\n\n"
 				elif len(sys.argv) == 7 and sys.argv[4] == "set-variable" and stepnum != "0":
 					acceptablesourcetypes = ['from-match', 'from-string']
 					if sys.argv[6] not in acceptablesourcetypes:
 						print self.ui.color("\n\nAcceptable source types are 'from-match', and 'from-string'\n\n", self.ui.red)
 					else:
 						if sys.argv[6] == "from-match":
-							print "\n\n - set munge "+sys.argv[3]+" set-variable "+sys.argv[5]+" "+sys.argv[6]+" \"<regex pattern>\"\n"
+							print "\n\n - set munge "+sys.argv[3]+" set-variable "+sys.argv[5]+" "+sys.argv[6]+" (any | \"<regex pattern>\")\n"
 							print "        NOTE: Make sure to wrap your regex pattern in quotes\n\n"
 						elif sys.argv[6] == "from-string":
 							print "\n\n - set munge "+sys.argv[3]+" set-variable "+sys.argv[5]+" "+sys.argv[6]+" \"<string>\"\n"
@@ -3592,7 +3602,10 @@ class command_line_interpreter(object):
 							variable = sys.argv[5]
 							sourcetype = sys.argv[6]
 							source = sys.argv[7]
-							configinput = {rule: {step: {sourcetype: source, action: variable}}}
+							if source == "any":
+								configinput = {rule: {step: {sourcetype: {source: None}, action: variable}}}
+							else:
+								configinput = {rule: {step: {sourcetype: source, action: variable}}}
 						elif len(sys.argv) > 5 and action == 'assemble':
 							variables = sys.argv[5:]
 							variablenum = 1
