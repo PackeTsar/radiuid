@@ -6,7 +6,7 @@ An application to extract User-to-IP mappings from RADIUS accounting data and se
 
 ####   VERSION   ####
 -----------------------------------------
-The version of RadiUID documented here is: **v2.1.0**
+The version of RadiUID documented here is: **v2.2.0**
 
 
 ####   TABLE OF CONTENTS   ####
@@ -19,11 +19,13 @@ The version of RadiUID documented here is: **v2.1.0**
 6. [Install Instructions](#install-instructions)
 7. [Command Interface](#command-interface)
 8. [Timeout Tuning](#timeout-tuning)
+9. [The Munge Engine](#the-munge-engine)
 9. [1.1.0 TO 2.0.0 Updates](#updates-in-v110----v200)
 10. [2.0.0 TO 2.0.1 Updates](#updates-in-v200----v201)
 11. [2.0.1 TO 2.1.0 Updates](#updates-in-v201----v210)
-12. [Upgrade Processes](#upgrade-processes)
-13. [Contributing](#contributing)
+12. [2.1.0 TO 2.2.0 Updates](#updates-in-v210----v220)
+13. [Upgrade Processes](#upgrade-processes)
+14. [Contributing](#contributing)
 
 
 ####   WHAT IS RADIUID   ####
@@ -144,9 +146,10 @@ Below is the CLI guide for the RadiUID service.
       - set logfile                                    |  Set the RadiUID logfile path
       - set radiuslogpath                              |  Set the path used to find FreeRADIUS accounting log files
       - set maxloglines <number-of-lines>              |  Set the max number of lines allowed in the log ('0' turns circular logging off)
-      - set userdomain                                 |  Set the domain name prepended to User-ID mappings
+      - set userdomain (none | <domain name>)          |  Set the domain name prepended to User-ID mappings
       - set timeout                                    |  Set the timeout (in minutes) for User-ID mappings sent to the firewall targets
       - set client <ip-block> <shared-secret>          |  Set configuration elements for RADIUS clients to send accounting data FreeRADIUS
+      - set munge <rule>.<step> [parameters]           |  Set munge (string processing rules) for User-IDs
       - set target <hostname>:<vsys-id> [parameters]   |  Set configuration elements for existing or new firewall targets
      -------------------------------------------------------------------------------------------------------------------------------
      
@@ -159,6 +162,7 @@ Below is the CLI guide for the RadiUID service.
       - clear log                                      |  Delete the content in the log file
       - clear acct-logs                                |  Delete the log files currently in the FreeRADIUS accounting directory
       - clear client (<ip-block> | all)                |  Delete one or all RADIUS client IP blocks in FreeRADIUS config file
+      - clear munge (<rule> | all) (<step> | all)      |  Delete one or all munge rules in the config file
       - clear target (<hostname>:<vsys-id> | all)      |  Delete one or all firewall targets in the config file
       - clear mappings [parameters]                    |  Remove one or all IP-to-User mappings from one or all firewalls
      -------------------------------------------------------------------------------------------------------------------------------
@@ -182,6 +186,33 @@ Below is the CLI guide for the RadiUID service.
 ----------------------------------------------
 
 RadiUID pushes ephemeral User-ID information to the firewall whenever new RADIUS accounting information is recieved and by default sets a timeout of 60 minutes. If this accounting information comes from a wireless system (where most devices re-authenticate regularly) then you may be able to tune down that timeout to make the mapping information expire more quickly. If the RADIUS authenticator is something like a VPN concentrator (where re-authentication doesn't typically happen), then you may want to turn up the timeout period. Either way, you should expect to have to play with the timeout settings to make sure your firewalls are not prematurely expiring User-ID data from their mapping tables.
+
+
+
+####   THE MUNGE ENGINE   ####
+----------------------------------------------
+The Munge Engine is a rule-based string processor 
+
+- A sample munge configuration can be seen below. This configuration will instruct the Munge Engine to find any User-ID which contains a double-backslash and reconstruct it with only one backslash. Then it will find any User-ID which contains the name 'vendor' and discard it (prevent it from being pushed to the Palo Alto). This example uses both of the Munge Engine complex actions (set-variable, and assemble), but only uses one of the simple actions (discard), it does not use to two other simple actions (accept, continue)
+	- `radiuid set munge 1.0 match ".*\\\.*"`
+	- `radiuid set munge 1.10 set-variable domain from-match "^[a-zA-Z0-9]+"`
+	- `radiuid set munge 1.20 set-variable user from-match "[a-zA-Z0-9]+$"`
+	- `radiuid set munge 1.30 set-variable slash from-string "\\"`
+	- `radiuid set munge 1.40 assemble domain slash user`
+	- `radiuid set munge 2.0 match ".*vendor.*"`
+    - `radiuid set munge 2.10 discard`
+- Munge rules are broken down into rules and steps and are configured/ordered in a dot-notation as `<rule number>.<step number>`. The rules and steps can be numbered as desired with one exception, which is described below. The rules and steps are processed in order by their numbers, so when configuring them, you may want to leave gaps in the assigned numbers for insertion of other rules or steps later between the existing ones.
+- The only requirement for rule numbering is that step '0' (X.0) must be a match statement, as it is used to determine whether or not to process the rule on the User-ID. All rules must begin with a `X.0 match` statement followed by either an `any` keyword (which will match all inputs) or by a regular expression.
+- Other than the required `X.0 match` action, Munge has five actions which are broken down into two groups:
+	- Simple Actions: `accept`, `continue`, `discard`
+	- Complex Actions: `set-variable`, `assemble`
+- The various actions are explained below
+	- The `accept` action halts all rule and step processing and passes the input (User-ID) back out of the engine without any further filtering or changes.
+	- The `continue` action halts all step processing within the current rule and continues on to the next rule (assuming one exists and the input passes its match statement).
+	- The `discard` action halts all rule and step processing and discards the current input; not allowing it to pass out of the engine at all.
+	- The `set-variable` action instructs the engine to save a string (either part of the input/User-ID, or a manually configured static string) in memory for use later (by the assemble action). The variable's name is configured right after the `set-variable` term and it can be any alphanumerical word. The string's source-type can be either a regular expression match (using the `from-match` term) or it can be a statically configured string (using the `from-string` term).
+	- The `assemble` action is used to assemble previously set variables into one string. A list of strings should be provided in order after the `assemble` verb seperated by spaces.
+- The `request munge-test` command can be used to test a Munge rule-set on a provided input. You can also provide the `debug` term at the end of the command to see a walk-through of the steps taken by the Munge Engine and how it processed the configured rules to modify/filter the input provided in the command. 
 
 
 
@@ -250,6 +281,20 @@ RadiUID pushes ephemeral User-ID information to the firewall whenever new RADIUS
 
 - *ISSUE #17*: The RadiUID XML assembler was hard set to allow up to 100 UIDs in a single API call before splitting into multiple calls which was overwhelming to the Palo Alto. That setting has been moved down to 50 UIDs per call and the setting `maxuidspercall` has been moved to the internal settings area near the top of the radiuid.py file.
     - This fix was reproduced and verified fixed by having RadiUID eat a FreeRADIUS Accounting log file with 2000 UIDs and push them into a test firewall. 50 UIDs per API call seems to work even with long usernames (50 characters).
+
+
+
+####   UPDATES IN V2.1.0 --> V2.2.0   ####
+--------------------------------------
+
+**ADDED FEATURES:**
+
+- The Munge Engine: RadiUID now includes a built-in rule-based string processor. The Munge Engine allows users to create a list of rules which will be used by RadiUID to filter, dissect, and reassemble User-IDs as they pass through the RadiUID service. More details on this feature can be found in the [Munge Engine](#the-munge-engine) section.
+
+**BUG FIXES:**
+
+- *ISSUE #19*: The `userdomain` configuration element now allows the use of the value `none` to specify that no domain should be prepended to User-IDs
+
 
 
 
