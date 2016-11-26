@@ -208,7 +208,7 @@ The Munge Engine is a rule-based string processor
 	- Complex Actions: `set-variable`, `assemble`
 - The various actions are explained below
 	- The `accept` action halts all rule and step processing and passes the input (User-ID) back out of the engine without any further filtering or changes.
-	- The `continue` action halts all step processing within the current rule and continues on to the next rule (assuming one exists and the input passes its match statement).
+	- The `continue` action halts all step processing within the current rule and continues on to the next rule (assuming one exists and the input passes its match statement). Every rule has an implied `continue` statement at the end.
 	- The `discard` action halts all rule and step processing and discards the current input; not allowing it to pass out of the engine at all.
 	- The `set-variable` action instructs the engine to save a string (either part of the input/User-ID, or a manually configured static string) in memory for use later (by the assemble action). The variable's name is configured right after the `set-variable` term and it can be any alphanumerical word. The string's source-type can be either a regular expression match (using the `from-match` term) or it can be a statically configured string (using the `from-string` term).
 	- The `assemble` action is used to assemble previously set variables into one string. A list of strings should be provided in order after the `assemble` verb seperated by spaces.
