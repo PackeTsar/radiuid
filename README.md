@@ -191,7 +191,7 @@ RadiUID pushes ephemeral User-ID information to the firewall whenever new RADIUS
 
 ####   THE MUNGE ENGINE   ####
 ----------------------------------------------
-The Munge Engine is a rule-based string processor 
+The Munge Engine is a rule-based string processor which is used in RadiUID to filter and process User-IDs based on rules you configure. 
 
 - A sample munge configuration can be seen below. This configuration will instruct the Munge Engine to find any User-ID which contains a double-backslash and reconstruct it with only one backslash. Then it will find any User-ID which contains the name 'vendor' and discard it (prevent it from being pushed to the Palo Alto). This example uses both of the Munge Engine complex actions (set-variable, and assemble), but only uses one of the simple actions (discard), it does not use to two other simple actions (accept, continue)
 	- `radiuid set munge 1.0 match ".*\\\.*"`
@@ -208,7 +208,7 @@ The Munge Engine is a rule-based string processor
 	- Complex Actions: `set-variable`, `assemble`
 - The various actions are explained below
 	- The `accept` action halts all rule and step processing and passes the input (User-ID) back out of the engine without any further filtering or changes.
-	- The `continue` action halts all step processing within the current rule and continues on to the next rule (assuming one exists and the input passes its match statement). Every rule has an implied `continue` statement at the end.
+	- The `continue` action halts all step processing within the current rule and continues on to the next rule (assuming one exists and the input passes its match statement). Every rule has an implied `continue` statement at the end. The `continue` action is meant to be used to disable all or part of a rule within a rule-set without actually removing the rule from the configuration.
 	- The `discard` action halts all rule and step processing and discards the current input; not allowing it to pass out of the engine at all.
 	- The `set-variable` action instructs the engine to save a string (either part of the input/User-ID, or a manually configured static string) in memory for use later (by the assemble action). The variable's name is configured right after the `set-variable` term and it can be any alphanumerical word. The string's source-type can be either a regular expression match (using the `from-match` term) or it can be a statically configured string (using the `from-string` term).
 	- The `assemble` action is used to assemble previously set variables into one string. A list of strings should be provided in order after the `assemble` verb seperated by spaces.
@@ -293,7 +293,7 @@ The Munge Engine is a rule-based string processor
 
 **BUG FIXES:**
 
-- *ISSUE #19*: The `userdomain` configuration element now allows the use of the value `none` to specify that no domain should be prepended to User-IDs
+- *ISSUE #19*: The `userdomain` configuration element now allows the use of the value `none` to specify that no domain should be prepended to User-IDs.
 
 
 
@@ -301,19 +301,21 @@ The Munge Engine is a rule-based string processor
 ####   UPGRADE PROCESSES   ####
 --------------------------------------
 
-**Upgrading from v2.X to v2.1.0:**
+**Upgrading from v2.X to v2.2.0:**
 
 1. Perform a `radiuid show config set` command and save the `set` commands displayed in a safe place (just in case)
-2. Download the v2.1.0 code from the GitHub repo by using `git clone https://github.com/PackeTsar/radiuid.git`
+2. Download the v2.2.0 code from the GitHub repo by using `git clone https://github.com/PackeTsar/radiuid.git`
     - If the "radiuid" folder already exists, you may want to use git to update the clone `cd radiuid/; git pull`
 3. Move to the radiuid folder created by git using the `cd radiuid/` command
 4. Perform a quick reinstall/update of RadiUID using the command `python radiuid.py request reinstall keep-config`
 5. Type in CONFIRM and hit ENTER to confirm you want to perform the reinstall
 6. Once the installer exits, you should run `radiuid show config set` and see your configuration from before.
 7. Perform a `radiuid service all restart` command to restart RadiUID to use the new app version
+	- *NOTE: The RadiUID service will continue running in the background throughout the install process. It is not until you restart/stop the service that the new version and configuration will take effect.* 
+8. You may also want to log out of the shell and back in to activate any new auto-complete functions.
 
 
-**Upgrading from v1.X to v2.1.0:**
+**Upgrading from v1.X to v2.2.0:**
 
 1. Change the name of your config file (/etc/radiuid/radiuid.conf) by issuing the command `mv /etc/radiuid/radiuid.conf /etc/radiuid/radiuid.conf.backup`
 2. Grab the contents to have them handy during the install of the new version `more /etc/radiuid/radiuid.conf.backup`
