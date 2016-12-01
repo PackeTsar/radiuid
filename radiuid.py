@@ -1233,7 +1233,6 @@ class file_management(object):
 									
 							
 		return result
-							
 	def munge_config(self, input):
 		result = {'status': 'working', 'messages': []} # Initialize Result Status Information
 		##### Mount the globalsettings element #####
@@ -1290,7 +1289,6 @@ class file_management(object):
 			result['messages'].append({'OK': "Config to build: "+str(currentconfig)})
 			munge = ElementTree.SubElement(globalsettings, 'munge')  # Mount a new munge element in the config
 			rulelist = self.sortlist(currentconfig['munge'].keys())  # Create a sorted list of rule names
-			print rulelist
 			for rulename in rulelist:
 				if rulename == 'debug':
 					rule = ElementTree.SubElement(munge, rulename)
@@ -1298,10 +1296,13 @@ class file_management(object):
 					rule = ElementTree.SubElement(munge, rulename)
 					### Set the rules match statement ###
 					match = ElementTree.SubElement(rule, 'match')
-					if type(currentconfig['munge'][rulename]['match']) == type({}):
+					if 'any' in currentconfig['munge'][rulename]['match'].keys():
 						any = ElementTree.SubElement(match, 'any')
 					else:
-						match.text = currentconfig['munge'][rulename]['match']
+						value = ElementTree.SubElement(match, 'value')
+						value.text = currentconfig['munge'][rulename]['match']['value']
+						pattern = value = ElementTree.SubElement(match, 'pattern')
+						pattern.text = currentconfig['munge'][rulename]['match']['pattern']
 					### Walk through rule steps ###
 					steplist = self.sortlist(currentconfig['munge'][rulename].keys())  # Create a sorted list of step names
 					for stepname in steplist:
@@ -3510,9 +3511,10 @@ class command_line_interpreter(object):
 			### INTERCEPT BAD OR INCOMPLETE INPUTS AND SHOW HELPERS ###
 			if keepgoing:
 				acceptableactions = ['accept', 'continue', 'discard', 'set-variable', 'assemble']
-				if len(sys.argv) == 4 and sys.argv[3] != "debug":
+				acceptablepatterns = ['complete', 'partial']
+				if len(sys.argv) == 4:
 					if stepnum == "0":
-						print "\n\n - set munge "+sys.argv[3]+" match (any | <regex pattern>)\n\n"
+						print "\n\n - set munge "+sys.argv[3]+" match (any | <regex pattern>) (complete | partial)\n\n"
 						print "        NOTE: The match statement on the '0' step is used to determine when to process the rule\n\n"
 					else:
 						print "\n\n - set munge "+sys.argv[3]+" (accept | continue | assemble | discard | set-variable) [parameters]\n\n"
@@ -3535,8 +3537,16 @@ class command_line_interpreter(object):
 					print "\n\n - set munge "+sys.argv[3]+" assemble <variable name> <variable name> ... \n"
 					print "        NOTE: Enter the variables you would like to assemble in the order in which they should be assembled\n\n"
 				elif len(sys.argv) == 5 and sys.argv[4] == "match" and stepnum == "0":
-					print "\n\n - set munge "+sys.argv[3]+" match (any | <regex pattern>) \n"
+					print "\n\n - set munge "+sys.argv[3]+" match (any | <regex pattern>) (complete | partial) \n"
 					print "        NOTE: The 'any' match statement will always process the rule. A regex pattern will only process the rule when matched.\n\n"
+				elif len(sys.argv) == 6 and sys.argv[4] == "match" and stepnum == "0" and sys.argv[5] != 'any':
+					print "\n\n - set munge "+sys.argv[3]+" match "+ sys.argv[5] +" (complete | partial) \n"
+					print "        NOTE: The 'any' match statement will always process the rule. A regex pattern will only process the rule when matched.\n\n"
+				elif len(sys.argv) == 7 and sys.argv[4] == "match" and stepnum == "0" and sys.argv[6] not in acceptablepatterns:
+					print self.ui.color("\n\nXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX\n", self.ui.red)
+					print self.ui.color("The rule's match statement is used to match a certain input and activate processing of the rule\n\n", self.ui.red)
+					print "\n\n###### Acceptable actions for this step number: ######\n"
+					print " - set munge "+sys.argv[3]+" (accept | continue | assemble | discard | set-variable) [parameters]\n\n"
 				elif len(sys.argv) == 5 and sys.argv[4] == "match" and stepnum != "0":
 					print self.ui.color("\n\nOnly the rule's '0' step (X.0) is allowed to be a match statement (ie: set munge 1.0 match '[a-z]+')\n", self.ui.red)
 					print self.ui.color("The rule's match statement is used to match a certain input and activate processing of the rule\n\n", self.ui.red)
@@ -3588,7 +3598,7 @@ class command_line_interpreter(object):
 									keepgoing = True
 						except KeyError:
 							print self.ui.color("\n\nRule does not have initial 'match' statement yet", self.ui.red)
-							print self.ui.color("\nAll rules must begin with a step '0' and a match statement (ie: 'set munge 1.0 match any')\n\n", self.ui.red)
+							print self.ui.color("\nAll rules must begin with a step '0' and a match statement (ie: 'set munge %s.0 match any')\n\n", self.ui.red) % (str(rulenum))
 					###### Parse and enter command ######
 					if keepgoing:
 						if len(sys.argv) == 5 and step != "0":
@@ -3596,8 +3606,8 @@ class command_line_interpreter(object):
 						elif len(sys.argv) == 6 and action == "match":
 							if sys.argv[5] == 'any':
 								configinput = {rule: {'match': {'any': None}}}
-							else:
-								configinput = {rule: {'match': sys.argv[5]}}
+						elif len(sys.argv) == 7 and action == "match":
+							configinput = {rule: {'match': {'value': sys.argv[5], 'pattern': sys.argv[6]}}}
 						elif len(sys.argv) == 8 and action == 'set-variable':
 							variable = sys.argv[5]
 							sourcetype = sys.argv[6]
