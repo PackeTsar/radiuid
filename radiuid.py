@@ -1168,26 +1168,35 @@ class file_management(object):
 				for step in rule:
 					setvar = False
 					if step.tag == 'match':
-						if len(list(step)) > 0:
+						if list(step)[0].tag == 'any':
 							result.append("set munge "+rulenum+".0 match any")
 						else:
-							if "\\" in step.text:  # Adjust backslashes so it presents correctly as a set command
-								regexlist = list(step.text)
-								newregex = ""
-								index = 0
-								for each in regexlist:
-									if each == "\\":
-										break
+							for element in step:
+								if element.tag == "criterion":
+									criterion = element.text
+								elif element.tag == "regex":
+									if "\\" in element.text:  # Adjust backslashes so it presents correctly as a set command
+										regexlist = list(element.text)
+										print regexlist
+										newregex = ""
+										index = 0
+										for each in regexlist:
+											if each == "\\":
+												regexlist[index] = "\\\\"
+												index += 1
+											else:
+												index += 1
+										print regexlist
+										for each in regexlist:
+											newregex += each
+										regex = newregex
+										print regex
 									else:
-										index += 1
-								regexlist[index] = "\\\\"
-								for each in regexlist:
-									newregex += each
-								step.text = newregex
-							result.append('set munge '+rulenum+'.0 match "'+step.text+'"')
+										regex = element.text
+							result.append('set munge '+rulenum+'.0 match "'+regex+'" '+criterion)
 					else:
 						stepnum = step.tag.replace("step", "")
-						simpleactions = ['accept', 'continue', 'discard']
+						simpleactions = ['accept', 'discard']
 						for entry in list(step):
 							if entry.tag in simpleactions:
 								result.append('set munge '+rulenum+'.'+stepnum+' '+entry.tag)
@@ -1299,10 +1308,10 @@ class file_management(object):
 					if 'any' in currentconfig['munge'][rulename]['match'].keys():
 						any = ElementTree.SubElement(match, 'any')
 					else:
-						value = ElementTree.SubElement(match, 'value')
-						value.text = currentconfig['munge'][rulename]['match']['value']
-						pattern = value = ElementTree.SubElement(match, 'pattern')
-						pattern.text = currentconfig['munge'][rulename]['match']['pattern']
+						regex = ElementTree.SubElement(match, 'regex')
+						regex.text = currentconfig['munge'][rulename]['match']['regex']
+						criterion = ElementTree.SubElement(match, 'criterion')
+						criterion.text = currentconfig['munge'][rulename]['match']['criterion']
 					### Walk through rule steps ###
 					steplist = self.sortlist(currentconfig['munge'][rulename].keys())  # Create a sorted list of step names
 					for stepname in steplist:
@@ -1550,13 +1559,25 @@ class data_processing(object):
 					rulexml = "\t\t\t" + rulexml  # Indent the first XML line
 					print "\t\t----- Loaded Rule: -----"  # Print a header for the XML rule
 					print rulexml  # And print the formatted rule
-				if type(currentrule['match']) == type({}):  # If the current rules match statement is a config element (which means it is 'any')
+				if 'any' in currentrule['match'].keys():  # If the current rules match statement is a config element (which means it is 'any')
 					inputmatches = True  # Notify that the input matches the rule's entry match pattern
 				else:  # Otherwise
-					if re.match(currentrule['match'], str(inputresult)) != None:  # If the regex match returns anything other than None
-						inputmatches = True  # Notify that the input matches the match pattern
-					else:  # Otherwise
-						inputmatches = False # Notify that the input does not match the rule's entry match pattern
+					if debug:  # If we are debugging
+						matched = re.findall(currentrule['match']['regex'], str(inputresult))  # Set the regex match return value
+						if matched == []:  # If it returned nothing
+							matched = "None"  # Set it to a none string
+						print "\t\t----- Rule match statement regex returned: -----"  # Print a header for the XML rule
+						print "\t\t\t" + str(matched)  # Print out what regex returned for debugging
+					if currentrule['match']['criterion'] == 'complete':  # If this rule requires a complete match of the input
+						if str(inputresult) in re.findall(currentrule['match']['regex'], str(inputresult)):  # If the regex match returns the whole input
+							inputmatches = True  # Notify that the input matches the match pattern
+						else:  # Otherwise
+							inputmatches = False # Notify that the input does not match the rule's entry match pattern
+					elif currentrule['match']['criterion'] == 'partial':  # If this rule allows a partial match of the input
+						if len(re.findall(currentrule['match']['regex'], str(inputresult))) > 0:  # If the regex match anything at all
+							inputmatches = True  # Notify that the input matches the match pattern
+						else:  # Otherwise
+							inputmatches = False # Notify that the input does not match the rule's entry match pattern
 				if inputmatches:  # If the input matched the rule entry match pattern
 					if debug:  # If we are debugging
 						print "\n\t\t----- Matched pattern %s for %s in input %s -----" % (str(currentrule['match']), str(rule),
@@ -1570,12 +1591,6 @@ class data_processing(object):
 							interrupt = "accept"  # Set the interrupt to 'accept'
 							if debug:  # If we are debugging
 								print "\t\t\t----- 'Accept' interrupt detected and set, breaking out of rule-set and adding input to result -----"  # Notify debug
-							break  # Break out of the current step without continuing
-						### NOTE: An 'continue' stops processing on the current rule and starts processing on the next rule (if one exists) ###
-						elif currentstep.keys()[0] == 'continue':  # If the step is an 'continue'
-							interrupt = "continue"  # Set the interrupt to 'continue'
-							if debug:  # If we are debugging
-								print "\t\t\t----- 'Continue' interrupt detected and set, breaking out of current rule and continuing with parsing -----"  # Notify debug
 							break  # Break out of the current step without continuing
 						### NOTE: A 'discard' stops all processing and discards the current input ###
 						elif currentstep.keys()[0] == 'discard':  # If the step is an 'discard'
@@ -2338,7 +2353,7 @@ _radiuid_complete()
         if [ "${myarray[1]}" == "0" ]; then
           COMPREPLY=( $(compgen -W "match" -- $cur) )
         elif [ "${myarray[1]}" != "0" ]; then
-          COMPREPLY=( $(compgen -W "accept continue assemble discard set-variable" -- $cur) )
+          COMPREPLY=( $(compgen -W "accept assemble discard set-variable" -- $cur) )
         fi
       fi
     fi
@@ -2362,11 +2377,15 @@ _radiuid_complete()
     fi
     if [ "$prev3" == "munge" ]; then
       if [ "$prev" == "match" ]; then
-        COMPREPLY=( $(compgen -W "any <regex-pattern>" -- $cur) )
+        IFS='.' read -a myarray <<< "$prev2"
+        if [ "${myarray[1]}" == "0" ]; then
+          COMPREPLY=( $(compgen -W "any <regex-pattern>" -- $cur) )
+        fi
       fi
     fi
   elif [ $COMP_CWORD -eq 6 ]; then
     prev2=${COMP_WORDS[COMP_CWORD-2]}
+    prev3=${COMP_WORDS[COMP_CWORD-3]}
     prev4=${COMP_WORDS[COMP_CWORD-4]}
     prev5=${COMP_WORDS[COMP_CWORD-5]}
     if [ "$prev4" == "mappings" ]; then
@@ -2392,6 +2411,18 @@ _radiuid_complete()
       if [ "$prev5" == "set" ]; then
         if [ "$prev2" == "set-variable" ]; then
           COMPREPLY=( $(compgen -W "from-match from-string" -- $cur) )
+        fi
+      fi
+    fi
+    if [ "$prev4" == "munge" ]; then
+      if [ "$prev5" == "set" ]; then
+        if [ "$prev2" == "match" ]; then
+          IFS='.' read -a myarray <<< "$prev3"
+          if [ "${myarray[1]}" == "0" ]; then
+            if [ "$prev" != "any" ]; then
+              COMPREPLY=( $(compgen -W "complete partial" -- $cur) )
+            fi
+          fi
         fi
       fi
     fi
@@ -3129,17 +3160,16 @@ class command_line_interpreter(object):
 			print "                                                 |              'set target pan1.domain.com:vsys1 password P@s$w0rd'"
 			print "                                                 |              'set target 10.0.0.10:2 username admin password P@ssword version 6\n"
 		elif arguments == "set munge" or arguments == "set munge ?":
-			print "\n - set munge <rule>.<step> [parameters] |  Parameters: match (any | <regex>)"
+			print "\n - set munge <rule>.<step> [parameters] |  Parameters: match (any | <regex>) (complete | partial)"
 			print "                                        |              set-variable <variable name> (from-match | from-string) <regex or string>"
 			print "                                        |              assemble <variable name> <variable name> ... "
 			print "                                        |              accept"
-			print "                                        |              continue"
 			print "                                        |              discard"
 			print "                                        |              "
 			print "                                        |  Examples:   The below rule-set would allow through any user with the domain \"safedomain.com\" in their User-ID,"
 			print "                                        |              then it would append the domain \"dangerous.com\" to any others"
 			print "                                        |"
-			print "                                        |              set munge 1.0 match \".*safedomain.com.*\""
+			print "                                        |              set munge 1.0 match \".*safedomain.com.*\" complete"
 			print "                                        |              set munge 1.1 accept"
 			print "                                        |              set munge 2.0 match any"
 			print "                                        |              set munge 2.1 set-variable user from-match \".*\""
@@ -3468,7 +3498,6 @@ class command_line_interpreter(object):
 						"\n                                        |              set-variable <variable name> (from-match | from-string) <regex or string>"\
 						"\n                                        |              assemble <variable name> <variable name> ... "\
 						"\n                                        |              accept"\
-						"\n                                        |              continue"\
 						"\n                                        |              discard"\
 						"\n                                        |              "\
 						"\n                                        |  Examples:   The below rule-set would allow through any user with the domain \"safedomain.com\" in their User-ID,"\
@@ -3510,14 +3539,14 @@ class command_line_interpreter(object):
 				keepgoing = False
 			### INTERCEPT BAD OR INCOMPLETE INPUTS AND SHOW HELPERS ###
 			if keepgoing:
-				acceptableactions = ['accept', 'continue', 'discard', 'set-variable', 'assemble']
+				acceptableactions = ['accept', 'discard', 'set-variable', 'assemble']
 				acceptablepatterns = ['complete', 'partial']
 				if len(sys.argv) == 4:
 					if stepnum == "0":
 						print "\n\n - set munge "+sys.argv[3]+" match (any | <regex pattern>) (complete | partial)\n\n"
 						print "        NOTE: The match statement on the '0' step is used to determine when to process the rule\n\n"
 					else:
-						print "\n\n - set munge "+sys.argv[3]+" (accept | continue | assemble | discard | set-variable) [parameters]\n\n"
+						print "\n\n - set munge "+sys.argv[3]+" (accept | assemble | discard | set-variable) [parameters]\n\n"
 				elif len(sys.argv) == 5 and sys.argv[4] == "set-variable" and stepnum != "0":
 					print "\n\n - set munge "+sys.argv[3]+" set-variable <variable name> (from-match | from-string) (any | <regex | <string>)\n\n"
 				elif len(sys.argv) == 6 and sys.argv[4] == "set-variable" and stepnum != "0":
@@ -3543,20 +3572,10 @@ class command_line_interpreter(object):
 					print "\n\n - set munge "+sys.argv[3]+" match "+ sys.argv[5] +" (complete | partial) \n"
 					print "        NOTE: The 'any' match statement will always process the rule. A regex pattern will only process the rule when matched.\n\n"
 				elif len(sys.argv) == 7 and sys.argv[4] == "match" and stepnum == "0" and sys.argv[6] not in acceptablepatterns:
-					print self.ui.color("\n\nXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX\n", self.ui.red)
-					print self.ui.color("The rule's match statement is used to match a certain input and activate processing of the rule\n\n", self.ui.red)
-					print "\n\n###### Acceptable actions for this step number: ######\n"
-					print " - set munge "+sys.argv[3]+" (accept | continue | assemble | discard | set-variable) [parameters]\n\n"
-				elif len(sys.argv) == 5 and sys.argv[4] == "match" and stepnum != "0":
-					print self.ui.color("\n\nOnly the rule's '0' step (X.0) is allowed to be a match statement (ie: set munge 1.0 match '[a-z]+')\n", self.ui.red)
-					print self.ui.color("The rule's match statement is used to match a certain input and activate processing of the rule\n\n", self.ui.red)
-					print "\n\n###### Acceptable actions for this step number: ######\n"
-					print " - set munge "+sys.argv[3]+" (accept | continue | assemble | discard | set-variable) [parameters]\n\n"
-				elif len(sys.argv) == 6 and sys.argv[4] == "match" and stepnum != "0":
-					print self.ui.color("\n\nOnly the rule's '0' step (X.0) is allowed to be a match statement (ie: set munge 1.0 match '[a-z]+')\n", self.ui.red)
-					print self.ui.color("The rule's match statement is used to match a certain input and activate processing of the rule\n\n", self.ui.red)
-					print "\n\n###### Acceptable actions for this step number: ######\n"
-					print " - set munge "+sys.argv[3]+" (accept | continue | assemble | discard | set-variable) [parameters]\n\n"
+					print self.ui.color("\n\nUnrecognized return criteria\n", self.ui.red)
+					print self.ui.color("A rule's match return criterion activates a rule either when the regex pattern match is COMPLETE or PARTIAL\n\n", self.ui.red)
+					print "\n\n###### Acceptable match criteria: ######\n"
+					print "\n\n - set munge "+sys.argv[3]+" match "+ sys.argv[5] +" (complete | partial) \n"
 				elif len(sys.argv) == 5 and sys.argv[4] != "match" and stepnum == "0":
 					print self.ui.color("\n\nA rule's '0' step (X.0) must be a match statement (ie: set munge 1.0 match \"[a-z]+$\")\n", self.ui.red)
 					print self.ui.color("The rule's match statement is used to match a certain input and activate processing of the rule\n\n", self.ui.red)
@@ -3567,11 +3586,16 @@ class command_line_interpreter(object):
 					print self.ui.color("The rule's match statement is used to match a certain input and activate processing of the rule\n\n", self.ui.red)
 					print "\n\n###### Acceptable actions for this step number: ######\n"
 					print "\n\n - set munge "+sys.argv[3]+" match (any | <regex pattern>)\n\n"
+				elif len(sys.argv) >= 5 and sys.argv[4] == "match" and stepnum != "0":
+					print self.ui.color("\n\nOnly the rule's '0' step (X.0) is allowed to be a match statement (ie: set munge 1.0 match '[a-z]+')\n", self.ui.red)
+					print self.ui.color("The rule's match statement is used to match a certain input and activate processing of the rule\n\n", self.ui.red)
+					print "\n\n###### Acceptable actions for this step number: ######\n"
+					print " - set munge "+sys.argv[3]+" (accept | assemble | discard | set-variable) [parameters]\n\n"
 				elif len(sys.argv) == 5 and stepnum != "0" and sys.argv[4] not in acceptableactions:
-					print self.ui.color("\n\nUnrecognized action. Allowed simple actions are 'accept', 'continue', and 'discard'", self.ui.red)
+					print self.ui.color("\n\nUnrecognized action. Allowed simple actions are 'accept', and 'discard'", self.ui.red)
 					print self.ui.color("\nAllowed complex actions are 'set-variable', and 'assemble'\n\n", self.ui.red)
 					print "\n\n###### Acceptable actions for this step number: ######\n"
-					print "\n\n - set munge "+sys.argv[3]+" (accept | continue | assemble | discard | set-variable) [parameters]\n\n"
+					print "\n\n - set munge "+sys.argv[3]+" (accept | assemble | discard | set-variable) [parameters]\n\n"
 				elif stepnum == "0" and sys.argv[4] != "match":
 					print self.ui.color("\n\nA rule's '0' step (X.0) must be a match statement (ie: set munge 1.0 match \"[a-z]+$\")\n", self.ui.red)
 					print self.ui.color("The rule's match statement is used to match a certain input and activate processing of the rule\n\n", self.ui.red)
@@ -3607,7 +3631,7 @@ class command_line_interpreter(object):
 							if sys.argv[5] == 'any':
 								configinput = {rule: {'match': {'any': None}}}
 						elif len(sys.argv) == 7 and action == "match":
-							configinput = {rule: {'match': {'value': sys.argv[5], 'pattern': sys.argv[6]}}}
+							configinput = {rule: {'match': {'regex': sys.argv[5], 'criterion': sys.argv[6]}}}
 						elif len(sys.argv) == 8 and action == 'set-variable':
 							variable = sys.argv[5]
 							sourcetype = sys.argv[6]
