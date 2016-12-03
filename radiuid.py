@@ -3174,7 +3174,7 @@ class command_line_interpreter(object):
 			print "                                        |              set munge 2.0 match any"
 			print "                                        |              set munge 2.1 set-variable user from-match \".*\""
 			print "                                        |              set munge 2.2 set-variable dngr from-string \"dangerous.com\""
-			print "                                        |              set munge 2.3 set-variable slsh from-string \"\\\""
+			print "                                        |              set munge 2.3 set-variable slsh from-string \"\\\\\""
 			print "                                        |              set munge 2.4 assemble dngr slsh user"
 		##### SET LOGFILE #####
 		elif self.cat_list(sys.argv[1:3]) == "set logfile" and len(re.findall("^(\/*)", sys.argv[3])) > 0:
@@ -3503,12 +3503,12 @@ class command_line_interpreter(object):
 						"\n                                        |  Examples:   The below rule-set would allow through any user with the domain \"safedomain.com\" in their User-ID,"\
 						"\n                                        |              then it would append the domain \"dangerous.com\" to any others"\
 						"\n                                        |"\
-						"\n                                        |              set munge 1.0 match \".*safedomain.com.*\""\
+						"\n                                        |              set munge 1.0 match \".*safedomain.com.*\" complete"\
 						"\n                                        |              set munge 1.1 accept"\
 						"\n                                        |              set munge 2.0 match any"\
 						"\n                                        |              set munge 2.1 set-variable user from-match \".*\""\
 						"\n                                        |              set munge 2.2 set-variable dngr from-string \"dangerous.com\""\
-						"\n                                        |              set munge 2.3 set-variable slsh from-string \"\\\""\
+						"\n                                        |              set munge 2.3 set-variable slsh from-string \"\\\\\""\
 						"\n                                        |              set munge 2.4 assemble dngr slsh user"
 			### CHECK RULE AND STEP NUMBERS ###
 			try:
@@ -3544,7 +3544,8 @@ class command_line_interpreter(object):
 				if len(sys.argv) == 4:
 					if stepnum == "0":
 						print "\n\n - set munge "+sys.argv[3]+" match (any | <regex pattern>) (complete | partial)\n\n"
-						print "        NOTE: The match statement on the '0' step is used to determine when to process the rule\n\n"
+						print "        NOTE: The match statement on the '0' step is used to determine when to process the rule"
+						print "              The rule can be activated on either a partial or complete regex match\n\n"
 					else:
 						print "\n\n - set munge "+sys.argv[3]+" (accept | assemble | discard | set-variable) [parameters]\n\n"
 				elif len(sys.argv) == 5 and sys.argv[4] == "set-variable" and stepnum != "0":
@@ -3570,17 +3571,18 @@ class command_line_interpreter(object):
 					print "        NOTE: The 'any' match statement will always process the rule. A regex pattern will only process the rule when matched.\n\n"
 				elif len(sys.argv) == 6 and sys.argv[4] == "match" and stepnum == "0" and sys.argv[5] != 'any':
 					print "\n\n - set munge "+sys.argv[3]+" match "+ sys.argv[5] +" (complete | partial) \n"
-					print "        NOTE: The 'any' match statement will always process the rule. A regex pattern will only process the rule when matched.\n\n"
+					print "        NOTE: The 'complete' statement will require the regex pattern to return a match of the whole User-ID to activate the rule."
+					print "        NOTE: The 'partial' statement will allow the regex pattern to return a partial match of the User-ID to activate the rule.\n\n"
 				elif len(sys.argv) == 7 and sys.argv[4] == "match" and stepnum == "0" and sys.argv[6] not in acceptablepatterns:
-					print self.ui.color("\n\nUnrecognized return criteria\n", self.ui.red)
+					print self.ui.color("\n\nUnrecognized return criterion\n", self.ui.red)
 					print self.ui.color("A rule's match return criterion activates a rule either when the regex pattern match is COMPLETE or PARTIAL\n\n", self.ui.red)
 					print "\n\n###### Acceptable match criteria: ######\n"
-					print "\n\n - set munge "+sys.argv[3]+" match "+ sys.argv[5] +" (complete | partial) \n"
+					print "\n - set munge "+sys.argv[3]+" match "+ sys.argv[5] +" (complete | partial) \n\n"
 				elif len(sys.argv) == 5 and sys.argv[4] != "match" and stepnum == "0":
 					print self.ui.color("\n\nA rule's '0' step (X.0) must be a match statement (ie: set munge 1.0 match \"[a-z]+$\")\n", self.ui.red)
 					print self.ui.color("The rule's match statement is used to match a certain input and activate processing of the rule\n\n", self.ui.red)
 					print "\n\n###### Acceptable actions for this step number: ######\n"
-					print "\n\n - set munge "+sys.argv[3]+" match (any | <regex pattern>)\n\n"
+					print "\n - set munge "+sys.argv[3]+" match (any | <regex pattern>)\n\n"
 				elif len(sys.argv) == 6 and sys.argv[4] != "match" and stepnum == "0":
 					print self.ui.color("\n\nA rule's '0' step (X.0) must be a match statement (ie: set munge 1.0 match \"[a-z]+$\")\n", self.ui.red)
 					print self.ui.color("The rule's match statement is used to match a certain input and activate processing of the rule\n\n", self.ui.red)
