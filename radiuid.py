@@ -1774,7 +1774,6 @@ class palo_alto_firewall_interaction(object):
 				self.pull_api_key(mode, targetlist)
 	##### Accepts IP-to-User mappings as a dict in, uses the xml-formatter and xml-assembler to generate a list of URLS, then opens those URLs and logs response codes  #####
 	def push_uids(self, ipanduserdict, filelist):
-		print ipanduserdict
 		if tomunge:
 			modipanduserdict = {}
 			for entry in ipanduserdict:
@@ -3633,7 +3632,17 @@ class command_line_interpreter(object):
 							if sys.argv[5] == 'any':
 								configinput = {rule: {'match': {'any': None}}}
 						elif len(sys.argv) == 7 and action == "match":
-							configinput = {rule: {'match': {'regex': sys.argv[5], 'criterion': sys.argv[6]}}}
+							try:
+								re.findall(sys.argv[5], "")
+								regexgood = True
+							except Exception as e:
+								print self.ui.color("\n\nInvalid regular expression. Please check it and re-enter", self.ui.red)
+								print self.ui.color("\nERROR: " + str(e), self.ui.red)
+								regexgood = False
+							if regexgood:
+								configinput = {rule: {'match': {'regex': sys.argv[5], 'criterion': sys.argv[6]}}}
+							else:
+								keepgoing = False
 						elif len(sys.argv) == 8 and action == 'set-variable':
 							variable = sys.argv[5]
 							sourcetype = sys.argv[6]
@@ -3641,7 +3650,17 @@ class command_line_interpreter(object):
 							if source == "any":
 								configinput = {rule: {step: {sourcetype: {source: None}, action: variable}}}
 							else:
-								configinput = {rule: {step: {sourcetype: source, action: variable}}}
+								try:
+									re.findall(source, "")
+									regexgood = True
+								except Exception as e:
+									print self.ui.color("\n\nInvalid regular expression. Please check it and re-enter", self.ui.red)
+									print self.ui.color("\nERROR: " + str(e), self.ui.red)
+									regexgood = False
+								if regexgood:
+									configinput = {rule: {step: {sourcetype: source, action: variable}}}
+								else:
+									keepgoing = False
 						elif len(sys.argv) > 5 and action == 'assemble':
 							variables = sys.argv[5:]
 							variablenum = 1
@@ -3649,9 +3668,10 @@ class command_line_interpreter(object):
 							for variable in variables:
 								configinput[rule][step]['assemble'].update({'variable' + str(variablenum): variable})
 								variablenum += 1
-						self.filemgmt.munge_config(configinput)
-						self.filemgmt.save_config()
-						self.filemgmt.show_config_item('xml', "none", 'munge')
+						if keepgoing:
+							self.filemgmt.munge_config(configinput)
+							self.filemgmt.save_config()
+							self.filemgmt.show_config_item('xml', "none", 'munge')
 					print "\n"
 					if keepgoing:
 						print self.ui.color("Success!", self.ui.green)
