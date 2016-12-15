@@ -66,6 +66,9 @@ RadiUID runs as a system service on Linux and is very easy to configure and use.
 **Pushing a mapping using the `push` command and checking the current mappings using the `show mappings` command**
 ![RadiUID][push-and-show]
 
+**Test your munge rule-set using the `request munge-test` command**
+![RadiUID][radiuid-munge-test]
+
 
 
 ####   REQUIREMENTS   ####
@@ -107,7 +110,7 @@ NOTE: You need to be logged in as root or have sudo privileges on the system to 
 2. Install the Git client (unless you already have the RadiUID files): `sudo yum install git -y` or `sudo apt install git -y`
 3. Clone the RadiUID repo to any location on the box: `git clone https://github.com/PackeTsar/radiuid.git`
 4. Change to the directory where the RadiUID main code file (radiuid.py) and config file (radiuid.conf) are stored: `cd radiuid`
-	- (OPTIONAL) Change to the development branch (perform this step only if you are prepared for a version which is under active development and may have broken features): `git checkout devel`
+	- (OPTIONAL) Change to the development branch (perform this step only if you are prepared for a version which is under active development and may have broken features): `git checkout devX.X.X`
 5. Run the RadiUID program in install mode to perform the installation: `sudo python radiuid.py install`
 	- NOTE: Make sure that you have the .conf file in the same directory as the .py directory for the initial install
 6. Follow the on-screen prompts to install FreeRADIUS and the RadiUID application
@@ -191,28 +194,33 @@ RadiUID pushes ephemeral User-ID information to the firewall whenever new RADIUS
 
 ####   THE MUNGE ENGINE   ####
 ----------------------------------------------
-The Munge Engine is a rule-based string processor which is used in RadiUID to filter and process User-IDs based on rules you configure. 
+The Munge Engine is a rule-based string processor which is used in RadiUID to filter and process User-IDs based on rules you configure. The munge feature was introduced in version 2.2.0.
 
-- A sample munge configuration can be seen below. This configuration will instruct the Munge Engine to find any User-ID which contains a double-backslash and reconstruct it with only one backslash. Then it will find any User-ID which contains the name 'vendor' and discard it (prevent it from being pushed to the Palo Alto). This example uses both of the Munge Engine complex actions (set-variable, and assemble), but only uses one of the simple actions (discard), it does not use to two other simple actions (accept, continue)
-	- `radiuid set munge 1.0 match ".*\\\.*"`
-	- `radiuid set munge 1.10 set-variable domain from-match "^[a-zA-Z0-9]+"`
-	- `radiuid set munge 1.20 set-variable user from-match "[a-zA-Z0-9]+$"`
-	- `radiuid set munge 1.30 set-variable slash from-string "\\"`
-	- `radiuid set munge 1.40 assemble domain slash user`
-	- `radiuid set munge 2.0 match ".*vendor.*"`
-    - `radiuid set munge 2.10 discard`
-- Munge rules are broken down into rules and steps and are configured/ordered in a dot-notation as `<rule number>.<step number>`. The rules and steps can be numbered as desired with one exception, which is described below. The rules and steps are processed in order by their numbers, so when configuring them, you may want to leave gaps in the assigned numbers for insertion of other rules or steps later between the existing ones.
-- The only requirement for rule numbering is that step '0' (X.0) must be a match statement, as it is used to determine whether or not to process the rule on the User-ID. All rules must begin with a `X.0 match` statement followed by either an `any` keyword (which will match all inputs) or by a regular expression.
-- Other than the required `X.0 match` action, Munge has five actions which are broken down into two groups:
-	- Simple Actions: `accept`, `continue`, `discard`
+- A sample munge configuration can be seen below. This configuration will instruct the Munge Engine to find any User-ID which contains a double-backslash and reconstruct it with only one backslash. Then it will find any User-ID which contains the name 'vendor' and discard it (prevent it from being pushed to the Palo Alto). This example uses both of the Munge Engine complex actions (`set-variable`, and `assemble`), but only uses one of the simple actions (`discard`), it does not use the `accept` simple action.
+
+    *NOTE: The double-backslash in the `101.0 match` statement is represented by a quad-backslash because BASH recognizes the backslash character as an escape. You will always need to use a double-backslash to represent a single-backslash. You also should always wrap your regular expressions in quotes when entering them.*
+	- `radiuid set munge 101.0 match "\\\\" partial`
+	- `radiuid set munge 101.10 set-variable domain from-match "^[a-zA-Z0-9]+"`
+	- `radiuid set munge 101.20 set-variable user from-match "[a-zA-Z0-9]+$"`
+	- `radiuid set munge 101.30 set-variable slash from-string "\\"`
+	- `radiuid set munge 101.40 assemble domain slash user`
+	- `radiuid set munge 102.0 match "vendor" partial`
+    - `radiuid set munge 102.10 discard`
+
+- Munge rules are broken down into rules and steps and are configured/ordered in a dot-notation as `<rule number>.<step number>`. The rules and steps can be numbered as desired with one exception (`X.0`) which is described below. The rules and steps are processed in order by their numbers, so when configuring them, you may want to leave gaps in the assigned numbers for insertion of other rules or steps later between the existing ones.
+- The only requirement for rule numbering is that step '0' in each rule (X.0) must be a match statement, as it is used to determine whether or not to process the rule on the User-ID. All rules must begin with a `X.0 match` statement followed by either an `any` keyword (which will match all inputs) or by a regular expression.
+	- If the `X.0 match` statement uses a regular expression, it will require a `complete` or `partial` keyword at the end which is used as the return criterion. The `complete` keyword requires that the regular expression match and return the entire input User-ID. The `partial` keyword activates the rule upon a partial return of the input User-ID from the regular expression match operation.
+- Other than the required `X.0 match` action, Munge has four actions which are broken down into two groups:
+	- Simple Actions: `accept`, `discard`
 	- Complex Actions: `set-variable`, `assemble`
 - The various actions are explained below
 	- The `accept` action halts all rule and step processing and passes the input (User-ID) back out of the engine without any further filtering or changes.
-	- The `continue` action halts all step processing within the current rule and continues on to the next rule (assuming one exists and the input passes its match statement). Every rule has an implied `continue` statement at the end. The `continue` action is meant to be used to disable all or part of a rule within a rule-set without actually removing the rule from the configuration.
 	- The `discard` action halts all rule and step processing and discards the current input; not allowing it to pass out of the engine at all.
-	- The `set-variable` action instructs the engine to save a string (either part of the input/User-ID, or a manually configured static string) in memory for use later (by the assemble action). The variable's name is configured right after the `set-variable` term and it can be any alphanumerical word. The string's source-type can be either a regular expression match (using the `from-match` term) or it can be a statically configured string (using the `from-string` term).
+	- The `set-variable` action instructs the engine to save a string (either part of the input/User-ID, or a manually configured static string) in memory for use later by the assemble action. The variable's name is configured right after the `set-variable` term and it can be any alphanumerical word. The string's source-type can be either a regular expression match (using the `from-match` term) or it can be a statically configured string (using the `from-string` term).
+		- *NOTE: Set variables are usable across rules. They do not have to be used by the assemble action within the same rule. If you reuse the same variable name in different rule, note that the variable value set in an earlier rule will be overwritten by the later rule.*
 	- The `assemble` action is used to assemble previously set variables into one string. A list of strings should be provided in order after the `assemble` verb seperated by spaces.
-- The `request munge-test` command can be used to test a Munge rule-set on a provided input. You can also provide the `debug` term at the end of the command to see a walk-through of the steps taken by the Munge Engine and how it processed the configured rules to modify/filter the input provided in the command. 
+- The `request munge-test` command can be used to test a Munge rule-set on a provided input. You can also provide the `debug` term at the end of the command to see a walk-through of the steps taken by the Munge Engine and how it processed the configured rules to modify/filter the input provided in the command.
+- The `radiuid push` command has the new keyword `bypass-munge` available at the end to either let the Munge Engine process the input User-ID (by default) or bypass the Munge Engine and push only the input User-ID.
 
 
 
@@ -319,7 +327,7 @@ The Munge Engine is a rule-based string processor which is used in RadiUID to fi
 
 1. Change the name of your config file (/etc/radiuid/radiuid.conf) by issuing the command `mv /etc/radiuid/radiuid.conf /etc/radiuid/radiuid.conf.backup`
 2. Grab the contents to have them handy during the install of the new version `more /etc/radiuid/radiuid.conf.backup`
-3. Download the v2.1.0 code from the GitHub repo by using `git clone https://github.com/PackeTsar/radiuid.git`
+3. Download the v2.X.X code from the GitHub repo by using `git clone https://github.com/PackeTsar/radiuid.git`
     - If the "radiuid" folder already exists, you may want to use git to update the clone `cd radiuid/; git pull`
 4. Move to the radiuid folder created by git using the `cd radiuid/` command
 5. Perform a full install of RadiUID using the command `python radiuid.py install`
@@ -342,6 +350,6 @@ Visit the GitHub page (https://github.com/PackeTsar/radiuid) and either report a
 [show-config]: http://www.packetsar.com/wp-content/uploads/radiuid-show-config.png
 [show-config-set]: http://www.packetsar.com/wp-content/uploads/radiuid-show-config-set.png
 [push-and-show]: http://www.packetsar.com/wp-content/uploads/radiuid-push-and-show.png
-
+[radiuid-munge-test]: http://www.packetsar.com/wp-content/uploads/radiuid-munge-test.png
 [centos-post-install]: https://github.com/PackeTsar/scriptfury/blob/master/CentOS_Post_Install.md
 [ubuntu-post-install]: https://github.com/PackeTsar/scriptfury/blob/master/Ubuntu_Post_Install.md

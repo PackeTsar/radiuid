@@ -694,7 +694,7 @@ class file_management(object):
 				delineatorterm = configdict['globalsettings']['searchterms']['delineatorterm']
 				self.logwriter("normal", "Initialized variable:" "\t" + "delineatorterm" + "\t\t\t" + "with value:" + "\t" + self.ui.color(delineatorterm, self.ui.green))
 				userdomain = configdict['globalsettings']['uidsettings']['userdomain']
-				self.logwriter("normal", "Initialized variable:" "\t" + "userdomain" + "\t\t\t" + "with value:" + "\t" + self.ui.color(userdomain, self.ui.green))
+				self.logwriter("normal", "Initialized variable:" "\t" + "userdomain" + "\t\t\t" + "with value:" + "\t" + self.ui.color(str(userdomain), self.ui.green))
 				timeout = configdict['globalsettings']['uidsettings']['timeout']
 				self.logwriter("normal", "Initialized variable:" "\t" + "timeout" + "\t\t\t\t" + "with value:" + "\t" + self.ui.color(timeout, self.ui.green))
 				##### Publish list of firewall targets into main namespace #####
@@ -807,11 +807,15 @@ class file_management(object):
 			if setclientlist != []:
 				for setclient in setclientlist:
 					setclients += prepend + setclient + "\n!\n"
+			if userdomain == None:
+				userdomaintext = "none"
+			else:
+				userdomaintext = userdomain
 			setcommands = \
 				"" + prepend + " set radiuslogpath " + radiuslogpath + "\n!\n"\
 				"" + prepend + " set logfile " + logfile + "\n!\n"\
 				"" + prepend + " set maxloglines " + maxloglines + "\n!\n"\
-				"" + prepend + " set userdomain " + userdomain + "\n!\n"\
+				"" + prepend + " set userdomain " + userdomaintext + "\n!\n"\
 				"" + prepend + " set timeout " + timeout + "\n!\n"
 			#### Compile all set commands for different formats ####
 			textconfig = ""
@@ -1177,7 +1181,6 @@ class file_management(object):
 								elif element.tag == "regex":
 									if "\\" in element.text:  # Adjust backslashes so it presents correctly as a set command
 										regexlist = list(element.text)
-										print regexlist
 										newregex = ""
 										index = 0
 										for each in regexlist:
@@ -1186,11 +1189,9 @@ class file_management(object):
 												index += 1
 											else:
 												index += 1
-										print regexlist
 										for each in regexlist:
 											newregex += each
 										regex = newregex
-										print regex
 									else:
 										regex = element.text
 							result.append('set munge '+rulenum+'.0 match "'+regex+'" '+criterion)
@@ -1618,7 +1619,7 @@ class data_processing(object):
 									print "\t\t\t----- No match from regex, setting an empty string value for variable %s -----" % (str(variablename))  # Notify of variable name and new value
 								else:
 									print "\t\t\t----- Setting variable %s as value %s -----" % (str(variablename), str(variablevalue))  # Notify of variable name and new value
-								print "\t\t\t----- Current variables in this rule: %s -----" % str(variables)  # Print out current variables
+								print "\t\t\t----- Current variables in the variable list: %s -----" % str(variables)  # Print out current variables
 						elif currentstep.keys()[0] == 'assemble':  # If the current step reassembles the input from some variables
 							variableindex = currentstep['assemble'].keys()  # Grab the list of config elements assigned to the variable names
 							variableindex = self.sortlist(variableindex)  # Sort the list of variable elements so we assemble them in the right order
@@ -1685,7 +1686,7 @@ class palo_alto_firewall_interaction(object):
 				ipaddresses = ipanduserdict.keys()
 				for ip in ipaddresses:
 					username = ipanduserdict[ip]
-					if userdomain == "none":
+					if userdomain == None:
 						entry = '<entry name="%s" ip="%s" timeout="%s">' % (username, ip, timeout)
 					else:
 						entry = '<entry name="%s\%s" ip="%s" timeout="%s">' % (userdomain, username, ip, timeout)
@@ -2382,6 +2383,11 @@ _radiuid_complete()
         fi
       fi
     fi
+    if [ "$prev3" == "all" ]; then
+      if [ "$prev4" == "push" ]; then
+        COMPREPLY=( $(compgen -W "bypass-munge <cr>" -- $cur) )
+      fi
+    fi
   elif [ $COMP_CWORD -eq 6 ]; then
     prev2=${COMP_WORDS[COMP_CWORD-2]}
     prev3=${COMP_WORDS[COMP_CWORD-3]}
@@ -2466,7 +2472,26 @@ _radiuid_complete()
       *)
         ;;
     esac
-  elif [ $COMP_CWORD -eq 7 ] || [ $COMP_CWORD -eq 9 ] || [ $COMP_CWORD -eq 11 ]; then
+  elif [ $COMP_CWORD -eq 7 ]; then
+    if [ "$prev" == "username" ]; then
+      COMPREPLY=( $(compgen -W "<username> -" -- $cur) )
+    fi
+    if [ "$prev" == "password" ]; then
+      COMPREPLY=( $(compgen -W "<password> -" -- $cur) )
+    fi
+    if [ "$prev" == "version" ]; then
+      COMPREPLY=( $(compgen -W "<pan-os-version> -" -- $cur) )
+    fi
+    if [ "$prev" == "from-match" ]; then
+      COMPREPLY=( $(compgen -W "<regex-pattern> any" -- $cur) )
+    fi
+    if [ "$prev" == "from-string" ]; then
+      COMPREPLY=( $(compgen -W "<string> -" -- $cur) )
+    fi
+    if [ "$prev5" == "push" ]; then
+      COMPREPLY=( $(compgen -W "bypass-munge <cr>" -- $cur) )
+    fi
+  elif [ $COMP_CWORD -eq 9 ] || [ $COMP_CWORD -eq 11 ]; then
     case "$prev" in
       username)
         COMPREPLY=( $(compgen -W "<username> -" -- $cur) )
@@ -2925,7 +2950,9 @@ class command_line_interpreter(object):
 			except KeyError:
 				None
 		elif arguments == "test":
-			print self.filemgmt.show_munge_config_set()
+			self.filemgmt.change_config_item('userdomain', None)
+			self.filemgmt.show_config_item('xml', "none", 'config')
+			self.filemgmt.save_config()
 		######################### INSTALL #############################
 		elif arguments == "install":
 			self.filemgmt.logwriter("quiet", "##### COMMAND '" + arguments + "' ISSUED FROM CLI BY USER '" + self.imum.currentuser()+ "' #####")
@@ -3272,10 +3299,11 @@ class command_line_interpreter(object):
 			header = "########################## EXECUTING COMMAND: " + arguments + " ##########################"
 			print self.ui.color(header, self.ui.magenta)
 			print self.ui.color("#" * len(header), self.ui.magenta)
-			if self.filemgmt.get_globalconfig_item('userdomain') == sys.argv[3]:
+			entereduserdomain = sys.argv[3]
+			if self.filemgmt.get_globalconfig_item('userdomain') == entereduserdomain:
 				print self.ui.color("\n" + time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + "****************Entered value is the same as current value****************\n", self.ui.green)
 			else:
-				domaincheck = self.filemgmt.check_domainname(sys.argv[3])
+				domaincheck = self.filemgmt.check_domainname(entereduserdomain)
 				if domaincheck["status"] == "fail":
 					for message in domaincheck["messages"]:
 						if message.keys()[0] == "FATAL":
@@ -3283,16 +3311,18 @@ class command_line_interpreter(object):
 						elif message.keys()[0] == "WARNING":
 							print "\n" + self.ui.color(time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + "****************" + message.keys()[0] + ": " + message.values()[0] + "****************\n", self.ui.yellow)
 				elif domaincheck["status"] == "pass":
-					if sys.argv[3] != "none":
+					if entereduserdomain != "none":
 						for message in domaincheck["messages"]:
 							if message.keys()[0] == "WARNING":
 								print "\n" + self.ui.color(time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + "****************" + message.keys()[0] + ": " + message.values()[0] + "****************\n", self.ui.yellow)
-					self.filemgmt.change_config_item('userdomain', sys.argv[3])
+					else:
+						entereduserdomain = None
+					self.filemgmt.change_config_item('userdomain', entereduserdomain)
 					print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " +"****************Writing config change to: "+ configfile + "****************\n"
 					self.filemgmt.save_config()
 					print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " +"<userdomain> configuration element changed to :\n"
 					self.filemgmt.show_config_item('xml', "none", 'userdomain')
-				if self.filemgmt.get_globalconfig_item('userdomain') == sys.argv[3]:
+				if str(self.filemgmt.get_globalconfig_item('userdomain')) == str(entereduserdomain):
 					print self.ui.color("Success!", self.ui.green)
 				else:
 					print self.ui.color("Something Went Wrong!", self.ui.red)
@@ -3649,6 +3679,8 @@ class command_line_interpreter(object):
 							source = sys.argv[7]
 							if source == "any":
 								configinput = {rule: {step: {sourcetype: {source: None}, action: variable}}}
+							elif sourcetype == "from-string":
+								configinput = {rule: {step: {sourcetype: source, action: variable}}}
 							else:
 								try:
 									re.findall(source, "")
