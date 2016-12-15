@@ -104,7 +104,6 @@ The install of RadiUID is very quick and straightforward using the built-in inst
 NOTE: You need to be logged in as root or have sudo privileges on the system to install RadiUID
 
 
-
 1. Install OS with appropriate IP and OS settings and update to latest patches (recommended)
 	- Check out the [CentOS Minimal Server - Post-Install Setup][centos-post-install] and the [Ubuntu Server - Post Install Setup][ubuntu-post-install] for help with some of the post-OS-install configuration steps.
 2. Install the Git client (unless you already have the RadiUID files): `sudo yum install git -y` or `sudo apt install git -y`
