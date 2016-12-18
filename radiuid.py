@@ -2230,6 +2230,11 @@ _radiuid_complete()
           COMPREPLY=( $(compgen -W "replace-config keep-config" -- $cur) )
         fi
         ;;
+      freeradius-install)
+        if [ "$prev2" == "request" ]; then
+          COMPREPLY=( $(compgen -W "<cr> no-confirm" -- $cur) )
+        fi
+        ;;
       munge-test)
         if [ "$prev2" == "request" ]; then
           COMPREPLY=( $(compgen -W "- <string-to-parse>" -- $cur) )
@@ -2355,6 +2360,11 @@ _radiuid_complete()
         elif [ "${myarray[1]}" != "0" ]; then
           COMPREPLY=( $(compgen -W "accept assemble discard set-variable" -- $cur) )
         fi
+      fi
+    fi
+    if [ "$prev2" == "reinstall" ]; then
+      if [ "$prev3" == "request" ]; then
+        COMPREPLY=( $(compgen -W "<cr> no-confirm" -- $cur) )
       fi
     fi
   elif [ $COMP_CWORD -eq 5 ]; then
@@ -2528,7 +2538,6 @@ bind 'set show-all-if-ambiguous on'"""
 		self.ui.progress("Setting Permissions on File", 1)
 		os.system('chmod 777 /etc/profile.d/radiuid-complete.sh')
 		print self.ui.color("All Done!\n", self.ui.green)
-		raw_input(self.ui.color("\nYou will need to log out and log back in to enable the RadiUID Auto-Complete feature\nHit ENTER to Complete>>>>>", self.ui.cyan))
 	##### Apply new settings as veriables in the namespace #####
 	##### Used to write new setting values to namespace to be picked up and used by the write_file method to write to the config file #####
 	def apply_setting(self, file_data, settingname, oldsetting, newsetting):
@@ -4362,11 +4371,11 @@ class command_line_interpreter(object):
 				print self.ui.color("\n\n********** LOOKS LIKE FREERADIUS IS NOT INSTALLED. YOU NEED TO INSTALL IT **********\n\n", self.ui.red)
 		######################### REQUEST #############################
 		elif arguments == "request" or arguments == "request ?":
-			print "\n - request xml-update                                   |     Update the Python XML.etree modules (for compatibility on old Python versions)"
-			print " - request munge-test <string-to-parse> (debug)         |     Test and debug the Munge Engine using a provided string"
-			print " - request auto-complete                                |     Manually install the RadiUID BASH Auto-Completion feature"
-			print " - request freeradius-install                           |     Manually install the FreeRADIUS service for use by RadiUID"
-			print " - request reinstall (replace-config | keep-config)     |     Reinstall RadiUID with or without replacing the current RadiUID configuration\n"
+			print "\n - request xml-update                                            |     Update the Python XML.etree modules (for compatibility on old Python versions)"
+			print " - request munge-test <string-to-parse> (debug)                  |     Test and debug the Munge Engine using a provided string"
+			print " - request auto-complete                                         |     Manually install the RadiUID BASH Auto-Completion feature"
+			print " - request freeradius-install (no-confirm)                       |     Manually install the FreeRADIUS service for use by RadiUID"
+			print " - request reinstall (replace-config | keep-config) (no-confirm) |     Reinstall RadiUID with or without replacing the current RadiUID configuration\n"
 		elif arguments == "request reinstall" or arguments == "request reinstall ?":
 			print "\n - request reinstall replace-config                            |     Reinstall RadiUID and REPLACE current configuration with default configuration"
 			print " - request reinstall keep-config                               |     Reinstall RadiUID and KEEP current configuration with default configuration\n"
@@ -4395,7 +4404,7 @@ class command_line_interpreter(object):
 			print "\n\n"
 			print self.ui.color("#" * len(header), self.ui.magenta)
 			print self.ui.color("#" * len(header), self.ui.magenta)
-		elif arguments == "request xml-update":
+		elif self.cat_list(sys.argv[1:3]) == "request xml-update":
 			header = "########################## XML ETREE UPDATE ##########################"
 			print self.ui.color(header, self.ui.magenta)
 			print self.ui.color("#" * len(header), self.ui.magenta)
@@ -4404,22 +4413,46 @@ class command_line_interpreter(object):
 			self.imum.update_xml_etree()
 			print self.ui.color("#" * len(header), self.ui.magenta)
 			print self.ui.color("#" * len(header), self.ui.magenta)
-		elif arguments == "request auto-complete":
+		elif self.cat_list(sys.argv[1:3]) == "request auto-complete":
 			header = "########################## AUTO-COMPLETE INSTALL ##########################"
 			print self.ui.color(header, self.ui.magenta)
 			print self.ui.color("#" * len(header), self.ui.magenta)
 			self.imum.install_radiuid_completion()
+			raw_input(self.ui.color("\nYou will need to log out and log back in to enable the RadiUID Auto-Complete feature\nHit ENTER to Complete>>>>>", self.ui.cyan))
 			print self.ui.color("#" * len(header), self.ui.magenta)
 			print self.ui.color("#" * len(header), self.ui.magenta)
-		elif arguments == "request reinstall replace-config":
+		elif self.cat_list(sys.argv[1:4]) == "request reinstall replace-config":
+			confirm = True
+			if len(sys.argv) > 4:
+				if sys.argv[4].lower() == "no-confirm":
+					confirm = False
 			self.filemgmt.logwriter("cli", "##### COMMAND '" + arguments + "' ISSUED FROM CLI BY USER '" + self.imum.currentuser()+ "' #####")
 			header = "########################## RADIUID REINSTALL/UPGRADE ##########################"
 			print self.ui.color(header, self.ui.magenta)
 			print self.ui.color("#" * len(header), self.ui.magenta)
-			print self.ui.color("\n\n***** Are you sure you want to re-install/upgrade RadiUID using version " + version + "?*****", self.ui.yellow)
-			print self.ui.color("***** This will overwrite your current RadiUID configuration with the default configuration.*****", self.ui.yellow)
-			answer = raw_input(self.ui.color(">>>>> If you are sure you want to do this, type in 'CONFIRM' and hit ENTER >>>>", self.ui.yellow))
-			if answer.lower() == "confirm":
+			if confirm:
+				print self.ui.color("\n\n***** Are you sure you want to re-install/upgrade RadiUID using version " + version + "?*****", self.ui.yellow)
+				print self.ui.color("***** This will overwrite your current RadiUID configuration with the default configuration.*****", self.ui.yellow)
+				answer = raw_input(self.ui.color(">>>>> If you are sure you want to do this, type in 'CONFIRM' and hit ENTER >>>>", self.ui.yellow))
+				if answer.lower() == "confirm":
+					print "\n\n****************Re-installing/upgrading the RadiUID service...****************\n"
+					self.imum.copy_radiuid("replace-config")
+					self.imum.install_radiuid()
+					svcctloutput = self.imum.service_control("restart", "radiuid")
+					print svcctloutput["after"]
+					if svcctloutput["status"] == "running":
+						print self.ui.color("\n\n********** RADIUID STARTED UP! **********\n\n", self.ui.green)
+					elif svcctloutput["status"] == "dead":
+						print self.ui.color("\n\n********** RADIUID STARTUP UNSUCCESSFUL! **********\n\n", self.ui.red)
+					elif svcctloutput["status"] == "not-found":
+						print self.ui.color("\n\n********** LOOKS LIKE RADIUID IS NOT INSTALLED. YOU NEED TO INSTALL IT **********\n\n", self.ui.red)
+					print "\n"
+					self.imum.install_radiuid_completion()
+					raw_input(self.ui.color(">>>>> You will need to log out and log back in to activate the RadiUID CLI auto-completion functionality\n>>>>> Hit ENTER to finish\n>>>>>", self.ui.cyan))
+					print self.ui.color("Success!", self.ui.green)
+				else:
+					print self.ui.color("\n\n***** Reinstall\Upgrade of RadiUID Cancelled *****\n", self.ui.yellow)
+			else:
 				print "\n\n****************Re-installing/upgrading the RadiUID service...****************\n"
 				self.imum.copy_radiuid("replace-config")
 				self.imum.install_radiuid()
@@ -4433,43 +4466,57 @@ class command_line_interpreter(object):
 					print self.ui.color("\n\n********** LOOKS LIKE RADIUID IS NOT INSTALLED. YOU NEED TO INSTALL IT **********\n\n", self.ui.red)
 				print "\n"
 				self.imum.install_radiuid_completion()
-				raw_input(self.ui.color(">>>>> You will need to log out and log back in to activate the RadiUID CLI auto-completion functionality\n>>>>> Hit ENTER to finish\n>>>>>", self.ui.cyan))
-				print self.ui.color("Success!", self.ui.green)
-			else:
-				print self.ui.color("\n\n***** Reinstall\Upgrade of RadiUID Cancelled *****\n", self.ui.yellow)
 			print self.ui.color("#" * len(header), self.ui.magenta)
 			print self.ui.color("#" * len(header), self.ui.magenta)
-		elif arguments == "request reinstall keep-config":
+		elif self.cat_list(sys.argv[1:4]) == "request reinstall keep-config":
+			confirm = True
+			if len(sys.argv) > 4:
+				if sys.argv[4].lower() == "no-confirm":
+					confirm = False
 			self.filemgmt.logwriter("cli", "##### COMMAND '" + arguments + "' ISSUED FROM CLI BY USER '" + self.imum.currentuser()+ "' #####")
 			header = "########################## RADIUID REINSTALL/UPGRADE ##########################"
 			print self.ui.color(header, self.ui.magenta)
 			print self.ui.color("#" * len(header), self.ui.magenta)
-			print self.ui.color("\n\n***** Are you sure you want to re-install/upgrade RadiUID using version " + version + "?*****", self.ui.yellow)
-			print self.ui.color("***** This will keep your current RadiUID configuration.*****", self.ui.yellow)
-			answer = raw_input(self.ui.color(">>>>> If you are sure you want to do this, type in 'CONFIRM' and hit ENTER >>>>", self.ui.yellow))
-			if answer.lower() == "confirm":
+			if confirm:
+				print self.ui.color("\n\n***** Are you sure you want to re-install/upgrade RadiUID using version " + version + "?*****", self.ui.yellow)
+				print self.ui.color("***** This will keep your current RadiUID configuration.*****", self.ui.yellow)
+				answer = raw_input(self.ui.color(">>>>> If you are sure you want to do this, type in 'CONFIRM' and hit ENTER >>>>", self.ui.yellow))
+				if answer.lower() == "confirm":
+					print "\n\n****************Re-installing/upgrading the RadiUID service...****************\n"
+					self.imum.copy_radiuid("keep-config")
+					self.imum.install_radiuid()
+					print "\n"
+					self.imum.install_radiuid_completion()
+					raw_input(self.ui.color(">>>>> You will need to log out and log back in to activate the RadiUID CLI auto-completion functionality\n>>>>> Hit ENTER to finish\n>>>>>", self.ui.cyan))
+					print self.ui.color("Success!", self.ui.green)
+				else:
+					print self.ui.color("\n\n***** Reinstall\Upgrade of RadiUID Cancelled *****\n", self.ui.yellow)
+			else:
 				print "\n\n****************Re-installing/upgrading the RadiUID service...****************\n"
 				self.imum.copy_radiuid("keep-config")
 				self.imum.install_radiuid()
 				print "\n"
 				self.imum.install_radiuid_completion()
-				raw_input(self.ui.color(">>>>> You will need to log out and log back in to activate the RadiUID CLI auto-completion functionality\n>>>>> Hit ENTER to finish\n>>>>>", self.ui.cyan))
-				print self.ui.color("Success!", self.ui.green)
-			else:
-				print self.ui.color("\n\n***** Reinstall\Upgrade of RadiUID Cancelled *****\n", self.ui.yellow)
 			print self.ui.color("#" * len(header), self.ui.magenta)
 			print self.ui.color("#" * len(header), self.ui.magenta)
-		elif arguments == "request freeradius-install":
+		elif self.cat_list(sys.argv[1:3]) == "request freeradius-install":
+			confirm = True
+			if len(sys.argv) > 3:
+				if sys.argv[3].lower() == "no-confirm":
+					confirm = False
 			self.filemgmt.logwriter("cli", "##### COMMAND '" + arguments + "' ISSUED FROM CLI BY USER '" + self.imum.currentuser()+ "' #####")
 			header = "########################## FREERADIUS MANUAL INSTALL ##########################"
 			print self.ui.color(header, self.ui.magenta)
 			print self.ui.color("#" * len(header), self.ui.magenta)
-			print self.ui.color("\n\n***** Are you sure you want to install/reinstall FreeRADIUS?*****", self.ui.yellow)
-			answer = raw_input(self.ui.color(">>>>> If you are sure you want to do this, type in 'CONFIRM' and hit ENTER >>>>", self.ui.yellow))
-			if answer.lower() == "confirm":
-				self.imum.install_freeradius()
+			if confirm:
+				print self.ui.color("\n\n***** Are you sure you want to install/reinstall FreeRADIUS?*****", self.ui.yellow)
+				answer = raw_input(self.ui.color(">>>>> If you are sure you want to do this, type in 'CONFIRM' and hit ENTER >>>>", self.ui.yellow))
+				if answer.lower() == "confirm":
+					self.imum.install_freeradius()
+				else:
+					print self.ui.color("\n\n***** Install/Reinstall of FreeRADIUS Cancelled *****\n", self.ui.yellow)
 			else:
-				print self.ui.color("\n\n***** Install/Reinstall of FreeRADIUS Cancelled *****\n", self.ui.yellow)
+				self.imum.install_freeradius()
 			print self.ui.color("#" * len(header), self.ui.magenta)
 			print self.ui.color("#" * len(header), self.ui.magenta)
 		######################### VERSION #############################
