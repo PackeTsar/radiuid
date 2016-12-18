@@ -6,7 +6,7 @@ An application to extract User-to-IP mappings from RADIUS accounting data and se
 
 ####   VERSION   ####
 -----------------------------------------
-The version of RadiUID documented here is: **v2.2.0**
+The version of RadiUID documented here is: **v2.2.1**
 
 
 ####   TABLE OF CONTENTS   ####
@@ -24,8 +24,9 @@ The version of RadiUID documented here is: **v2.2.0**
 10. [2.0.0 TO 2.0.1 Updates](#updates-in-v200----v201)
 11. [2.0.1 TO 2.1.0 Updates](#updates-in-v201----v210)
 12. [2.1.0 TO 2.2.0 Updates](#updates-in-v210----v220)
-13. [Upgrade Processes](#upgrade-processes)
-14. [Contributing](#contributing)
+13. [2.2.0 TO 2.2.1 Updates](#updates-in-v220----v221)
+14. [Upgrade Processes](#upgrade-processes)
+15. [Contributing](#contributing)
 
 
 ####   WHAT IS RADIUID   ####
@@ -304,11 +305,20 @@ The Munge Engine is a rule-based string processor which is used in RadiUID to fi
 
 
 
+####   UPDATES IN V2.2.0 --> V2.2.1   ####
+--------------------------------------
+
+**BUG FIXES:**
+
+- *ISSUE #20*: Added the `no-confirm` switch to the end of the commands `request reinstall keep-config`, `request reinstall replace-config`, `request freeradius-install` commands.
+
+
+
 
 ####   UPGRADE PROCESSES   ####
 --------------------------------------
 
-**Upgrading from v2.X to v2.2.0:**
+**Upgrading from v2.X to v2.2.1:**
 
 1. Perform a `radiuid show config set` command and save the `set` commands displayed in a safe place (just in case)
 2. Download the v2.2.0 code from the GitHub repo by using `git clone https://github.com/PackeTsar/radiuid.git`
