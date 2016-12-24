@@ -272,7 +272,9 @@ def check_for_container():
 	global osversion
 	global version
 	global incontainer
-	if "dockerenv" in commands.getstatusoutput("ls /.dockerenv")[1]:
+	if "No such" in commands.getstatusoutput("ls /.dockerenv")[1]:
+		pass
+	else:
 		incontainer = True
 		osversion = osversion + "(Docker Container)"
 		version = version + " (Docker Container Mode)"
@@ -2036,7 +2038,6 @@ class imu_methods(object):
 			result.update({"actioncmd": actioncmd, "action": action[1]}) # Update the result with the action information
 			result.update({"aftercmd": aftercmd, "after": after[1]}) # Update the result with the post-action information
 			result.update({"status": status}) # Update the result with the recognized service status
-			print result
 			return result
 	##### Install FreeRADIUS server #####
 	def install_freeradius(self):
