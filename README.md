@@ -6,7 +6,7 @@ An application to extract User-to-IP mappings from RADIUS accounting data and se
 
 ####   VERSION   ####
 -----------------------------------------
-The version of RadiUID documented here is: **v2.2.1**
+The version of RadiUID documented here is: **v2.3.0**
 
 
 ####   TABLE OF CONTENTS   ####
@@ -16,17 +16,20 @@ The version of RadiUID documented here is: **v2.2.1**
 3. [Screenshots](#screenshots)
 4. [Requirements](#requirements)
 5. [Tested Environments](#tested-environments)
-6. [Install Instructions](#install-instructions)
-7. [Command Interface](#command-interface)
-8. [Timeout Tuning](#timeout-tuning)
-9. [The Munge Engine](#the-munge-engine)
-9. [1.1.0 TO 2.0.0 Updates](#updates-in-v110----v200)
-10. [2.0.0 TO 2.0.1 Updates](#updates-in-v200----v201)
-11. [2.0.1 TO 2.1.0 Updates](#updates-in-v201----v210)
-12. [2.1.0 TO 2.2.0 Updates](#updates-in-v210----v220)
-13. [2.2.0 TO 2.2.1 Updates](#updates-in-v220----v221)
-14. [Upgrade Processes](#upgrade-processes)
-15. [Contributing](#contributing)
+6. [Docker Install Instructions](#docker-install-instructions)
+7. [OS Install Instructions](#os-install-instructions)
+8. [Command Interface](#command-interface)
+9. [Timeout Tuning](#timeout-tuning)
+10. [The Munge Engine](#the-munge-engine)
+11. [1.1.0 TO 2.0.0 Updates](#updates-in-v110----v200)
+12. [2.0.0 TO 2.0.1 Updates](#updates-in-v200----v201)
+13. [2.0.1 TO 2.1.0 Updates](#updates-in-v201----v210)
+14. [2.1.0 TO 2.2.0 Updates](#updates-in-v210----v220)
+15. [2.2.0 TO 2.2.1 Updates](#updates-in-v220----v221)
+16. [2.2.1 TO 2.3.0 Updates](#updates-in-v221----v230)
+17. [Upgrade Processes](#upgrade-processes)
+18. [Docker Files](#dockerfiles)
+19. [Contributing](#contributing)
 
 
 ####   WHAT IS RADIUID   ####
@@ -75,7 +78,7 @@ RadiUID runs as a system service on Linux and is very easy to configure and use.
 ####   REQUIREMENTS   ####
 --------------------------------------
 
-OS:			**Any modern Debian or RHEL distro** (CentOS 6 or 7, Ubuntu 14 or 16...)
+OS:			**Any modern Debian, RHEL distro (CentOS 6 or 7, Ubuntu 14 or 16...), or Docker container host**
 
 Interpreter:		**Python 2.7.X** *(Also works on Python 2.6.6 and up)*
 
@@ -90,7 +93,7 @@ RadiUID has been written and tested in a few environments to date as it was purp
 
 RadiUID has currently been tested with the following Operating Systems, RADIUS servers, and authenticators
 
-Operating Systems: **CentOS 7, CentOS 6, Ubuntu 16 Server, Ubuntu 14 Server**
+Operating Systems: **CentOS 7, CentOS 6, Ubuntu 16 Server, Ubuntu 14 Server, Docker 1.10.3**
 
 Identity Systems: **JumpCloud RADIUS service, Windows 2012 NPS Server (with Active Directory)**
 
@@ -98,7 +101,25 @@ Authenticators: **Meraki Wireless Access Points, Cisco Wireless (Controller-base
 
 
 
-####   INSTALL INSTRUCTIONS   ####
+####   DOCKER INSTALL INSTRUCTIONS   ####
+----------------------------------------------
+
+Downloading and running RadiUID on a Docker host is the fastest and easiest way to get it up and running. There are two versions of the RadiUID image maintained on Docker Hub: an image **with SSH**, and an image **without SSH**. The image **with SSH** has the SSH server installed and pre-configured with a login username and password. All you have to do is change the password. The Dockerfile build scripts which were used to build the images are available in the [Docker Files](#dockerfiles) section in case you want to perform the build yourself. 
+
+1. From the Docker host, download and run the image in interactive mode
+	1. To run the image **with SSH**: `docker run -it -p 1813:1813/udp -p 1813:1813/tcp -p 222:22/tcp --name radiuid -t packetsar/radiuid-ssh:latest`
+	2. To run the image **without SSH**: `docker run -it -p 1813:1813/udp -p 1813:1813/tcp --name RADIUID -t packetsar/radiuid:latest`
+2. *If you ran the image with SSH:* The default SSH username and password is root\radiuid. Run the command `passwd root` to change the SSH password.
+3. Run the command `radiuid show config set` to see the default configuration.
+4. Run the `radiuid clear target all` command to delete the firewall target configurations, then use the `radiuid set target [parameters]` command to configure the application with your Palo Alto target firewall paramaters.
+5. Run the `radiuid set client [parameters]` command to configure FreeRADIUS to accept RADIUS accounting data from your RADIUS authenticators.
+6. Once configuration is complete, run the `radiuid service all restart` to restart the services so the new configuration takes effect.
+7. Take a look at your logs using the `radiuid show log` command to see what the application is doing.
+
+
+
+
+####   OS INSTALL INSTRUCTIONS   ####
 ----------------------------------------------
 
 The install of RadiUID is very quick and straightforward using the built-in installer.
@@ -314,11 +335,20 @@ The Munge Engine is a rule-based string processor which is used in RadiUID to fi
 
 
 
+####   UPDATES IN V2.2.1 --> V2.3.0   ####
+--------------------------------------
+
+**ADDED FEATURES:**
+
+- RadiUID is now available as a Docker image on [Docker Hub][docker-hub]. Small code changes were made to allow RadiUID to recognize when it is being run in a container and to be able to stop, start, and restart services while the container is running. 
+
+
+
 
 ####   UPGRADE PROCESSES   ####
 --------------------------------------
 
-**Upgrading from v2.X to v2.2.1:**
+**Upgrading from v2.X to v2.3.0:**
 
 1. Perform a `radiuid show config set` command and save the `set` commands displayed in a safe place (just in case)
 2. Download the v2.2.0 code from the GitHub repo by using `git clone https://github.com/PackeTsar/radiuid.git`
@@ -332,7 +362,7 @@ The Munge Engine is a rule-based string processor which is used in RadiUID to fi
 8. You may also want to log out of the shell and back in to activate any new auto-complete functions.
 
 
-**Upgrading from v1.X to v2.2.0:**
+**Upgrading from v1.X to v2.3.0:**
 
 1. Change the name of your config file (/etc/radiuid/radiuid.conf) by issuing the command `mv /etc/radiuid/radiuid.conf /etc/radiuid/radiuid.conf.backup`
 2. Grab the contents to have them handy during the install of the new version `more /etc/radiuid/radiuid.conf.backup`
@@ -346,6 +376,54 @@ The Munge Engine is a rule-based string processor which is used in RadiUID to fi
 
 
 
+####   DOCKERFILES   ####
+--------------------------------------
+
+These are the dockerfile script files used to build the SSH and non-SSH Docker images hosted on [Docker Hub][docker-hub]. You can use these on a Docker host to build your own RadiUID image instead of downloading the pre-made one from Docker Hub.
+
+**With SSH**
+
+    FROM centos:latest
+    MAINTAINER John W Kerns "jkerns@packetsar.com"
+    
+    ### Install and configure SSH Server for SSH access to container ###
+    RUN yum install -y openssh openssh-server openssh-clients sudo passwd
+    RUN sshd-keygen
+    RUN sed -i "s/UsePAM.*/UsePAM no/g" /etc/ssh/sshd_config
+    RUN sed -i "s/#UsePrivilegeSeparation.*/UsePrivilegeSeparation no/g" /etc/ssh/sshd_config
+    RUN useradd admin -G wheel -s /bin/bash -m
+    RUN echo 'root:radiuid' | chpasswd
+    RUN echo '%wheel ALL=(ALL) ALL' >> /etc/sudoers
+    
+    ### Download and install RadiUID from latest release ###
+    RUN curl -sL https://codeload.github.com/PackeTsar/radiuid/tar.gz/2.2.1 | tar xz
+    RUN cd radiuid-2.2.1;python radiuid.py request reinstall replace-config no-confirm
+    RUN cd radiuid-2.2.1;python radiuid.py request freeradius-install no-confirm
+    
+    ### Expose ports and provide run commands ###
+    EXPOSE 1813/udp
+    EXPOSE 1813/tcp
+    EXPOSE 22/tcp
+    CMD radiusd & radiuid run >> /etc/radiuid/STDOUT & /usr/sbin/sshd >> /etc/radiuid/SSH-STDOUT & /bin/bash
+
+**Without SSH**
+
+    FROM centos:latest
+    MAINTAINER John W Kerns "jkerns@packetsar.com"
+    
+    ### Download and install RadiUID from latest release ###
+    RUN curl -sL https://codeload.github.com/PackeTsar/radiuid/tar.gz/2.2.1 | tar xz
+    RUN cd radiuid-2.2.1;python radiuid.py request reinstall replace-config no-confirm
+    RUN cd radiuid-2.2.1;python radiuid.py request freeradius-install no-confirm
+    
+    ### Expose ports and provide run commands ###
+    EXPOSE 1813/udp
+    EXPOSE 1813/tcp
+    CMD radiusd & radiuid run >> /etc/radiuid/STDOUT & /bin/bash
+
+
+
+
 ####   CONTRIBUTING   ####
 --------------------------------------
 
@@ -356,6 +434,7 @@ Visit the GitHub page (https://github.com/PackeTsar/radiuid) and either report a
 [logo]: http://www.packetsar.com/wp-content/uploads/radiuid-logo-tiny-100.png
 [all-args]: http://www.packetsar.com/wp-content/uploads/radiuid-all-args.png
 [show-log]: http://www.packetsar.com/wp-content/uploads/radiuid-show-log.png
+[docker-hub]: https://hub.docker.com/r/packetsar/
 [show-config]: http://www.packetsar.com/wp-content/uploads/radiuid-show-config.png
 [show-config-set]: http://www.packetsar.com/wp-content/uploads/radiuid-show-config-set.png
 [push-and-show]: http://www.packetsar.com/wp-content/uploads/radiuid-push-and-show.png

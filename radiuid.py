@@ -1,6 +1,6 @@
 #!/usr/bin/python
 
-#####        RadiUID Server dev2.3.0         #####
+#####        RadiUID Server v2.3.0         #####
 #####       Written by John W Kerns        #####
 #####      http://blog.packetsar.com       #####
 ##### https://github.com/PackeTsar/radiuid #####
@@ -17,7 +17,7 @@ import platform
 import xml.etree.ElementTree as ElementTree
 
 ##### Inform RadiUID version here #####
-version = "dev2.3.0"
+version = "2.3.0"
 
 ##### Set some internal settings #####
 etcconfigfile = '/etc/radiuid/radiuid.conf'
@@ -277,7 +277,6 @@ def check_for_container():
 	else:
 		incontainer = True
 		osversion = osversion + "(Docker Container)"
-		version = version + " (Docker Container Mode)"
 check_for_container()
 
 
