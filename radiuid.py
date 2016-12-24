@@ -1,6 +1,6 @@
 #!/usr/bin/python
 
-#####        RadiUID Server v2.2.1         #####
+#####        RadiUID Server dev2.3.0         #####
 #####       Written by John W Kerns        #####
 #####      http://blog.packetsar.com       #####
 ##### https://github.com/PackeTsar/radiuid #####
@@ -17,7 +17,7 @@ import platform
 import xml.etree.ElementTree as ElementTree
 
 ##### Inform RadiUID version here #####
-version = "2.2.1"
+version = "dev2.3.0"
 
 ##### Set some internal settings #####
 etcconfigfile = '/etc/radiuid/radiuid.conf'
@@ -223,7 +223,7 @@ for each in platform.dist():
 	osversion = osversion + each + " "
 ##### Check For SystemD #####
 checksystemd = commands.getstatusoutput("systemctl")
-if len(checksystemd[1]) > 50:
+if len(checksystemd[1]) > 50 and "Operation not permitted" not in checksystemd[1]:
 	systemd = True
 else:
 	systemd = False
@@ -266,7 +266,17 @@ def check_rad_config():
 		clientconfpath = '/etc/raddb/clients.conf'
 	return clientconfpath
 check_rad_config()
-
+##### Check if we are operating in a container #####
+incontainer = False
+def check_for_container():
+	global osversion
+	global version
+	global incontainer
+	if "dockerenv" in commands.getstatusoutput("ls /.dockerenv")[1]:
+		incontainer = True
+		osversion = osversion + "(Docker Container)"
+		version = version + " (Docker Container Mode)"
+check_for_container()
 
 
 
@@ -1960,6 +1970,47 @@ class imu_methods(object):
 				activewords = ["active (running)"] # Set the keyword to recognize for a running service
 				deadwords = ["inactive (dead)"] # Set the keyword to recognize for a stopped service
 				notfoundwords = ["not-found"] # Set the keyword to recognize for a unrecognized/not installed service
+			elif incontainer:
+				beforecmd = "ps -e" # Set proper command to run before the action
+				aftercmd = "ps -e" # Set proper command to run after the action
+				pid = "unknown"
+				for line in commands.getstatusoutput("ps -e")[1].splitlines():
+					if service in line:
+						pid = re.findall("[0-9]+", line)[0]
+				if action == "start":
+					if service == "radiuid":
+						actioncmd = "cd"
+						if pid == "unknown":
+							os.system("radiuid run >> /dev/null &")
+						else:
+							print self.ui.color("****************RadiUID is already running! Stop it First!****************\n", self.ui.red)
+					elif service == "radiusd":
+						if pid == "unknown":
+							actioncmd = "radiusd"
+						else:
+							actioncmd = "cd"
+							print self.ui.color("****************FreeRADIUS is already running! Stop it First!****************\n", self.ui.red)
+						actioncmd = "radiusd"
+				elif action == "stop":
+					if pid == "unknown":
+						actioncmd = ""
+					else:
+						actioncmd = "kill " + pid
+				elif action == "restart":
+					if pid == "unknown":
+						actioncmd = "cd"
+					else:
+						actioncmd = "kill " + pid
+					if service == "radiuid":
+						actioncmd += ";cd"
+						os.system("radiuid run >> /dev/null &")
+					elif service == "radiusd":
+						actioncmd += ";radiusd"
+				elif action == "status":
+					actioncmd = "ps -e"
+				activewords = [service] # Set the keyword to recognize for a running service
+				deadwords = [""] # Set the keyword to recognize for a stopped service
+				notfoundwords = [] # Set the keyword to recognize for a unrecognized/not installed service
 			else:
 				beforecmd = "service " + service + " status"
 				actioncmd = "service " + service + " " + action
@@ -1985,6 +2036,7 @@ class imu_methods(object):
 			result.update({"actioncmd": actioncmd, "action": action[1]}) # Update the result with the action information
 			result.update({"aftercmd": aftercmd, "after": after[1]}) # Update the result with the post-action information
 			result.update({"status": status}) # Update the result with the recognized service status
+			print result
 			return result
 	##### Install FreeRADIUS server #####
 	def install_freeradius(self):
