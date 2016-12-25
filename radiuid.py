@@ -1,6 +1,6 @@
 #!/usr/bin/python
 
-#####        RadiUID Server v2.3.0         #####
+#####        RadiUID Server v2.3.1         #####
 #####       Written by John W Kerns        #####
 #####      http://blog.packetsar.com       #####
 ##### https://github.com/PackeTsar/radiuid #####
@@ -17,7 +17,7 @@ import platform
 import xml.etree.ElementTree as ElementTree
 
 ##### Inform RadiUID version here #####
-version = "2.3.0"
+version = "2.3.1"
 
 ##### Set some internal settings #####
 etcconfigfile = '/etc/radiuid/radiuid.conf'
@@ -1959,85 +1959,104 @@ class imu_methods(object):
 	def currentuser(self):
 		checkdata = commands.getstatusoutput("whoami")[1]
 		return checkdata
+	def get_processes(self, service):
+		procdata = commands.getstatusoutput("ps -e")[1].splitlines()
+		proclist = []
+		index = 1
+		for line in procdata[1:]:
+			line = line.split(" ")
+			while "" in line:
+				line.remove("")
+			if line[0] == str(os.getpid()):
+				myline = str(index)
+			else:
+				proclist.append(line)
+			index += 1
+		matchlist = []
+		for proc in proclist:
+			if proc[3] == service:
+				matchlist.append(proc[0])
+		modprocdata = ""
+		index = 0
+		for line in procdata:
+			if str(index) == myline:
+				pass
+			else:
+				modprocdata += line + "\n"
+			index += 1
+		return {"procdata": procdata, "proclist": proclist, "matchlist": matchlist, "modprocdata": modprocdata}
 	##### Multi Operating System Service Control #####
 	##### Used to start, stop, restart, and check status of OS services (mainly freeradius and radiuid) #####
 	##### Input is action (start, stop, restart, status) and service name #####
 	##### Output is a dictionary of commands run, BASH output for each command, and service status #####
 	def service_control(self, action, service):
-			if systemd: # If the OS has SystemD
-				beforecmd = "systemctl status " + service # Set proper command to run before the action
-				actioncmd = "systemctl " + action + " " + service # Set command which will perform the action
-				aftercmd = "systemctl status " + service # Set proper command to run after the action
-				activewords = ["active (running)"] # Set the keyword to recognize for a running service
-				deadwords = ["inactive (dead)"] # Set the keyword to recognize for a stopped service
-				notfoundwords = ["not-found"] # Set the keyword to recognize for a unrecognized/not installed service
-			elif incontainer:
-				beforecmd = "ps -e" # Set proper command to run before the action
-				aftercmd = "ps -e" # Set proper command to run after the action
-				pid = "unknown"
-				for line in commands.getstatusoutput("ps -e")[1].splitlines():
-					if service in line:
-						pid = re.findall("[0-9]+", line)[0]
-				if action == "start":
+		if systemd: # If the OS has SystemD
+			mode = "commands"
+			beforecmd = "systemctl status " + service # Set proper command to run before the action
+			actioncmd = "systemctl " + action + " " + service # Set command which will perform the action
+			aftercmd = "systemctl status " + service # Set proper command to run after the action
+			activewords = ["active (running)"] # Set the keyword to recognize for a running service
+			deadwords = ["inactive (dead)"] # Set the keyword to recognize for a stopped service
+			notfoundwords = ["not-found"] # Set the keyword to recognize for a unrecognized/not installed service
+		elif incontainer:
+			mode = "os"
+			beforecmd = "ps -e"
+			aftercmd = "ps -e"
+			activewords = [service]
+			deadwords = [""]
+			notfoundwords = []
+			matchlist = self.get_processes(service)["matchlist"]
+			if action == "stop":
+				if matchlist == []:
+					print self.ui.color("****************" + service + " is not running!****************\n", self.ui.red)
+					actioncmd = "cd"
+				else:
+					actioncmd = ""
+					for pid in matchlist:
+						actioncmd += "kill " + pid + "; "
+			elif action == "start":
+				if matchlist != []:
+					print self.ui.color("****************" + service + " is already running! Stop it First!****************\n", self.ui.red)
+					actioncmd = "cd"
+				else:
 					if service == "radiuid":
-						actioncmd = "cd"
-						if pid == "unknown":
-							os.system("radiuid run >> /dev/null &")
-						else:
-							print self.ui.color("****************RadiUID is already running! Stop it First!****************\n", self.ui.red)
-					elif service == "radiusd":
-						if pid == "unknown":
-							actioncmd = "radiusd"
-						else:
-							actioncmd = "cd"
-							print self.ui.color("****************FreeRADIUS is already running! Stop it First!****************\n", self.ui.red)
-						actioncmd = "radiusd"
-				elif action == "stop":
-					if pid == "unknown":
-						actioncmd = ""
-					else:
-						actioncmd = "kill " + pid
-				elif action == "restart":
-					if pid == "unknown":
-						actioncmd = "cd"
-					else:
-						actioncmd = "kill " + pid
-					if service == "radiuid":
-						actioncmd += ";cd"
-						os.system("radiuid run >> /dev/null &")
-					elif service == "radiusd":
-						actioncmd += ";radiusd"
-				elif action == "status":
-					actioncmd = "ps -e"
-				activewords = [service] # Set the keyword to recognize for a running service
-				deadwords = [""] # Set the keyword to recognize for a stopped service
-				notfoundwords = [] # Set the keyword to recognize for a unrecognized/not installed service
-			else:
-				beforecmd = "service " + service + " status"
-				actioncmd = "service " + service + " " + action
-				aftercmd = "service " + service + " status"
-				activewords = ["running"]
-				deadwords = ["stopped", "dead"]
-				notfoundwords = ["unrecognized service"]
-			before = commands.getstatusoutput(beforecmd) # Run the before command
+						actioncmd = "radiuid run >> /dev/null &"
+					elif service == radservicename:
+						actioncmd = radservicename
+			elif action == "status":
+				actioncmd = "cd"
+		else:
+			mode = "commands"
+			beforecmd = "service " + service + " status"
+			actioncmd = "service " + service + " " + action
+			aftercmd = "service " + service + " status"
+			activewords = ["running"]
+			deadwords = ["stopped", "dead"]
+			notfoundwords = ["unrecognized service"]
+		before = commands.getstatusoutput(beforecmd) # Run the before command
+		if mode == "commands":
 			action = commands.getstatusoutput(actioncmd) # Run the action command
 			after = commands.getstatusoutput(aftercmd) # Run the after command
-			status = "unknown"
-			for word in deadwords:
-				if word in after[1]: # If the 'service dead' keyword is seen in the output
-					status = "dead" # Set service status to 'dead'
-			for word in activewords:
-				if word in after[1]: # If the 'service running' keyword is seen in the output
-					status = "running" # Set service status to 'running'
-			for word in notfoundwords:
-				if word in after[1]: # If the 'not found' keyword is seen in the output
-					status = "not-found" # Set service status to 'not-found'
-			result = {} # Create the result dictionary
-			result.update({"beforecmd": beforecmd, "before": before[1]}) # Update the result with the pre-action information
-			result.update({"actioncmd": actioncmd, "action": action[1]}) # Update the result with the action information
-			result.update({"aftercmd": aftercmd, "after": after[1]}) # Update the result with the post-action information
-			result.update({"status": status}) # Update the result with the recognized service status
-			return result
+		elif mode == "os":
+			os.system(actioncmd)
+			action = (0, self.get_processes(service)["modprocdata"])
+			after = (0, self.get_processes(service)["modprocdata"])
+		status = "unknown"
+		for word in deadwords:
+			if word in after[1]: # If the 'service dead' keyword is seen in the output
+				status = "dead" # Set service status to 'dead'
+		for word in activewords:
+			if word in after[1]: # If the 'service running' keyword is seen in the output
+				status = "running" # Set service status to 'running'
+		for word in notfoundwords:
+			if word in after[1]: # If the 'not found' keyword is seen in the output
+				status = "not-found" # Set service status to 'not-found'
+		result = {} # Create the result dictionary
+		result.update({"beforecmd": beforecmd, "before": before[1]}) # Update the result with the pre-action information
+		result.update({"actioncmd": actioncmd, "action": action[1]}) # Update the result with the action information
+		result.update({"aftercmd": aftercmd, "after": after[1]}) # Update the result with the post-action information
+		result.update({"status": status}) # Update the result with the recognized service status
+		return result
 	##### Install FreeRADIUS server #####
 	def install_freeradius(self):
 		os.system(pkgmgr + ' install freeradius -y')
@@ -4429,8 +4448,8 @@ class command_line_interpreter(object):
 			print " - request freeradius-install (no-confirm)                       |     Manually install the FreeRADIUS service for use by RadiUID"
 			print " - request reinstall (replace-config | keep-config) (no-confirm) |     Reinstall RadiUID with or without replacing the current RadiUID configuration\n"
 		elif arguments == "request reinstall" or arguments == "request reinstall ?":
-			print "\n - request reinstall replace-config                            |     Reinstall RadiUID and REPLACE current configuration with default configuration"
-			print " - request reinstall keep-config                               |     Reinstall RadiUID and KEEP current configuration with default configuration\n"
+			print "\n - request reinstall replace-config (no-confirm)               |     Reinstall RadiUID and REPLACE current configuration with default configuration"
+			print " - request reinstall keep-config (no-confirm)                  |     Reinstall RadiUID and KEEP current configuration with default configuration\n"
 		elif arguments == "request munge-test" or arguments == "request munge-test ?":
 			print "\n - request munge-test <string-to-parse> (debug)\n"
 		elif self.cat_list(sys.argv[1:3]) == "request munge-test" and re.findall("^[0-9A-Za-z]", sys.argv[3]) > 0:

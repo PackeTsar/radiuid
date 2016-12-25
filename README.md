@@ -6,7 +6,7 @@ An application to extract User-to-IP mappings from RADIUS accounting data and se
 
 ####   VERSION   ####
 -----------------------------------------
-The version of RadiUID documented here is: **v2.3.0**
+The version of RadiUID documented here is: **v2.3.1**
 
 
 ####   TABLE OF CONTENTS   ####
@@ -27,6 +27,7 @@ The version of RadiUID documented here is: **v2.3.0**
 14. [2.1.0 TO 2.2.0 Updates](#updates-in-v210----v220)
 15. [2.2.0 TO 2.2.1 Updates](#updates-in-v220----v221)
 16. [2.2.1 TO 2.3.0 Updates](#updates-in-v221----v230)
+16. [2.3.0 TO 2.3.1 Updates](#updates-in-v230----v231)
 17. [Upgrade Processes](#upgrade-processes)
 18. [Docker Files](#dockerfiles)
 19. [Contributing](#contributing)
@@ -110,6 +111,7 @@ Downloading and running RadiUID on a Docker host is the fastest and easiest way 
 	1. To run the image **with SSH**: `docker run -it -p 1813:1813/udp -p 1813:1813/tcp -p 222:22/tcp --name radiuid -t packetsar/radiuid-ssh:latest`
 	2. To run the image **without SSH**: `docker run -it -p 1813:1813/udp -p 1813:1813/tcp --name RADIUID -t packetsar/radiuid:latest`
 2. *If you ran the image with SSH:* The default SSH username and password is root\radiuid. Run the command `passwd root` to change the SSH password.
+	1. *NOTE: The command above to run the container with SSH publishes the SSH service on TCP port 222. You will need to connect to that port with your SSH client to get access to the container.*
 3. Run the command `radiuid show config set` to see the default configuration.
 4. Run the `radiuid clear target all` command to delete the firewall target configurations, then use the `radiuid set target [parameters]` command to configure the application with your Palo Alto target firewall paramaters.
 5. Run the `radiuid set client [parameters]` command to configure FreeRADIUS to accept RADIUS accounting data from your RADIUS authenticators.
@@ -340,7 +342,16 @@ The Munge Engine is a rule-based string processor which is used in RadiUID to fi
 
 **ADDED FEATURES:**
 
-- RadiUID is now available as a Docker image on [Docker Hub][docker-hub]. Small code changes were made to allow RadiUID to recognize when it is being run in a container and to be able to stop, start, and restart services while the container is running. 
+- *ISSUE #21*: RadiUID is now available as a Docker image on [Docker Hub][docker-hub]. Small code changes were made to allow RadiUID to recognize when it is being run in a container and to be able to stop, start, and restart services while the container is running. 
+
+
+
+####   UPDATES IN V2.3.0 --> V2.3.1   ####
+--------------------------------------
+
+**BUG FIXES:**
+
+- *ISSUE #22*: Repaired broken RadiUID service control when in a container. Now you can start, stop, and restart FreeRADIUS and RadiUID services from within the container without having to restart the container from the host.
 
 
 
@@ -348,7 +359,7 @@ The Munge Engine is a rule-based string processor which is used in RadiUID to fi
 ####   UPGRADE PROCESSES   ####
 --------------------------------------
 
-**Upgrading from v2.X to v2.3.0:**
+**Upgrading from v2.X to v2.3.1:**
 
 1. Perform a `radiuid show config set` command and save the `set` commands displayed in a safe place (just in case)
 2. Download the v2.2.0 code from the GitHub repo by using `git clone https://github.com/PackeTsar/radiuid.git`
@@ -362,7 +373,7 @@ The Munge Engine is a rule-based string processor which is used in RadiUID to fi
 8. You may also want to log out of the shell and back in to activate any new auto-complete functions.
 
 
-**Upgrading from v1.X to v2.3.0:**
+**Upgrading from v1.X to v2.3.1:**
 
 1. Change the name of your config file (/etc/radiuid/radiuid.conf) by issuing the command `mv /etc/radiuid/radiuid.conf /etc/radiuid/radiuid.conf.backup`
 2. Grab the contents to have them handy during the install of the new version `more /etc/radiuid/radiuid.conf.backup`
@@ -389,7 +400,7 @@ These are the dockerfile script files used to build the SSH and non-SSH Docker i
     ### Install and configure SSH Server for SSH access to container ###
     RUN yum install -y openssh openssh-server openssh-clients sudo passwd
     RUN sshd-keygen
-    RUN sed -i "s/UsePAM.*/UsePAM no/g" /etc/ssh/sshd_config
+    RUN sed -i "s/UsePAM.*/UsePAM yes/g" /etc/ssh/sshd_config
     RUN sed -i "s/#UsePrivilegeSeparation.*/UsePrivilegeSeparation no/g" /etc/ssh/sshd_config
     RUN useradd admin -G wheel -s /bin/bash -m
     RUN echo 'root:radiuid' | chpasswd
