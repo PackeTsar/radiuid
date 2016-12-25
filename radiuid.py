@@ -2023,6 +2023,16 @@ class imu_methods(object):
 						actioncmd = "radiuid run >> /dev/null &"
 					elif service == radservicename:
 						actioncmd = radservicename
+			elif action == "restart":
+				if service == "radiuid":
+					actioncmd = ""
+					for pid in matchlist:
+						actioncmd += "kill " + pid + "; "
+					actioncmd += "radiuid run >> /dev/null &"
+				elif service == radservicename:
+					for pid in matchlist:
+						actioncmd += "kill " + pid + "; "
+					actioncmd += radservicename
 			elif action == "status":
 				actioncmd = "cd"
 		else:
