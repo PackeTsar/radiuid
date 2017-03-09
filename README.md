@@ -118,6 +118,7 @@ Downloading and running RadiUID on a Docker host is the fastest and easiest way 
 5. Run the `radiuid set client [parameters]` command to configure FreeRADIUS to accept RADIUS accounting data from your RADIUS authenticators.
 6. Once configuration is complete, run the `radiuid service all restart` to restart the services so the new configuration takes effect.
 7. Take a look at your logs using the `radiuid show log` command to see what the application is doing.
+8. To exit your interactive session with the Docker container, hold down `CTRL` and hit `P` then `Q`. 
 
 
 
