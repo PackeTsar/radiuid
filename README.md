@@ -6,7 +6,7 @@ An application to extract User-to-IP mappings from RADIUS accounting data and se
 
 ####   VERSION   ####
 -----------------------------------------
-The version of RadiUID documented here is: **v2.3.1**
+The version of RadiUID documented here is: **v2.3.2**
 
 
 ####   TABLE OF CONTENTS   ####
@@ -28,9 +28,10 @@ The version of RadiUID documented here is: **v2.3.1**
 15. [2.2.0 TO 2.2.1 Updates](#updates-in-v220----v221)
 16. [2.2.1 TO 2.3.0 Updates](#updates-in-v221----v230)
 16. [2.3.0 TO 2.3.1 Updates](#updates-in-v230----v231)
-17. [Upgrade Processes](#upgrade-processes)
-18. [Docker Files](#dockerfiles)
-19. [Contributing](#contributing)
+17. [2.3.1 TO 2.3.2 Updates](#updates-in-v231----v232)
+18. [Upgrade Processes](#upgrade-processes)
+19. [Docker Files](#dockerfiles)
+20. [Contributing](#contributing)
 
 
 ####   WHAT IS RADIUID   ####
@@ -355,14 +356,23 @@ The Munge Engine is a rule-based string processor which is used in RadiUID to fi
 
 
 
+####   UPDATES IN V2.3.1 --> V2.3.2   ####
+--------------------------------------
+
+**BUG FIXES:**
+
+- *ISSUE #23*: Was unable to specify complex usernames (with periods, forward-slashes, domain-names, etc) in the `radiuid push <pan> <username> <ip>` command due to strict username input checking. Removed input checking on username to allow any input in command.
+
+
+
 
 ####   UPGRADE PROCESSES   ####
 --------------------------------------
 
-**Upgrading from v2.X to v2.3.1:**
+**Upgrading from v2.X to v2.3.2:**
 
 1. Perform a `radiuid show config set` command and save the `set` commands displayed in a safe place (just in case)
-2. Download the v2.2.0 code from the GitHub repo by using `git clone https://github.com/PackeTsar/radiuid.git`
+2. Download the code from the GitHub repo by using `git clone https://github.com/PackeTsar/radiuid.git`
     - If the "radiuid" folder already exists, you may want to use git to update the clone `cd radiuid/; git pull`
 3. Move to the radiuid folder created by git using the `cd radiuid/` command
 4. Perform a quick reinstall/update of RadiUID using the command `python radiuid.py request reinstall keep-config`
@@ -373,7 +383,7 @@ The Munge Engine is a rule-based string processor which is used in RadiUID to fi
 8. You may also want to log out of the shell and back in to activate any new auto-complete functions.
 
 
-**Upgrading from v1.X to v2.3.1:**
+**Upgrading from v1.X to v2.3.2:**
 
 1. Change the name of your config file (/etc/radiuid/radiuid.conf) by issuing the command `mv /etc/radiuid/radiuid.conf /etc/radiuid/radiuid.conf.backup`
 2. Grab the contents to have them handy during the install of the new version `more /etc/radiuid/radiuid.conf.backup`
@@ -407,9 +417,9 @@ These are the dockerfile script files used to build the SSH and non-SSH Docker i
     RUN echo '%wheel ALL=(ALL) ALL' >> /etc/sudoers
     
     ### Download and install RadiUID from latest release ###
-    RUN curl -sL https://codeload.github.com/PackeTsar/radiuid/tar.gz/2.3.1 | tar xz
-    RUN cd radiuid-2.3.1;python radiuid.py request reinstall replace-config no-confirm
-    RUN cd radiuid-2.3.1;python radiuid.py request freeradius-install no-confirm
+    RUN curl -sL https://codeload.github.com/PackeTsar/radiuid/tar.gz/2.3.2 | tar xz
+    RUN cd radiuid-2.3.2;python radiuid.py request reinstall replace-config no-confirm
+    RUN cd radiuid-2.3.2;python radiuid.py request freeradius-install no-confirm
     
     ### Expose ports and provide run commands ###
     EXPOSE 1813/udp
@@ -423,9 +433,9 @@ These are the dockerfile script files used to build the SSH and non-SSH Docker i
     MAINTAINER John W Kerns "jkerns@packetsar.com"
     
     ### Download and install RadiUID from latest release ###
-    RUN curl -sL https://codeload.github.com/PackeTsar/radiuid/tar.gz/2.3.1 | tar xz
-    RUN cd radiuid-2.3.1;python radiuid.py request reinstall replace-config no-confirm
-    RUN cd radiuid-2.3.1;python radiuid.py request freeradius-install no-confirm
+    RUN curl -sL https://codeload.github.com/PackeTsar/radiuid/tar.gz/2.3.2 | tar xz
+    RUN cd radiuid-2.3.2;python radiuid.py request reinstall replace-config no-confirm
+    RUN cd radiuid-2.3.2;python radiuid.py request freeradius-install no-confirm
     
     ### Expose ports and provide run commands ###
     EXPOSE 1813/udp

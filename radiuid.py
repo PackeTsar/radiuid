@@ -1,6 +1,6 @@
 #!/usr/bin/python
 
-#####        RadiUID Server v2.3.1         #####
+#####        RadiUID Server v2.3.2         #####
 #####       Written by John W Kerns        #####
 #####      http://blog.packetsar.com       #####
 ##### https://github.com/PackeTsar/radiuid #####
@@ -17,7 +17,7 @@ import platform
 import xml.etree.ElementTree as ElementTree
 
 ##### Inform RadiUID version here #####
-version = "2.3.1"
+version = "2.3.2"
 
 ##### Set some internal settings #####
 etcconfigfile = '/etc/radiuid/radiuid.conf'
@@ -410,14 +410,14 @@ class file_management(object):
 	def check_userpass(self, inputtype, userorpassinput):
 		result = {"status": "fail", "messages": []} # Start with a failed result
 		if inputtype == "user":
-			characterregex = "^[a-zA-Z0-9_]+$" # A list of the valid username characters
+			characterregex = "^[a-zA-Z0-9_\.]+$" # A list of the valid username characters
 			for entry in re.findall(characterregex, userorpassinput): # For each string in the list returned by re.findall
 				if entry == userorpassinput: # If one of the strings in the returned list equals the full domainname string
 					result["status"] = "pass" # Then all its characters are legal and it passes the check
 					result["messages"].append({"OK": "No illegal characters found in username"}) # Append a message to the result
 			if len(re.findall(characterregex, userorpassinput)) == 0:
 				result["status"] = "fail" # Then all its characters are legal and it passes the check
-				result["messages"].append({"FATAL": "Illegal characters found in username. Valid characters are alphanimeric and underscore (_)"}) # Append a message to the result
+				result["messages"].append({"FATAL": "Illegal characters found in username. Valid characters are alphanimeric, underscore (_), and Period (.)"}) # Append a message to the result
 		elif inputtype == "password":
 			characterregex = "\&|\<|\>" # A list of the invalid password characters
 			if len(re.findall(characterregex, userorpassinput)) > 0: # For each string in the list returned by re.findall
@@ -3842,14 +3842,15 @@ class command_line_interpreter(object):
 						pushuser = "no"
 			##### Check parameters for proper data and report errors #####
 			if keepgoing == "yes":
-				usercheck = self.filemgmt.check_userpass("user", sys.argv[3])
-				if usercheck["status"] != "pass":
-					for message in usercheck["messages"]:
-						if message.keys()[0] == "FATAL":
-							self.filemgmt.logwriter("cli", self.ui.color("****************" + message.keys()[0] + ": " + message.values()[0] + "****************", self.ui.red))
-							pushuser = "no"
-						elif message.keys()[0] == "WARNING":
-							self.filemgmt.logwriter("cli", self.ui.color("****************" + message.keys()[0] + ": " + message.values()[0] + "****************\n", self.ui.yellow))
+				#### Removed so that any input can be used in the push command ####
+				#usercheck = self.filemgmt.check_userpass("user", sys.argv[3])
+				#if usercheck["status"] != "pass":
+				#	for message in usercheck["messages"]:
+				#		if message.keys()[0] == "FATAL":
+				#			self.filemgmt.logwriter("cli", self.ui.color("****************" + message.keys()[0] + ": " + message.values()[0] + "****************", self.ui.red))
+				#			pushuser = "no"
+				#		elif message.keys()[0] == "WARNING":
+				#			self.filemgmt.logwriter("cli", self.ui.color("****************" + message.keys()[0] + ": " + message.values()[0] + "****************\n", self.ui.yellow))
 				if self.filemgmt.ip_checker("address", sys.argv[4]) != "pass":
 					self.filemgmt.logwriter("cli", self.ui.color("****************FATAL: Bad IP Address****************", self.ui.red))
 					pushuser = "no"
