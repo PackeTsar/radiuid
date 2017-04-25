@@ -4753,6 +4753,7 @@ class command_line_interpreter(object):
 				self.imum.copy_radiuid("keep-config")
 				self.imum.install_radiuid()
 				self.filemgmt.extend_config_schema()
+				self.filemgmt.save_config()
 				print "\n"
 				self.imum.install_radiuid_completion()
 			print self.ui.color("#" * len(header), self.ui.magenta)
