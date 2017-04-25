@@ -767,12 +767,9 @@ class file_management(object):
 					newline = re.findall(regexnewline, xmldata, flags=0)
 					if len(newline) > 0:
 						regexlastline = ".*</%s>" % itemname
-						#print regexlastline
 						regexlastelement = "</%s>" % itemname
 						lastline = re.findall(regexlastline, xmldata, flags=0)[0]
-						#print lastline
 						lastelement = re.findall(regexlastelement, xmldata, flags=0)[0]
-						#print lastelement
 						indent = lastline.replace(lastelement, "")
 						print indent + xmldata
 					else:
@@ -1065,7 +1062,8 @@ class file_management(object):
 		nodenum = len(list(node)) # Count the number of child elements in the current node
 		if nodenum != 0: # If there are children
 			for child in list(node): # For each child in the current node
-				if child.text == None and len(list(child)) != 0: # If the child element has no value data and no grandchildren exist
+				if (child.text == None or len(child.text) == (child.text.count(" ")+
+				child.text.count("\n")+child.text.count("\t"))) and len(list(child)) != 0: # If the child element has no value data and grandchildren exist
 					child.text = "\n" + currentindent * indenttext # Set the indent for the next grandchild element
 				if nodenum == 1: # If this is the last child in the list of children
 					child.tail = "\n" + (currentindent - 2) * indenttext # Set a shortened indent for the end of the parent tag
@@ -1082,7 +1080,8 @@ class file_management(object):
 		###################################
 		currentindent = 1 # Initialize indentation as 1
 		root = ElementTree.fromstring(xmldata) # Mount the XML data to an element tree as "root"
-		root.text = "\n" + indenttext # Set initial indent of first child element
+		if len(list(root)) != 0: # If there are children in this element
+			root.text = "\n" + indenttext # Set initial indent of first child element
 		result = ElementTree.tostring(self.formatxml_recurse(root)) # Set the result text by calling the recursive method
 		del currentindent,indenttext # Delete the temporary indent variables
 		return result.decode('UTF-8') # Return the formatted text decoded to UTF-8
