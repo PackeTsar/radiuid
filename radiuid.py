@@ -722,8 +722,7 @@ class file_management(object):
 				targets = configdict['targets']['target']
 				if type(targets) != type([]):
 					targets = [targets]
-			except KeyError as e:
-				#print e
+			except KeyError:
 				print self.ui.color(time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + "****************WARNING: Could not import some important settings****************\n", self.ui.yellow)
 			try:
 				mungeconfig = configdict['globalsettings']['munge']
