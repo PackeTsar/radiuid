@@ -680,6 +680,7 @@ class file_management(object):
 		global userdomain
 		global timeout
 		global looptime
+		global tlsversion
 		global radiusstopaction
 		global ipaddressterm
 		global usernameterm
@@ -712,6 +713,8 @@ class file_management(object):
 				self.logwriter("normal", "Initialized variable:" "\t" + "timeout" + "\t\t\t\t" + "with value:" + "\t" + self.ui.color(timeout, self.ui.green))
 				looptime = configdict['globalsettings']['misc']['looptime']
 				self.logwriter("normal", "Initialized variable:" "\t" + "looptime" + "\t\t\t" + "with value:" + "\t" + self.ui.color(looptime, self.ui.green))
+				tlsversion = configdict['globalsettings']['misc']['tlsversion']
+				self.logwriter("normal", "Initialized variable:" "\t" + "tlsversion" + "\t\t\t" + "with value:" + "\t" + self.ui.color(tlsversion, self.ui.green))
 				radiusstopaction = configdict['globalsettings']['misc']['radiusstopaction']
 				self.logwriter("normal", "Initialized variable:" "\t" + "radiusstopaction" + "\t\t" + "with value:" + "\t" + self.ui.color(radiusstopaction, self.ui.green))
 				##### Publish list of firewall targets into main namespace #####
@@ -738,6 +741,7 @@ class file_management(object):
 				userdomain = configdict['globalsettings']['uidsettings']['userdomain']
 				timeout = configdict['globalsettings']['uidsettings']['timeout']
 				looptime = configdict['globalsettings']['misc']['looptime']
+				tlsversion = configdict['globalsettings']['misc']['tlsversion']
 				radiusstopaction = configdict['globalsettings']['misc']['radiusstopaction']
 				ipaddressterm = configdict['globalsettings']['searchterms']['ipaddressterm']
 				usernameterm = configdict['globalsettings']['searchterms']['usernameterm']
@@ -837,6 +841,7 @@ class file_management(object):
 				"" + prepend + " set userdomain " + userdomaintext + "\n!\n"\
 				"" + prepend + " set timeout " + timeout + "\n!\n"\
 				"" + prepend + " set looptime " + looptime + "\n!\n"\
+				"" + prepend + " set tlsversion " + tlsversion + "\n!\n"\
 				"" + prepend + " set radiusstopaction " + radiusstopaction + "\n!\n"
 			#### Compile all set commands for different formats ####
 			textconfig = ""
@@ -868,6 +873,8 @@ class file_management(object):
 			misc = ElementTree.SubElement(globalsettings, 'misc')  # Mount a new misc element in the config
 			looptime = ElementTree.SubElement(misc, 'looptime')
 			looptime.text = "10"
+			tlsversion = ElementTree.SubElement(misc, 'tlsversion')
+			tlsversion.text = "1.2"
 			stop_action = ElementTree.SubElement(misc, 'radiusstopaction')
 			stop_action.text = "clear"
 	##### Add or edit target firewalls in XML configuration elements #####
@@ -1796,7 +1803,7 @@ class palo_alto_firewall_interaction(object):
 			url = 'https://' + target['hostname'] + '/api/?type=keygen&user=' + encodedusername + '&password=' + encodedpassword
 			try:
 				try:
-					gcontext = ssl.SSLContext(ssl.PROTOCOL_TLSv1_2)
+					gcontext = ssl.SSLContext(tlsobj)
 					response = urllib2.urlopen(url, context=gcontext).read()
 				except AttributeError:
 					response = urllib2.urlopen(url).read()
@@ -1876,7 +1883,7 @@ class palo_alto_firewall_interaction(object):
 			for eachurl in urllist:
 				try:
 					try:
-						gcontext = ssl.SSLContext(ssl.PROTOCOL_TLSv1_2)
+						gcontext = ssl.SSLContext(tlsobj)
 						response = urllib2.urlopen(eachurl, context=gcontext).read()
 					except AttributeError:
 						response = urllib2.urlopen(eachurl).read()
@@ -1906,7 +1913,7 @@ class palo_alto_firewall_interaction(object):
 		for target in targetlist:
 			url = 'https://' + target['hostname'] + '/api/?key=' + target['apikey'] + "&type=op&vsys=vsys" + target['vsys'] + "&cmd=" + encodedcall
 			try:
-				gcontext = ssl.SSLContext(ssl.PROTOCOL_TLSv1_2)
+				gcontext = ssl.SSLContext(tlsobj)
 				result.update({target['hostname'] + ":vsys" + target['vsys']: urllib2.urlopen(url, context=gcontext).read()})
 			except AttributeError:
 				result.update({target['hostname'] + ":vsys" + target['vsys']: urllib2.urlopen(url).read()})
@@ -1925,7 +1932,7 @@ class palo_alto_firewall_interaction(object):
 			url2 = 'https://' + target['hostname'] + '/api/?key=' + target['apikey'] + "&type=op&vsys=vsys" + target['vsys'] + "&cmd=" + encodedcall2
 			result.update({target['hostname'] + ":vsys" + target['vsys']: {}})
 			try:
-				gcontext = ssl.SSLContext(ssl.PROTOCOL_TLSv1_2)
+				gcontext = ssl.SSLContext(tlsobj)
 				result1 = urllib2.urlopen(url1, context=gcontext).read()
 				result2 = urllib2.urlopen(url2, context=gcontext).read()
 			except:
@@ -2338,7 +2345,7 @@ _radiuid_complete()
         COMPREPLY=( $(compgen -W "log acct-logs run config clients status mappings" -- $cur) )
         ;;
       "set")
-        COMPREPLY=( $(compgen -W "radiusstopaction looptime logfile maxloglines radiuslogpath userdomain timeout target client munge" -- $cur) )
+        COMPREPLY=( $(compgen -W "tlsversion radiusstopaction looptime logfile maxloglines radiuslogpath userdomain timeout target client munge" -- $cur) )
         ;;
       push)
         local targets=$(for target in `radiuid targets`; do echo $target ; done)
@@ -2418,6 +2425,11 @@ _radiuid_complete()
       looptime)
         if [ "$prev2" == "set" ]; then
           COMPREPLY=( $(compgen -W "<number-of-seconds> -" -- $cur) )
+        fi
+        ;;
+      tlsversion)
+        if [ "$prev2" == "set" ]; then
+          COMPREPLY=( $(compgen -W "1.0 1.1 1.2" -- $cur) )
         fi
         ;;
       radiusstopaction)
@@ -3081,6 +3093,14 @@ class command_line_interpreter(object):
 		self.filemgmt.initialize_config('quiet')
 		self.filemgmt.publish_config('quiet')
 		global configfile
+		#### Set TLS Version ####
+		global tlsobj
+		if tlsversion == "1.0":
+			tlsobj = ssl.PROTOCOL_TLSv1
+		elif tlsversion == "1.1":
+			tlsobj = ssl.PROTOCOL_TLSv1_1
+		elif tlsversion == "1.2":
+			tlsobj = ssl.PROTOCOL_TLSv1_2
 		######################### RUN #############################
 		if arguments == "run":
 			self.radiuid.looper()
@@ -3324,6 +3344,7 @@ class command_line_interpreter(object):
 			print " - set userdomain (none | <domain name>)         |     Set the domain name prepended to User-ID mappings"
 			print " - set timeout <minutes>                         |     Set the timeout (in minutes) for User-ID mappings sent to the firewall targets"
 			print " - set looptime <seconds>                        |     Set the waiting loop time (in seconds) to pause between checks of the RADIUS logs"
+			print " - set tlsversion (1.0 | 1.1 | 1.2)              |     Set the version of TLS used for XML API communication with the firewall targets"
 			print " - set radiusstopaction (clear | ignore | push)  |     Set the action taken by RadiUID when RADIUS stop messages are received"
 			print " - set client <ip-block> <shared-secret>         |     Set configuration elements for RADIUS clients to send accounting data FreeRADIUS"
 			print " - set munge <rule>.<step> [parameters]          |     Set munge (string processing rules) for User-IDs"
@@ -3342,6 +3363,8 @@ class command_line_interpreter(object):
 			print "\n - set timeout <minutes>  |  Example: 'set timeout 60'\n"
 		elif arguments == "set looptime" or arguments == "set looptime ?":
 			print "\n - set looptime <seconds>  |  Example: 'set looptime 10'\n"
+		elif arguments == "set tlsversion" or arguments == "set tlsversion ?":
+			print "\n - set tlsversion (1.0 | 1.1 | 1.2)  |  Example: 'set tlsversion 1.2'\n"
 		elif arguments == "set radiusstopaction" or arguments == "set radiusstopaction ?":
 			print "\n - set radiusstopaction (clear | ignore | push)  |  Example: 'set radiusstopaction clear'\n"
 		elif arguments == "set client" or arguments == "set client ?":
@@ -3551,7 +3574,28 @@ class command_line_interpreter(object):
 						print self.ui.color("Something Went Wrong!", self.ui.red)
 			print self.ui.color("#" * len(header), self.ui.magenta)
 			print self.ui.color("#" * len(header), self.ui.magenta)
-		##### SET radiusstopaction #####
+		##### SET TLSVERSION #####
+		elif self.cat_list(sys.argv[1:3]) == "set tlsversion" and len(re.findall("[0-9A-Za-z]", sys.argv[3])) > 0:
+				self.filemgmt.logwriter("cli", "##### COMMAND '" + arguments + "' ISSUED FROM CLI BY USER '" + self.imum.currentuser()+ "' #####")
+				header = "########################## EXECUTING COMMAND: " + arguments + " ##########################"
+				print self.ui.color(header, self.ui.magenta)
+				print self.ui.color("#" * len(header), self.ui.magenta)
+				if sys.argv[3].lower() != "1.0" and sys.argv[3].lower() != "1.1" and sys.argv[3].lower() != "1.2":
+					print "\n" + self.ui.color(time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + "****************ERROR: Acceptable versions are '1.0', '1.1', and '1.2'****************\n", self.ui.red)
+				else:
+					self.filemgmt.extend_config_schema()
+					self.filemgmt.change_config_item('tlsversion', sys.argv[3].lower())
+					print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " +"****************Writing config change to: "+ configfile + "****************\n"
+					self.filemgmt.save_config()
+					print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " +"<tlsversion> configuration element changed to :\n"
+					self.filemgmt.show_config_item('xml', "none", 'tlsversion')
+					if self.filemgmt.get_globalconfig_item('tlsversion') == sys.argv[3].lower():
+						print self.ui.color("Success!", self.ui.green)
+					else:
+						print self.ui.color("Something Went Wrong!", self.ui.red)
+				print self.ui.color("#" * len(header), self.ui.magenta)
+				print self.ui.color("#" * len(header), self.ui.magenta)
+		##### SET RADIUSSTOPACTION #####
 		elif self.cat_list(sys.argv[1:3]) == "set radiusstopaction" and len(re.findall("[0-9A-Za-z]", sys.argv[3])) > 0:
 				self.filemgmt.logwriter("cli", "##### COMMAND '" + arguments + "' ISSUED FROM CLI BY USER '" + self.imum.currentuser()+ "' #####")
 				header = "########################## EXECUTING COMMAND: " + arguments + " ##########################"
@@ -4773,6 +4817,7 @@ class command_line_interpreter(object):
 			print " - set userdomain (none | <domain name>)          |  Set the domain name prepended to User-ID mappings"
 			print " - set timeout                                    |  Set the timeout (in minutes) for User-ID mappings sent to the firewall targets"
 			print " - set looptime                                   |  Set the waiting loop time (in seconds) to pause between checks of the RADIUS logs"
+			print " - set tlsversion (1.0 | 1.1 | 1.2)               |  Set the version of TLS used for XML API communication with the firewall targets"
 			print " - set radiusstopaction (clear | ignore | push)   |  Set the action taken by RadiUID when RADIUS stop messages are received"
 			print " - set client <ip-block> <shared-secret>          |  Set configuration elements for RADIUS clients to send accounting data FreeRADIUS"
 			print " - set munge <rule>.<step> [parameters]           |  Set munge (string processing rules) for User-IDs"
