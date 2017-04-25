@@ -1758,7 +1758,7 @@ class palo_alto_firewall_interaction(object):
 			url = 'https://' + target['hostname'] + '/api/?type=keygen&user=' + encodedusername + '&password=' + encodedpassword
 			try:
 				try:
-					gcontext = ssl.SSLContext(ssl.PROTOCOL_TLSv1)
+					gcontext = ssl.SSLContext(ssl.PROTOCOL_TLSv1_2)
 					response = urllib2.urlopen(url, context=gcontext).read()
 				except AttributeError:
 					response = urllib2.urlopen(url).read()
@@ -1812,7 +1812,7 @@ class palo_alto_firewall_interaction(object):
 			for eachurl in urllist:
 				try:
 					try:
-						gcontext = ssl.SSLContext(ssl.PROTOCOL_TLSv1)
+						gcontext = ssl.SSLContext(ssl.PROTOCOL_TLSv1_2)
 						response = urllib2.urlopen(eachurl, context=gcontext).read()
 					except AttributeError:
 						response = urllib2.urlopen(eachurl).read()
@@ -1842,7 +1842,7 @@ class palo_alto_firewall_interaction(object):
 		for target in targetlist: 
 			url = 'https://' + target['hostname'] + '/api/?key=' + target['apikey'] + "&type=op&vsys=vsys" + target['vsys'] + "&cmd=" + encodedcall
 			try:
-				gcontext = ssl.SSLContext(ssl.PROTOCOL_TLSv1)
+				gcontext = ssl.SSLContext(ssl.PROTOCOL_TLSv1_2)
 				result.update({target['hostname'] + ":vsys" + target['vsys']: urllib2.urlopen(url, context=gcontext).read()})
 			except AttributeError:
 				result.update({target['hostname'] + ":vsys" + target['vsys']: urllib2.urlopen(url).read()})	
@@ -1861,7 +1861,7 @@ class palo_alto_firewall_interaction(object):
 			url2 = 'https://' + target['hostname'] + '/api/?key=' + target['apikey'] + "&type=op&vsys=vsys" + target['vsys'] + "&cmd=" + encodedcall2
 			result.update({target['hostname'] + ":vsys" + target['vsys']: {}})
 			try:
-				gcontext = ssl.SSLContext(ssl.PROTOCOL_TLSv1)
+				gcontext = ssl.SSLContext(ssl.PROTOCOL_TLSv1_2)
 				result1 = urllib2.urlopen(url1, context=gcontext).read()
 				result2 = urllib2.urlopen(url2, context=gcontext).read()
 			except:
