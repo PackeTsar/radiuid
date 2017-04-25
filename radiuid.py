@@ -17,7 +17,7 @@ import platform
 import xml.etree.ElementTree as ElementTree
 
 ##### Inform RadiUID version here #####
-version = "2.3.2"
+version = "2.3.2.2"
 
 ##### Set some internal settings #####
 etcconfigfile = '/etc/radiuid/radiuid.conf'
@@ -139,7 +139,7 @@ class user_interface(object):
 					result += tablewrap + "\n" + tablewrap # Add the wrapper, a line break, and start the next row
 				else: # If this is not the last entry in the row
 					result += columnsep # Add a column seperator
-				del spacing # Remove the spacing settings for this entry 
+				del spacing # Remove the spacing settings for this entry
 				columnqty -= 1 # Keep count of how many row values are left so we know when we hit the last one
 		result += tablewrap * (totalwidth - 1) # When all rows are complete, wrap the table with a trailer
 		return result
@@ -149,7 +149,7 @@ class user_interface(object):
 	def indenter(self, indent, inputdata):
 		result = indent + inputdata # Prepend the indent to the first line
 		result = result.replace("\n", "\n" + indent) # Add an indent to each new line
-		return result		
+		return result
 	##### Print out this ridiculous text-o-graph #####
 	##### It took me like an hour to draw and I couldn't stand to just not use it #####
 	def packetsar(self):
@@ -679,6 +679,8 @@ class file_management(object):
 		global maxloglines
 		global userdomain
 		global timeout
+		global looptime
+		global radiusstopaction
 		global ipaddressterm
 		global usernameterm
 		global delineatorterm
@@ -708,6 +710,10 @@ class file_management(object):
 				self.logwriter("normal", "Initialized variable:" "\t" + "userdomain" + "\t\t\t" + "with value:" + "\t" + self.ui.color(str(userdomain), self.ui.green))
 				timeout = configdict['globalsettings']['uidsettings']['timeout']
 				self.logwriter("normal", "Initialized variable:" "\t" + "timeout" + "\t\t\t\t" + "with value:" + "\t" + self.ui.color(timeout, self.ui.green))
+				looptime = configdict['globalsettings']['misc']['looptime']
+				self.logwriter("normal", "Initialized variable:" "\t" + "looptime" + "\t\t\t" + "with value:" + "\t" + self.ui.color(looptime, self.ui.green))
+				radiusstopaction = configdict['globalsettings']['misc']['radiusstopaction']
+				self.logwriter("normal", "Initialized variable:" "\t" + "radiusstopaction" + "\t\t" + "with value:" + "\t" + self.ui.color(radiusstopaction, self.ui.green))
 				##### Publish list of firewall targets into main namespace #####
 				self.logwriter("normal", "***********INITIALIZING TARGETS...***********")
 				targets = configdict['targets']['target']
@@ -731,6 +737,8 @@ class file_management(object):
 				maxloglines = configdict['globalsettings']['logging']['maxloglines']
 				userdomain = configdict['globalsettings']['uidsettings']['userdomain']
 				timeout = configdict['globalsettings']['uidsettings']['timeout']
+				looptime = configdict['globalsettings']['misc']['looptime']
+				radiusstopaction = configdict['globalsettings']['misc']['radiusstopaction']
 				ipaddressterm = configdict['globalsettings']['searchterms']['ipaddressterm']
 				usernameterm = configdict['globalsettings']['searchterms']['usernameterm']
 				delineatorterm = configdict['globalsettings']['searchterms']['delineatorterm']
@@ -827,7 +835,9 @@ class file_management(object):
 				"" + prepend + " set logfile " + logfile + "\n!\n"\
 				"" + prepend + " set maxloglines " + maxloglines + "\n!\n"\
 				"" + prepend + " set userdomain " + userdomaintext + "\n!\n"\
-				"" + prepend + " set timeout " + timeout + "\n!\n"
+				"" + prepend + " set timeout " + timeout + "\n!\n"\
+				"" + prepend + " set looptime " + looptime + "\n!\n"\
+				"" + prepend + " set radiusstopaction " + radiusstopaction + "\n!\n"
 			#### Compile all set commands for different formats ####
 			textconfig = ""
 			textconfig += header + "!\n" + setcommands + "!\n"
@@ -847,6 +857,19 @@ class file_management(object):
 	def change_config_item(self, itemname, newvalue):
 		for value in self.root.iter(itemname):
 			value.text = newvalue
+	##### Update the configuration file schema with new required elements #####
+	def extend_config_schema(self):
+		for element in list(self.root):  # For each XML element in the config root
+			if element.tag == 'globalsettings':  # If its tag is 'globalsettings'
+				globalsettings = element  # Mount that element as the globalsettings variable
+		##### Get current munge rules #####
+		if len(self.root.findall('.//misc')) == 0: # If <misc> XML elements do not exist
+			self.ui.progress("Extending Config Schema: ", 1)
+			misc = ElementTree.SubElement(globalsettings, 'misc')  # Mount a new misc element in the config
+			looptime = ElementTree.SubElement(misc, 'looptime')
+			looptime.text = "10"
+			stop_action = ElementTree.SubElement(misc, 'radiusstopaction')
+			stop_action.text = "clear"
 	##### Add or edit target firewalls in XML configuration elements #####
 	##### Input is a list of dictionaries which contain any number of parameters for a firewall target, but a hostname parameter is required #####
 	##### Method will detect if the 'targets' element already exists and will create it if it doesn't #####
@@ -1030,7 +1053,7 @@ class file_management(object):
 		self.tinydicttoxml_recurse(xmlroot, dictdata[list(dictdata)[0]]) # Run the recursive method to iterate the dictionary
 		return ElementTree.tostring(xmlroot).decode('UTF-8') # Then return a string output of the assembled XML object
 	def formatxml_recurse(self, node):
-		global currentindent,formatroot # Set indent length and text as global variables 
+		global currentindent,formatroot # Set indent length and text as global variables
 		currentindent += 1 # Add 1 to the indentation length
 		nodenum = len(list(node)) # Count the number of child elements in the current node
 		if nodenum != 0: # If there are children
@@ -1245,14 +1268,14 @@ class file_management(object):
 									for var in self.sortlist(vardict.keys()):
 										varstring += " "+vardict[var]
 									result.append('set munge '+rulenum+'.'+stepnum+' assemble'+varstring)
-									
+
 					if setvar:
 						if source == "any":
 							result.append('set munge '+rulenum+'.'+stepnum+' set-variable '+var+' '+sourcetype+' '+source)
 						else:
 							result.append('set munge '+rulenum+'.'+stepnum+' set-variable '+var+' '+sourcetype+' "'+source+'"')
-									
-							
+
+
 		return result
 	def munge_config(self, input):
 		result = {'status': 'working', 'messages': []} # Initialize Result Status Information
@@ -1415,22 +1438,37 @@ class data_processing(object):
 			newdict[key] = cleaned
 		self.filemgmt.logwriter("normal", "Username List Cleaned Up!")
 		return newdict
+	##### Clean up statuses in dictionary #####
+	##### Removes unwanted data from the lines with useful statuses in them #####
+	def clean_statuses(self, dictionary):
+		newdict = {}
+		for key, value in dictionary.iteritems():
+			if "update" in value.lower():
+				cleaned = "update"
+			elif "start" in value.lower():
+				cleaned = "start"
+			elif "stop" in value.lower():
+				cleaned = "stop"
+			newdict[key] = cleaned
+		self.filemgmt.logwriter("normal", "Status List Cleaned Up!")
+		return newdict
 	##### Merge dictionary values from two dictionaries into one dictionary and remove duplicates #####
 	##### Used to compile the list of users into a dictionary for use in the push function #####
 	##### Deduplication is not explicitly written but is just a result of pushing the same data over and over to a dictionary #####
-	def merge_dicts(self, keydict, valuedict):
+	def merge_dicts(self, ipdict, unamedict, statusdict):
 		newdict = {}
-		keydictkeylist = keydict.keys()
+		keydictkeylist = ipdict.keys()
 		for each in keydictkeylist:
 			try:
-				v = valuedict[each]
-				k = keydict[each]
-				newdict[k] = v
+				uname = unamedict[each]
+				ip = ipdict[each]
+				status = statusdict[each]
+				newdict[ip] = {"username": uname, "status": status}
 			except KeyError:
 				self.filemgmt.logwriter("normal", self.ui.color("Error detected in FreeRADIUS log. Looks like there were log entries missing the username, IP address, or delineatorterm", self.ui.red))
 				self.filemgmt.logwriter("normal", self.ui.color("Skipping entry. Dump of dictionaries shown below.", self.ui.red))
-				self.filemgmt.logwriter("normal", self.ui.color(str(keydict), self.ui.red))
-				self.filemgmt.logwriter("normal", self.ui.color(str(valuedict), self.ui.red))
+				self.filemgmt.logwriter("normal", self.ui.color(str(ipdict), self.ui.red))
+				self.filemgmt.logwriter("normal", self.ui.color(str(unamedict), self.ui.red))
 		self.filemgmt.logwriter("normal", "Dictionary values merged into one dictionary")
 		return newdict
 	##### Search an ordered list of values for a list of search queries and return the indices for the locations of the queries #####
@@ -1443,7 +1481,7 @@ class data_processing(object):
 			for entry in listinput:	# For each entry in the list...
 				if query == entry:	# If the query value is the same as this entry in the list
 					result.update({query: indexpointer}) # Add the query (key) and index location of where it was found
-				indexpointer = indexpointer + 1 # Then update the indexpointer 
+				indexpointer = indexpointer + 1 # Then update the indexpointer
 		return result
 	def map_consistency_check(self, uidxmldict):
 		precordict = {}
@@ -1696,7 +1734,7 @@ class palo_alto_firewall_interaction(object):
 				xmldict[hostname] = []
 				ipaddresses = ipanduserdict.keys()
 				for ip in ipaddresses:
-					username = ipanduserdict[ip]
+					username = ipanduserdict[ip]["username"]
 					if userdomain == None:
 						entry = '<entry name="%s" ip="%s" timeout="%s">' % (username, ip, timeout)
 					else:
@@ -1786,18 +1824,44 @@ class palo_alto_firewall_interaction(object):
 				self.pull_api_key(mode, targetlist)
 	##### Accepts IP-to-User mappings as a dict in, uses the xml-formatter and xml-assembler to generate a list of URLS, then opens those URLs and logs response codes  #####
 	def push_uids(self, ipanduserdict, filelist):
+		removelist = []
+		if radiusstopaction == "clear":
+			self.filemgmt.logwriter("normal", "Processing RADIUS stop messages: Removing them from Palo Altos and clearing them from push tables")
+			for entry in ipanduserdict:
+				if ipanduserdict[entry]["status"] == "stop":
+					removelist.append(entry)
+					self.filemgmt.logwriter("normal", "Removing IP Address: " + self.ui.color(entry, self.ui.yellow) + "\t\tUsername: " + self.ui.color(ipanduserdict[entry]["username"], self.ui.yellow))
+					response = self.clear_uids(targets, entry)
+					for target in response:
+						result = ""
+						for table in response[target]:
+							if "success" in response[target][table]:
+								result += "      " + table + ":  " + self.ui.color("success", self.ui.green)
+							else:
+								result += "      " + table + ":  " + self.ui.color(response[target][table], self.ui.red)
+						self.filemgmt.logwriter("normal", result)
+		elif radiusstopaction == "ignore":
+			self.filemgmt.logwriter("normal", "Ignoring RADIUS stop messages. Removing them from push table")
+			for entry in ipanduserdict:
+				if ipanduserdict[entry]["status"] == "stop":
+					self.filemgmt.logwriter("normal", "Removing IP Address: " + self.ui.color(entry, self.ui.yellow) + "\t\tUsername: " + self.ui.color(ipanduserdict[entry]["username"], self.ui.yellow))
+					removelist.append(entry)
+		elif radiusstopaction == "push":
+			self.filemgmt.logwriter("normal", "Pushing RADIUS stop messages. Leaving them in the push table")
+		for rmentry in removelist:
+			del ipanduserdict[rmentry]
 		if tomunge:
 			modipanduserdict = {}
 			for entry in ipanduserdict:
 				try:
-					newuname = self.dpr.munge([ipanduserdict[entry]], mungeconfig)[0]
+					newuname = self.dpr.munge([ipanduserdict[entry]["username"]], mungeconfig)[0]
 					modipanduserdict.update({entry: newuname})
-					if newuname == ipanduserdict[entry]:
-						self.filemgmt.logwriter("normal", "Munge Engine left input: "+self.ui.color(ipanduserdict[entry], self.ui.cyan)+" alone")
+					if newuname == ipanduserdict[entry]["username"]:
+						self.filemgmt.logwriter("normal", "Munge Engine left input: "+self.ui.color(ipanduserdict[entry]["username"], self.ui.cyan)+" alone")
 					else:
-						self.filemgmt.logwriter("normal", "Munge Engine modified input: "+self.ui.color(ipanduserdict[entry], self.ui.cyan)+"    into: "+self.ui.color(newuname, self.ui.cyan))
+						self.filemgmt.logwriter("normal", "Munge Engine modified input: "+self.ui.color(ipanduserdict[entry]["username"], self.ui.cyan)+"    into: "+self.ui.color(newuname, self.ui.cyan))
 				except IndexError:
-					self.filemgmt.logwriter("normal", "Munge Engine discarded input: "+self.ui.color(ipanduserdict[entry], self.ui.cyan))
+					self.filemgmt.logwriter("normal", "Munge Engine discarded input: "+self.ui.color(ipanduserdict[entry]["username"], self.ui.cyan))
 		else:
 			modipanduserdict = ipanduserdict
 		xml_dict = self.xml_formatter_v67(modipanduserdict, targets)
@@ -1808,7 +1872,7 @@ class palo_alto_firewall_interaction(object):
 			self.filemgmt.logwriter("normal", "Pushing the below IP : User mappings to " + host + " via " + str(numofcalls) + " API calls")
 			urllist = urldict[host]
 			for entry in modipanduserdict:
-				self.filemgmt.logwriter("normal", "IP Address: " + self.ui.color(entry, self.ui.cyan) + "\t\tUsername: " + self.ui.color(modipanduserdict[entry], self.ui.cyan))
+				self.filemgmt.logwriter("normal", "IP Address: " + self.ui.color(entry, self.ui.cyan) + "\t\tUsername: " + self.ui.color(modipanduserdict[entry]["username"], self.ui.cyan))
 			for eachurl in urllist:
 				try:
 					try:
@@ -1839,13 +1903,13 @@ class palo_alto_firewall_interaction(object):
 	def pull_uids (self, targetlist):
 		encodedcall = urllib.quote_plus("<show><user><ip-user-mapping><all></all></ip-user-mapping></user></show>")
 		result = {}
-		for target in targetlist: 
+		for target in targetlist:
 			url = 'https://' + target['hostname'] + '/api/?key=' + target['apikey'] + "&type=op&vsys=vsys" + target['vsys'] + "&cmd=" + encodedcall
 			try:
 				gcontext = ssl.SSLContext(ssl.PROTOCOL_TLSv1_2)
 				result.update({target['hostname'] + ":vsys" + target['vsys']: urllib2.urlopen(url, context=gcontext).read()})
 			except AttributeError:
-				result.update({target['hostname'] + ":vsys" + target['vsys']: urllib2.urlopen(url).read()})	
+				result.update({target['hostname'] + ":vsys" + target['vsys']: urllib2.urlopen(url).read()})
 			self.filemgmt.logwriter("normal", self.ui.color("Successfully pulled UID's from " + target['hostname'] + ":vsys" + target['vsys'], self.ui.green))
 		return result
 	def clear_uids (self, targetlist, userip):
@@ -1871,7 +1935,7 @@ class palo_alto_firewall_interaction(object):
 			result[target['hostname'] + ":vsys" + target['vsys']].update({"MP-CLEAR": result2})
 		return result
 
-		
+
 
 
 
@@ -1924,15 +1988,17 @@ class radiuid_main_process(object):
 			if len(filelist) > 0:
 				usernames = self.dpr.search_to_dict(filelist, delineatorterm, usernameterm)
 				ipaddresses = self.dpr.search_to_dict(filelist, delineatorterm, ipaddressterm)
+				statustypes = self.dpr.search_to_dict(filelist, delineatorterm, "Acct-Status-Type")
 				usernames = self.dpr.clean_names(usernames)
 				ipaddresses = self.dpr.clean_ips(ipaddresses)
-				ipanduserdict = self.dpr.merge_dicts(ipaddresses, usernames)
+				statustypes = self.dpr.clean_statuses(statustypes)
+				ipanduserdict = self.dpr.merge_dicts(ipaddresses, usernames, statustypes)
 				self.pafi.push_uids(ipanduserdict, filelist)
 				del filelist
 				del usernames
 				del ipaddresses
 				del ipanduserdict
-			time.sleep(10)
+			time.sleep(int(looptime))
 
 
 
@@ -2167,7 +2233,7 @@ Restart=on-abort
 
 [Install]
 WantedBy=multi-user.target'''
-			
+
 			nonsystemd_startfile = '''#!/bin/bash
 # radiuid daemon
 # chkconfig: 345 20 80
@@ -2272,7 +2338,7 @@ _radiuid_complete()
         COMPREPLY=( $(compgen -W "log acct-logs run config clients status mappings" -- $cur) )
         ;;
       "set")
-        COMPREPLY=( $(compgen -W "logfile maxloglines radiuslogpath userdomain timeout target client munge" -- $cur) )
+        COMPREPLY=( $(compgen -W "radiusstopaction looptime logfile maxloglines radiuslogpath userdomain timeout target client munge" -- $cur) )
         ;;
       push)
         local targets=$(for target in `radiuid targets`; do echo $target ; done)
@@ -2347,6 +2413,16 @@ _radiuid_complete()
       maxloglines)
         if [ "$prev2" == "set" ]; then
           COMPREPLY=( $(compgen -W "<number-of-lines> -" -- $cur) )
+        fi
+        ;;
+      looptime)
+        if [ "$prev2" == "set" ]; then
+          COMPREPLY=( $(compgen -W "<number-of-seconds> -" -- $cur) )
+        fi
+        ;;
+      radiusstopaction)
+        if [ "$prev2" == "set" ]; then
+          COMPREPLY=( $(compgen -W "clear ignore push" -- $cur) )
         fi
         ;;
       userdomain)
@@ -2741,7 +2817,7 @@ class installer_maintenance_utility(object):
 				'\n' + '                       ##########################################################' \
 				'\n' + '                       ##########################################################' \
 	 \
-	
+
 		print "\n\n\n"
 		print "****************First, we will check if FreeRADIUS and RadiUID are installed yet...****************\n"
 		raw_input(self.ui.color("\n\n>>>>> Hit ENTER to continue...\n\n>>>>>", self.ui.cyan))
@@ -3040,9 +3116,7 @@ class command_line_interpreter(object):
 			except KeyError:
 				None
 		elif arguments == "test":
-			self.filemgmt.change_config_item('userdomain', None)
-			self.filemgmt.show_config_item('xml', "none", 'config')
-			self.filemgmt.save_config()
+			print configdict
 		######################### INSTALL #############################
 		elif arguments == "install":
 			self.filemgmt.logwriter("quiet", "##### COMMAND '" + arguments + "' ISSUED FROM CLI BY USER '" + self.imum.currentuser()+ "' #####")
@@ -3249,6 +3323,8 @@ class command_line_interpreter(object):
 			print " - set maxloglines <number-of-lines>             |     Set the max number of lines allowed in the log ('0' turns circular logging off)"
 			print " - set userdomain (none | <domain name>)         |     Set the domain name prepended to User-ID mappings"
 			print " - set timeout <minutes>                         |     Set the timeout (in minutes) for User-ID mappings sent to the firewall targets"
+			print " - set looptime <seconds>                        |     Set the waiting loop time (in seconds) to pause between checks of the RADIUS logs"
+			print " - set radiusstopaction (clear | ignore | push)  |     Set the action taken by RadiUID when RADIUS stop messages are received"
 			print " - set client <ip-block> <shared-secret>         |     Set configuration elements for RADIUS clients to send accounting data FreeRADIUS"
 			print " - set munge <rule>.<step> [parameters]          |     Set munge (string processing rules) for User-IDs"
 			print " - set target <hostname>:<vsys-id> [parameters]  |     Set configuration elements for existing or new firewall targets\n"
@@ -3264,6 +3340,10 @@ class command_line_interpreter(object):
 			print "                                          |            'set userdomain none'\n"
 		elif arguments == "set timeout" or arguments == "set timeout ?":
 			print "\n - set timeout <minutes>  |  Example: 'set timeout 60'\n"
+		elif arguments == "set looptime" or arguments == "set looptime ?":
+			print "\n - set looptime <seconds>  |  Example: 'set looptime 10'\n"
+		elif arguments == "set radiusstopaction" or arguments == "set radiusstopaction ?":
+			print "\n - set radiusstopaction (clear | ignore | push)  |  Example: 'set radiusstopaction clear'\n"
 		elif arguments == "set client" or arguments == "set client ?":
 			print "\n - set client <ip-block> <shared-secret>  |  Example: 'set client 10.0.0.0/8 password123'\n"
 		elif arguments == "set target" or arguments == "set target ?":
@@ -3446,6 +3526,52 @@ class command_line_interpreter(object):
 				print "\n" + self.ui.color(time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + "****************ERROR: Timeout value must be a number between 1 and 1440****************\n", self.ui.red)
 			print self.ui.color("#" * len(header), self.ui.magenta)
 			print self.ui.color("#" * len(header), self.ui.magenta)
+		##### SET LOOPTIME #####
+		elif self.cat_list(sys.argv[1:3]) == "set looptime" and len(re.findall("[0-9A-Za-z]", sys.argv[3])) > 0:
+			self.filemgmt.logwriter("cli", "##### COMMAND '" + arguments + "' ISSUED FROM CLI BY USER '" + self.imum.currentuser()+ "' #####")
+			header = "########################## EXECUTING COMMAND: " + arguments + " ##########################"
+			print self.ui.color(header, self.ui.magenta)
+			print self.ui.color("#" * len(header), self.ui.magenta)
+			try:
+				int(sys.argv[3])
+				inputgood = True
+			except ValueError:
+				inputgood = False
+				print "\n" + self.ui.color(time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + "****************ERROR: Looptime value must be an integer****************\n", self.ui.red)
+			if inputgood:
+					self.filemgmt.extend_config_schema()
+					self.filemgmt.change_config_item('looptime', sys.argv[3])
+					print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " +"****************Writing config change to: "+ configfile + "****************\n"
+					self.filemgmt.save_config()
+					print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " +"<looptime> configuration element changed to :\n"
+					self.filemgmt.show_config_item('xml', "none", 'looptime')
+					if self.filemgmt.get_globalconfig_item('looptime') == sys.argv[3]:
+						print self.ui.color("Success!", self.ui.green)
+					else:
+						print self.ui.color("Something Went Wrong!", self.ui.red)
+			print self.ui.color("#" * len(header), self.ui.magenta)
+			print self.ui.color("#" * len(header), self.ui.magenta)
+		##### SET radiusstopaction #####
+		elif self.cat_list(sys.argv[1:3]) == "set radiusstopaction" and len(re.findall("[0-9A-Za-z]", sys.argv[3])) > 0:
+				self.filemgmt.logwriter("cli", "##### COMMAND '" + arguments + "' ISSUED FROM CLI BY USER '" + self.imum.currentuser()+ "' #####")
+				header = "########################## EXECUTING COMMAND: " + arguments + " ##########################"
+				print self.ui.color(header, self.ui.magenta)
+				print self.ui.color("#" * len(header), self.ui.magenta)
+				if sys.argv[3].lower() != "clear" and sys.argv[3].lower() != "ignore" and sys.argv[3].lower() != "push":
+					print "\n" + self.ui.color(time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + "****************ERROR: Acceptable actions are 'clear' and 'ignore'****************\n", self.ui.red)
+				else:
+					self.filemgmt.extend_config_schema()
+					self.filemgmt.change_config_item('radiusstopaction', sys.argv[3].lower())
+					print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " +"****************Writing config change to: "+ configfile + "****************\n"
+					self.filemgmt.save_config()
+					print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " +"<radiusstopaction> configuration element changed to :\n"
+					self.filemgmt.show_config_item('xml', "none", 'radiusstopaction')
+					if self.filemgmt.get_globalconfig_item('radiusstopaction') == sys.argv[3].lower():
+						print self.ui.color("Success!", self.ui.green)
+					else:
+						print self.ui.color("Something Went Wrong!", self.ui.red)
+				print self.ui.color("#" * len(header), self.ui.magenta)
+				print self.ui.color("#" * len(header), self.ui.magenta)
 		##### SET CLIENTS #####
 		elif self.cat_list(sys.argv[1:3]) == "set client" and len(re.findall("[0-9A-Za-z]", sys.argv[3])) > 0:
 			self.filemgmt.logwriter("cli", "##### COMMAND '" + arguments + "' ISSUED FROM CLI BY USER '" + self.imum.currentuser()+ "' #####")
@@ -3632,7 +3758,7 @@ class command_line_interpreter(object):
 			### CHECK RULE AND STEP NUMBERS ###
 			try:
 				if "." in sys.argv[3]:
-					rulenum = sys.argv[3].split(".")[0]					
+					rulenum = sys.argv[3].split(".")[0]
 					stepnum = sys.argv[3].split(".")[1]
 					if rulenum == re.findall('[0-9]+', rulenum)[0] and stepnum == re.findall('[0-9]+', stepnum)[0]:
 						keepgoing = True
@@ -3857,7 +3983,7 @@ class command_line_interpreter(object):
 				if pushuser == "yes":
 					self.filemgmt.scrub_targets("noisy", "scrub")
 					pankey = self.pafi.pull_api_key("noisy", targets)
-					self.pafi.push_uids({sys.argv[4]: sys.argv[3]}, [])
+					self.pafi.push_uids({sys.argv[4]: {"username": sys.argv[3], "status": "start"}}, [])
 			if pushuser == "yes":
 				print self.ui.color("Success!", self.ui.green)
 			elif pushuser == "no":
@@ -4567,6 +4693,9 @@ class command_line_interpreter(object):
 					print "\n\n****************Re-installing/upgrading the RadiUID service...****************\n"
 					self.imum.copy_radiuid("keep-config")
 					self.imum.install_radiuid()
+					print "\n\n****************Checking Config File Schema****************\n"
+					self.filemgmt.extend_config_schema()
+					self.filemgmt.save_config()
 					print "\n"
 					self.imum.install_radiuid_completion()
 					raw_input(self.ui.color(">>>>> You will need to log out and log back in to activate the RadiUID CLI auto-completion functionality\n>>>>> Hit ENTER to finish\n>>>>>", self.ui.cyan))
@@ -4643,6 +4772,8 @@ class command_line_interpreter(object):
 			print " - set maxloglines <number-of-lines>              |  Set the max number of lines allowed in the log ('0' turns circular logging off)"
 			print " - set userdomain (none | <domain name>)          |  Set the domain name prepended to User-ID mappings"
 			print " - set timeout                                    |  Set the timeout (in minutes) for User-ID mappings sent to the firewall targets"
+			print " - set looptime                                   |  Set the waiting loop time (in seconds) to pause between checks of the RADIUS logs"
+			print " - set radiusstopaction (clear | ignore | push)   |  Set the action taken by RadiUID when RADIUS stop messages are received"
 			print " - set client <ip-block> <shared-secret>          |  Set configuration elements for RADIUS clients to send accounting data FreeRADIUS"
 			print " - set munge <rule>.<step> [parameters]           |  Set munge (string processing rules) for User-IDs"
 			print " - set target <hostname>:<vsys-id> [parameters]   |  Set configuration elements for existing or new firewall targets"
