@@ -722,7 +722,8 @@ class file_management(object):
 				targets = configdict['targets']['target']
 				if type(targets) != type([]):
 					targets = [targets]
-			except KeyError:
+			except KeyError as e:
+				#print e
 				print self.ui.color(time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + "****************WARNING: Could not import some important settings****************\n", self.ui.yellow)
 			try:
 				mungeconfig = configdict['globalsettings']['munge']
@@ -3094,12 +3095,15 @@ class command_line_interpreter(object):
 		global configfile
 		#### Set TLS Version ####
 		global tlsobj
-		if tlsversion == "1.0":
+		try:
+			if tlsversion == "1.0":
+				tlsobj = ssl.PROTOCOL_TLSv1
+			elif tlsversion == "1.1":
+				tlsobj = ssl.PROTOCOL_TLSv1_1
+			elif tlsversion == "1.2":
+				tlsobj = ssl.PROTOCOL_TLSv1_2
+		except NameError:
 			tlsobj = ssl.PROTOCOL_TLSv1
-		elif tlsversion == "1.1":
-			tlsobj = ssl.PROTOCOL_TLSv1_1
-		elif tlsversion == "1.2":
-			tlsobj = ssl.PROTOCOL_TLSv1_2
 		######################### RUN #############################
 		if arguments == "run":
 			self.radiuid.looper()
@@ -4749,6 +4753,7 @@ class command_line_interpreter(object):
 				print "\n\n****************Re-installing/upgrading the RadiUID service...****************\n"
 				self.imum.copy_radiuid("keep-config")
 				self.imum.install_radiuid()
+				self.filemgmt.extend_config_schema()
 				print "\n"
 				self.imum.install_radiuid_completion()
 			print self.ui.color("#" * len(header), self.ui.magenta)
