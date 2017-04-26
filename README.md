@@ -6,7 +6,7 @@ An application to extract User-to-IP mappings from RADIUS accounting data and se
 
 ####   VERSION   ####
 -----------------------------------------
-The version of RadiUID documented here is: **v2.3.2**
+The version of RadiUID documented here is: **v2.4.0**
 
 
 ####   TABLE OF CONTENTS   ####
@@ -29,9 +29,10 @@ The version of RadiUID documented here is: **v2.3.2**
 16. [2.2.1 TO 2.3.0 Updates](#updates-in-v221----v230)
 16. [2.3.0 TO 2.3.1 Updates](#updates-in-v230----v231)
 17. [2.3.1 TO 2.3.2 Updates](#updates-in-v231----v232)
-18. [Upgrade Processes](#upgrade-processes)
-19. [Docker Files](#dockerfiles)
-20. [Contributing](#contributing)
+18. [2.3.2 TO 2.4.0 Updates](#updates-in-v232----v240)
+19. [Upgrade Processes](#upgrade-processes)
+20. [Docker Files](#dockerfiles)
+21. [Contributing](#contributing)
 
 
 ####   WHAT IS RADIUID   ####
@@ -151,63 +152,66 @@ The RadiUID system is meant to run in the background as a system service: consta
 Below is the CLI guide for the RadiUID service.
 
 *You can see this guide by typing 'python radiuid.py' (before installation) or 'radiuid' (after installation) and hitting ENTER.*
+```
+-------------------------------------------------------------------------------------------------------------------------------
+                     ARGUMENTS                    |                                  DESCRIPTIONS
+-------------------------------------------------------------------------------------------------------------------------------
 
-     -------------------------------------------------------------------------------------------------------------------------------
-                          ARGUMENTS                    |                                  DESCRIPTIONS
-     -------------------------------------------------------------------------------------------------------------------------------
-     
-      - run                                            |  Run the RadiUID main program in shell mode begin pushing User-ID information
-     -------------------------------------------------------------------------------------------------------------------------------
-     
-      - install                                        |  Run RadiUID Install/Maintenance Utility
-     -------------------------------------------------------------------------------------------------------------------------------
-     
-      - show log                                       |  Show the RadiUID log file
-      - show acct-logs                                 |  Show the log files currently in the FreeRADIUS accounting directory
-      - show run (xml | set)                           |  Show the RadiUID configuration in XML format (default) or as set commands
-      - show config (xml | set)                        |  Show the RadiUID configuration in XML format (default) or as set commands
-      - show clients (file | table)                    |  Show the FreeRADIUS clients and config file
-      - show status                                    |  Show the RadiUID and FreeRADIUS service statuses
-      - show mappings (<target> | all | consistency)   |  Show the current IP-to-User mappings of one or all targets or check consistency
-     -------------------------------------------------------------------------------------------------------------------------------
-     
-      - set logfile                                    |  Set the RadiUID logfile path
-      - set radiuslogpath                              |  Set the path used to find FreeRADIUS accounting log files
-      - set maxloglines <number-of-lines>              |  Set the max number of lines allowed in the log ('0' turns circular logging off)
-      - set userdomain (none | <domain name>)          |  Set the domain name prepended to User-ID mappings
-      - set timeout                                    |  Set the timeout (in minutes) for User-ID mappings sent to the firewall targets
-      - set client <ip-block> <shared-secret>          |  Set configuration elements for RADIUS clients to send accounting data FreeRADIUS
-      - set munge <rule>.<step> [parameters]           |  Set munge (string processing rules) for User-IDs
-      - set target <hostname>:<vsys-id> [parameters]   |  Set configuration elements for existing or new firewall targets
-     -------------------------------------------------------------------------------------------------------------------------------
-     
-      - push (<hostname>:<vsys-id> | all) [parameters] |  Manually push a User-ID mapping to one or all firewall targets
-     -------------------------------------------------------------------------------------------------------------------------------
-     
-      - tail log (<# of lines>)                        |  Watch the RadiUID log file in real time
-     -------------------------------------------------------------------------------------------------------------------------------
-     
-      - clear log                                      |  Delete the content in the log file
-      - clear acct-logs                                |  Delete the log files currently in the FreeRADIUS accounting directory
-      - clear client (<ip-block> | all)                |  Delete one or all RADIUS client IP blocks in FreeRADIUS config file
-      - clear munge (<rule> | all) (<step> | all)      |  Delete one or all munge rules in the config file
-      - clear target (<hostname>:<vsys-id> | all)      |  Delete one or all firewall targets in the config file
-      - clear mappings [parameters]                    |  Remove one or all IP-to-User mappings from one or all firewalls
-     -------------------------------------------------------------------------------------------------------------------------------
-     
-      - edit config                                    |  Edit the RadiUID config file
-      - edit clients                                   |  Edit RADIUS client config file for FreeRADIUS
-     -------------------------------------------------------------------------------------------------------------------------------
-     
-      - service [parameters]                           |  Control the RadiUID and FreeRADIUS system services
-     -------------------------------------------------------------------------------------------------------------------------------
-     
-      - request [parameters]                           |  Make system-level changes for RadiUID service
-     -------------------------------------------------------------------------------------------------------------------------------
-     
-      - version                                        |  Show the current version of RadiUID and FreeRADIUS
-     -------------------------------------------------------------------------------------------------------------------------------
+ - run                                            |  Run the RadiUID main program in shell mode begin pushing User-ID information
+-------------------------------------------------------------------------------------------------------------------------------
 
+ - install                                        |  Run RadiUID Install/Maintenance Utility
+-------------------------------------------------------------------------------------------------------------------------------
+
+ - show log                                       |  Show the RadiUID log file
+ - show acct-logs                                 |  Show the log files currently in the FreeRADIUS accounting directory
+ - show run (xml | set)                           |  Show the RadiUID configuration in XML format (default) or as set commands
+ - show config (xml | set)                        |  Show the RadiUID configuration in XML format (default) or as set commands
+ - show clients (file | table)                    |  Show the FreeRADIUS clients and config file
+ - show status                                    |  Show the RadiUID and FreeRADIUS service statuses
+ - show mappings (<target> | all | consistency)   |  Show the current IP-to-User mappings of one or all targets or check consistency
+-------------------------------------------------------------------------------------------------------------------------------
+
+ - set logfile                                    |  Set the RadiUID logfile path
+ - set radiuslogpath                              |  Set the path used to find FreeRADIUS accounting log files
+ - set maxloglines <number-of-lines>              |  Set the max number of lines allowed in the log ('0' turns circular logging off)
+ - set userdomain (none | <domain name>)          |  Set the domain name prepended to User-ID mappings
+ - set timeout                                    |  Set the timeout (in minutes) for User-ID mappings sent to the firewall targets
+ - set looptime                                   |  Set the waiting loop time (in seconds) to pause between checks of the RADIUS logs
+ - set tlsversion (1.0 | 1.1 | 1.2)               |  Set the version of TLS used for XML API communication with the firewall targets
+ - set radiusstopaction (clear | ignore | push)   |  Set the action taken by RadiUID when RADIUS stop messages are received
+ - set client <ip-block> <shared-secret>          |  Set configuration elements for RADIUS clients to send accounting data FreeRADIUS
+ - set munge <rule>.<step> [parameters]           |  Set munge (string processing rules) for User-IDs
+ - set target <hostname>:<vsys-id> [parameters]   |  Set configuration elements for existing or new firewall targets
+-------------------------------------------------------------------------------------------------------------------------------
+
+ - push (<hostname>:<vsys-id> | all) [parameters] |  Manually push a User-ID mapping to one or all firewall targets
+-------------------------------------------------------------------------------------------------------------------------------
+
+ - tail log (<# of lines>)                        |  Watch the RadiUID log file in real time
+-------------------------------------------------------------------------------------------------------------------------------
+
+ - clear log                                      |  Delete the content in the log file
+ - clear acct-logs                                |  Delete the log files currently in the FreeRADIUS accounting directory
+ - clear client (<ip-block> | all)                |  Delete one or all RADIUS client IP blocks in FreeRADIUS config file
+ - clear munge (<rule> | all) (<step> | all)      |  Delete one or all munge rules in the config file
+ - clear target (<hostname>:<vsys-id> | all)      |  Delete one or all firewall targets in the config file
+ - clear mappings [parameters]                    |  Remove one or all IP-to-User mappings from one or all firewalls
+-------------------------------------------------------------------------------------------------------------------------------
+
+ - edit config                                    |  Edit the RadiUID config file
+ - edit clients                                   |  Edit RADIUS client config file for FreeRADIUS
+-------------------------------------------------------------------------------------------------------------------------------
+
+ - service [parameters]                           |  Control the RadiUID and FreeRADIUS system services
+-------------------------------------------------------------------------------------------------------------------------------
+
+ - request [parameters]                           |  Make system-level changes for RadiUID service
+-------------------------------------------------------------------------------------------------------------------------------
+
+ - version                                        |  Show the current version of RadiUID and FreeRADIUS
+-------------------------------------------------------------------------------------------------------------------------------
+```
 
 
 ####   TIMEOUT TUNING   ####
@@ -224,13 +228,15 @@ The Munge Engine is a rule-based string processor which is used in RadiUID to fi
 - A sample munge configuration can be seen below. This configuration will instruct the Munge Engine to find any User-ID which contains a double-backslash and reconstruct it with only one backslash. Then it will find any User-ID which contains the name 'vendor' and discard it (prevent it from being pushed to the Palo Alto). This example uses both of the Munge Engine complex actions (`set-variable`, and `assemble`), but only uses one of the simple actions (`discard`), it does not use the `accept` simple action.
 
     *NOTE: The double-backslash in the `101.0 match` statement is represented by a quad-backslash because BASH recognizes the backslash character as an escape. You will always need to use a double-backslash to represent a single-backslash. You also should always wrap your regular expressions in quotes when entering them.*
-	- `radiuid set munge 101.0 match "\\\\" partial`
-	- `radiuid set munge 101.10 set-variable domain from-match "^[a-zA-Z0-9]+"`
-	- `radiuid set munge 101.20 set-variable user from-match "[a-zA-Z0-9]+$"`
-	- `radiuid set munge 101.30 set-variable slash from-string "\\"`
-	- `radiuid set munge 101.40 assemble domain slash user`
-	- `radiuid set munge 102.0 match "vendor" partial`
-    - `radiuid set munge 102.10 discard`
+```
+radiuid set munge 101.0 match "\\\\" partial
+radiuid set munge 101.10 set-variable domain from-match "^[a-zA-Z0-9]+"
+radiuid set munge 101.20 set-variable user from-match "[a-zA-Z0-9]+$"
+radiuid set munge 101.30 set-variable slash from-string "\\"
+radiuid set munge 101.40 assemble domain slash user
+radiuid set munge 102.0 match "vendor" partial
+radiuid set munge 102.10 discard
+```
 
 - Munge rules are broken down into rules and steps and are configured/ordered in a dot-notation as `<rule number>.<step number>`. The rules and steps can be numbered as desired with one exception (`X.0`) which is described below. The rules and steps are processed in order by their numbers, so when configuring them, you may want to leave gaps in the assigned numbers for insertion of other rules or steps later between the existing ones.
 - The only requirement for rule numbering is that step '0' in each rule (X.0) must be a match statement, as it is used to determine whether or not to process the rule on the User-ID. All rules must begin with a `X.0 match` statement followed by either an `any` keyword (which will match all inputs) or by a regular expression.
@@ -366,11 +372,34 @@ The Munge Engine is a rule-based string processor which is used in RadiUID to fi
 
 
 
+####   UPDATES IN V2.3.2 --> V2.4.0   ####
+--------------------------------------
+
+**ADDED FEATURES:**
+
+- Configurable TLS Protocol (#27): The TLS protocol used to communicate with the target firewalls can now be set to use TLS1.0 (previously the default), TLS1.1, or TLS1.2. This feature is configured with the `radiuid set tlsversion` command.
+
+- Configurable RADIUS Stop Action (#26): RadiUID can now be configured to take different actions when a RADIUS stop log is found. It can continue to `push` the UID mapping (previous default action), it can `ignore` the UID mapping and discard it from the push, or it can take action on it and actively `clear` it from the firewall mapping table. This feature is configured with the `radiuid set radiusstopaction` command.
+
+- Configurable Loop Time (#25): RadiUID would previously wait 10 seconds before each check of the RADIUS logs. This wait time is now configurable using the `radiuid set looptime` command.
+
+**BUG FIXES:**
+
+- *ISSUE #28*: Any configuration command which would generate a 1-line XML configuration change (example: `radiuid set maxloglines 10`) would not properly display the changed XML configuration item due to a bug in the `formatxml` library (used by `show_config_item`). This should now work properly.
+
+**DEFAULT BEHAVIOR CHANGES:**
+With the exposure of the `tlsversion` and `radiusstopaction` elements to configuration, best-practices have also been set for those values. The legacy behaviors are also supported and configurable if desired.
+
+- Version 2.4.0 changes the default HTTPS TLS version from TLS1.0 to TLS1.2. This behavior can be changed back to pre-2.4.0 behavior using the command: `radiuid set tlsversion 1.0`.
+
+- Version 2.4.0 changes the default RADIUS stop action (`radiusstopaction`) behavior from `push` to `clear` as a best practice. This more closely matches the commonly desired effect of synchronizing the PAN UID table with RADIUS logs. This behavior can be changed back to pre-2.4.0 behavior using the command: `radiuid set radiusstopaction push`.
+
+
 
 ####   UPGRADE PROCESSES   ####
 --------------------------------------
 
-**Upgrading from v2.X to v2.3.2:**
+**Upgrading from v2.X to v2.4.0:**
 
 1. Perform a `radiuid show config set` command and save the `set` commands displayed in a safe place (just in case)
 2. Download the code from the GitHub repo by using `git clone https://github.com/PackeTsar/radiuid.git`
@@ -384,7 +413,7 @@ The Munge Engine is a rule-based string processor which is used in RadiUID to fi
 8. You may also want to log out of the shell and back in to activate any new auto-complete functions.
 
 
-**Upgrading from v1.X to v2.3.2:**
+**Upgrading from v1.X to v2.4.0:**
 
 1. Change the name of your config file (/etc/radiuid/radiuid.conf) by issuing the command `mv /etc/radiuid/radiuid.conf /etc/radiuid/radiuid.conf.backup`
 2. Grab the contents to have them handy during the install of the new version `more /etc/radiuid/radiuid.conf.backup`
@@ -418,9 +447,9 @@ These are the dockerfile script files used to build the SSH and non-SSH Docker i
     RUN echo '%wheel ALL=(ALL) ALL' >> /etc/sudoers
     
     ### Download and install RadiUID from latest release ###
-    RUN curl -sL https://codeload.github.com/PackeTsar/radiuid/tar.gz/2.3.2 | tar xz
-    RUN cd radiuid-2.3.2;python radiuid.py request reinstall replace-config no-confirm
-    RUN cd radiuid-2.3.2;python radiuid.py request freeradius-install no-confirm
+    RUN curl -sL https://codeload.github.com/PackeTsar/radiuid/tar.gz/2.4.0 | tar xz
+    RUN cd radiuid-2.4.0;python radiuid.py request reinstall replace-config no-confirm
+    RUN cd radiuid-2.4.0;python radiuid.py request freeradius-install no-confirm
     
     ### Expose ports and provide run commands ###
     EXPOSE 1813/udp
@@ -435,8 +464,8 @@ These are the dockerfile script files used to build the SSH and non-SSH Docker i
     
     ### Download and install RadiUID from latest release ###
     RUN curl -sL https://codeload.github.com/PackeTsar/radiuid/tar.gz/2.3.2 | tar xz
-    RUN cd radiuid-2.3.2;python radiuid.py request reinstall replace-config no-confirm
-    RUN cd radiuid-2.3.2;python radiuid.py request freeradius-install no-confirm
+    RUN cd radiuid-2.4.0;python radiuid.py request reinstall replace-config no-confirm
+    RUN cd radiuid-2.4.0;python radiuid.py request freeradius-install no-confirm
     
     ### Expose ports and provide run commands ###
     EXPOSE 1813/udp
