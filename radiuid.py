@@ -693,6 +693,12 @@ class file_management(object):
 			configdict = self.tinyxmltodict(self.root)['config']
 			##### Publish individual global settings values variables in main namespace #####
 			try:
+				mungeconfig = configdict['globalsettings']['munge']
+				tomunge = True
+				print self.ui.color(time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + "***********SUCCESSFULLY IMPORTED THE MUNGE CONFIGURATION***********\n", self.ui.green)
+			except KeyError:
+				tomunge = False
+			try:
 				logfile = configdict['globalsettings']['paths']['logfile']
 				self.logwriter("normal", "***********INITIAL WRITE TO THE LOG FILE: " + logfile + "...***********")
 				self.logwriter("normal", "***********INITIALIZING VARIABLES FROM CONFIG FILE...***********")
@@ -717,23 +723,25 @@ class file_management(object):
 				self.logwriter("normal", "Initialized variable:" "\t" + "tlsversion" + "\t\t\t" + "with value:" + "\t" + self.ui.color(tlsversion, self.ui.green))
 				radiusstopaction = configdict['globalsettings']['misc']['radiusstopaction']
 				self.logwriter("normal", "Initialized variable:" "\t" + "radiusstopaction" + "\t\t" + "with value:" + "\t" + self.ui.color(radiusstopaction, self.ui.green))
+			except KeyError:
+				print self.ui.color(time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + "****************WARNING: Could not import some important settings****************\n", self.ui.yellow)
+			try:
 				##### Publish list of firewall targets into main namespace #####
 				self.logwriter("normal", "***********INITIALIZING TARGETS...***********")
 				targets = configdict['targets']['target']
 				if type(targets) != type([]):
 					targets = [targets]
 			except KeyError:
-				print self.ui.color(time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + "****************WARNING: Could not import some important settings****************\n", self.ui.yellow)
-			try:
-				mungeconfig = configdict['globalsettings']['munge']
-				tomunge = True
-				print self.ui.color(time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + "***********SUCCESSFULLY IMPORTED THE MUNGE CONFIGURATION***********\n", self.ui.green)
-			except KeyError:
-				tomunge = False
+				print self.ui.color(time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + "****************WARNING: No Targets Exist in Configuration****************\n", self.ui.yellow)
 		if mode == 'quiet':
 			##### Suck config values into a dictionary #####
 			configdict = self.tinyxmltodict(self.root)['config']
 			##### Publish individual global settings values variables in main namespace #####
+			try:
+				mungeconfig = configdict['globalsettings']['munge']
+				tomunge = True
+			except KeyError:
+				tomunge = False
 			try:
 				logfile = configdict['globalsettings']['paths']['logfile']
 				radiuslogpath = configdict['globalsettings']['paths']['radiuslogpath']
@@ -746,17 +754,15 @@ class file_management(object):
 				ipaddressterm = configdict['globalsettings']['searchterms']['ipaddressterm']
 				usernameterm = configdict['globalsettings']['searchterms']['usernameterm']
 				delineatorterm = configdict['globalsettings']['searchterms']['delineatorterm']
+			except KeyError:
+				return "WARNING: Could not import some important settings"
+			try:
 				##### Publish list of firewall targets into main namespace #####
 				targets = configdict['targets']['target']
 				if type(targets) != type([]):
 					targets = [targets]
 			except KeyError:
-				return "WARNING: Could not import some important settings"
-			try:
-				mungeconfig = configdict['globalsettings']['munge']
-				tomunge = True
-			except KeyError:
-				tomunge = False
+				return "WARNING: No Targets Exist in Configuration"
 	##### Show formatted configuration item #####
 	def show_config_item(self, mainmode, submode, itemname):
 		if mainmode == "xml":
