@@ -472,7 +472,18 @@ These are the dockerfile script files used to build the SSH and non-SSH Docker i
     EXPOSE 1813/tcp
     CMD radiusd & radiuid run >> /etc/radiuid/STDOUT & /bin/bash
 
+**Docker Build**
 
+To build your own Docker image: follow the instructions below
+
+1. After installing Docker (`yum install docker` or an equivalent) and starting it up (`systemctl start docker` or an equivalent), create a new file called "Dockerfile": `vi Dockerfile`
+2. Paste in the text from one of the above scripts: Hit `i` to get into insert mode, and paste in the text, then hit ESC to leave insert mode, then type in `:wq` and hit ENTER to save and exit
+3. Build the Docker image using the command `docker build -t mydockerradiuidimage .` Docker will run through the script and install RadiUID and FreeRADIUS.
+4. You can now run the `docker images` command and see your new image
+5. To run the image, issue the command `docker run -it -p 1813:1813/udp -p 1813:1813/tcp -p 222:22/tcp --name radiuid -t mydockerradiuidimage`
+6. You will enter into interactive mode in the container where you can run `radiuid` commands. After you are done in the container, hit CTRL + P + Q to exit interactive mode but leave the container running.
+7. If you used the "With SSH" Dockerfile script, then you should be able to SSH to the Docker host's IP on port 222 to directly access the container.
+8. If you want to save this image to Docker Hub, use the command `docker push mydockerradiuidimage`.
 
 
 ####   CONTRIBUTING   ####
