@@ -430,7 +430,7 @@ With the exposure of the `tlsversion` and `radiusstopaction` elements to configu
 ####   DOCKERFILES   ####
 --------------------------------------
 
-These are the dockerfile script files used to build the SSH and non-SSH Docker images hosted on [Docker Hub][docker-hub]. You can use these on a Docker host to build your own RadiUID image instead of downloading the pre-made one from Docker Hub.
+These are the dockerfile script files used to build the SSH and non-SSH Docker images hosted on [Docker Hub][docker-hub]. You can use these on a Docker host to build your own RadiUID image if you don't want to download the pre-made one from Docker Hub.
 
 **With SSH**
 
