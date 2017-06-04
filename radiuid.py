@@ -1867,7 +1867,8 @@ class palo_alto_firewall_interaction(object):
 			for entry in ipanduserdict:
 				try:
 					newuname = self.dpr.munge([ipanduserdict[entry]["username"]], mungeconfig)[0]
-					modipanduserdict.update({entry: newuname})
+					status = ipanduserdict[entry]["status"]
+					modipanduserdict.update({entry: {"username": newuname, "status": status}})
 					if newuname == ipanduserdict[entry]["username"]:
 						self.filemgmt.logwriter("normal", "Munge Engine left input: "+self.ui.color(ipanduserdict[entry]["username"], self.ui.cyan)+" alone")
 					else:
