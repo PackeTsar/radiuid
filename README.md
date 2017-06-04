@@ -413,14 +413,16 @@ With the exposure of the `tlsversion` and `radiusstopaction` elements to configu
 
 1. Perform a `radiuid show config set` command and save the `set` commands displayed in a safe place (just in case)
 2. Download the code from the GitHub repo by using `git clone https://github.com/PackeTsar/radiuid.git`
-    - If the "radiuid" folder already exists, you may want to use git to update the clone `cd radiuid/; git pull`
+    - If the "radiuid" folder already exists, you can use git to update the clone `cd radiuid/; git pull`
 3. Move to the radiuid folder created by git using the `cd radiuid/` command
-4. Perform a quick reinstall/update of RadiUID using the command `python radiuid.py request reinstall keep-config`
-5. Type in CONFIRM and hit ENTER to confirm you want to perform the reinstall
-6. Once the installer exits, you should run `radiuid show config set` and see your configuration from before.
-7. Perform a `radiuid service all restart` command to restart RadiUID to use the new app version
-	- *NOTE: The RadiUID service will continue running in the background throughout the install process. It is not until you restart/stop the service that the new version and configuration will take effect.* 
-8. You may also want to log out of the shell and back in to activate any new auto-complete functions.
+4. Change to the latest branch using the command `git checkout v2.4.1`
+5. Perform a quick reinstall/update of RadiUID using the command `python radiuid.py request reinstall keep-config`
+6. Type in CONFIRM and hit ENTER to confirm you want to perform the reinstall
+7. Once the installer exits, you should run `radiuid show config set` and see your configuration from before.
+8. Check that you are running the new version by issuing `radiuid version`
+9. Perform a `radiuid service all restart` command to restart RadiUID to use the new app version
+	- *NOTE: The RadiUID service will continue running in the background throughout the install/upgrade process. It is not until you restart/stop the service that the new version and configuration will take effect.* 
+10. You may also want to log out of the shell and back in to activate any new auto-complete functions.
 
 
 **Upgrading from v1.X to v2.4.1:**
