@@ -6,7 +6,7 @@ An application to extract User-to-IP mappings from RADIUS accounting data and se
 
 ####   VERSION   ####
 -----------------------------------------
-The version of RadiUID documented here is: **v2.4.0**
+The version of RadiUID documented here is: **v2.4.1**
 
 
 ####   TABLE OF CONTENTS   ####
@@ -30,6 +30,7 @@ The version of RadiUID documented here is: **v2.4.0**
 16. [2.3.0 TO 2.3.1 Updates](#updates-in-v230----v231)
 17. [2.3.1 TO 2.3.2 Updates](#updates-in-v231----v232)
 18. [2.3.2 TO 2.4.0 Updates](#updates-in-v232----v240)
+19. [2.4.0 TO 2.4.1 Updates](#updates-in-v240----v241)
 19. [Upgrade Processes](#upgrade-processes)
 20. [Docker Files](#dockerfiles)
 21. [Contributing](#contributing)
@@ -396,10 +397,19 @@ With the exposure of the `tlsversion` and `radiusstopaction` elements to configu
 
 
 
+####   UPDATES IN V2.4.0 --> V2.4.1   ####
+--------------------------------------
+
+**BUG FIXES:**
+
+- *ISSUE #29*: Munge rule processing results within `push_uids` were being assembled back into `modipanduserdict` incorrectly formatted excluding the `status` field in the dictionary. The behavior seen was an exception thrown when RadiUID was run with munge rules configured and accounting logs available. This issue was reported by Marcus Cooke on the PacketPushers RadiUID blog post.
+
+
+
 ####   UPGRADE PROCESSES   ####
 --------------------------------------
 
-**Upgrading from v2.X to v2.4.0:**
+**Upgrading from v2.X to v2.4.1:**
 
 1. Perform a `radiuid show config set` command and save the `set` commands displayed in a safe place (just in case)
 2. Download the code from the GitHub repo by using `git clone https://github.com/PackeTsar/radiuid.git`
@@ -413,7 +423,7 @@ With the exposure of the `tlsversion` and `radiusstopaction` elements to configu
 8. You may also want to log out of the shell and back in to activate any new auto-complete functions.
 
 
-**Upgrading from v1.X to v2.4.0:**
+**Upgrading from v1.X to v2.4.1:**
 
 1. Change the name of your config file (/etc/radiuid/radiuid.conf) by issuing the command `mv /etc/radiuid/radiuid.conf /etc/radiuid/radiuid.conf.backup`
 2. Grab the contents to have them handy during the install of the new version `more /etc/radiuid/radiuid.conf.backup`
@@ -447,9 +457,9 @@ These are the dockerfile script files used to build the SSH and non-SSH Docker i
     RUN echo '%wheel ALL=(ALL) ALL' >> /etc/sudoers
     
     ### Download and install RadiUID from latest release ###
-    RUN curl -sL https://codeload.github.com/PackeTsar/radiuid/tar.gz/2.4.0 | tar xz
-    RUN cd radiuid-2.4.0;python radiuid.py request reinstall replace-config no-confirm
-    RUN cd radiuid-2.4.0;python radiuid.py request freeradius-install no-confirm
+    RUN curl -sL https://codeload.github.com/PackeTsar/radiuid/tar.gz/2.4.1 | tar xz
+    RUN cd radiuid-2.4.1;python radiuid.py request reinstall replace-config no-confirm
+    RUN cd radiuid-2.4.1;python radiuid.py request freeradius-install no-confirm
     
     ### Expose ports and provide run commands ###
     EXPOSE 1813/udp
@@ -463,9 +473,9 @@ These are the dockerfile script files used to build the SSH and non-SSH Docker i
     MAINTAINER John W Kerns "jkerns@packetsar.com"
     
     ### Download and install RadiUID from latest release ###
-    RUN curl -sL https://codeload.github.com/PackeTsar/radiuid/tar.gz/2.4.0 | tar xz
-    RUN cd radiuid-2.4.0;python radiuid.py request reinstall replace-config no-confirm
-    RUN cd radiuid-2.4.0;python radiuid.py request freeradius-install no-confirm
+    RUN curl -sL https://codeload.github.com/PackeTsar/radiuid/tar.gz/2.4.1 | tar xz
+    RUN cd radiuid-2.4.1;python radiuid.py request reinstall replace-config no-confirm
+    RUN cd radiuid-2.4.1;python radiuid.py request freeradius-install no-confirm
     
     ### Expose ports and provide run commands ###
     EXPOSE 1813/udp
