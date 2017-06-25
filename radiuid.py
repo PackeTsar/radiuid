@@ -1809,6 +1809,8 @@ class palo_alto_firewall_interaction(object):
 			try:
 				try:
 					gcontext = ssl.SSLContext(tlsobj)
+					gcontext.check_hostname = False
+					gcontext.verify_mode = ssl.CERT_NONE
 					response = urllib2.urlopen(url, context=gcontext).read()
 				except AttributeError:
 					response = urllib2.urlopen(url).read()
@@ -1890,6 +1892,8 @@ class palo_alto_firewall_interaction(object):
 				try:
 					try:
 						gcontext = ssl.SSLContext(tlsobj)
+						gcontext.check_hostname = False
+						gcontext.verify_mode = ssl.CERT_NONE
 						response = urllib2.urlopen(eachurl, context=gcontext).read()
 					except AttributeError:
 						response = urllib2.urlopen(eachurl).read()
@@ -1920,6 +1924,8 @@ class palo_alto_firewall_interaction(object):
 			url = 'https://' + target['hostname'] + '/api/?key=' + target['apikey'] + "&type=op&vsys=vsys" + target['vsys'] + "&cmd=" + encodedcall
 			try:
 				gcontext = ssl.SSLContext(tlsobj)
+				gcontext.check_hostname = False
+				gcontext.verify_mode = ssl.CERT_NONE
 				result.update({target['hostname'] + ":vsys" + target['vsys']: urllib2.urlopen(url, context=gcontext).read()})
 			except AttributeError:
 				result.update({target['hostname'] + ":vsys" + target['vsys']: urllib2.urlopen(url).read()})
@@ -1939,6 +1945,8 @@ class palo_alto_firewall_interaction(object):
 			result.update({target['hostname'] + ":vsys" + target['vsys']: {}})
 			try:
 				gcontext = ssl.SSLContext(tlsobj)
+				gcontext.check_hostname = False
+				gcontext.verify_mode = ssl.CERT_NONE
 				result1 = urllib2.urlopen(url1, context=gcontext).read()
 				result2 = urllib2.urlopen(url2, context=gcontext).read()
 			except:
