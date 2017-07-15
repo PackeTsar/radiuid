@@ -1612,7 +1612,7 @@ class data_processing(object):
 				if debug:  # If we are debugging
 					print "\n\n\n\t----- %s -----" % str(rule)  # Print a header of the rule name
 					print "\t\t----- Rule beginning with input: %s -----" % str(inputresult)  # Print th input being fed into this rule
-				if interrupt == 'accept':  # If something has set the interrupt to 'accept'
+				if interrupt == 'accept' or interrupt == 'discard':  # If something has set the interrupt to 'accept' or 'discard'
 						break  # And break the loop for this rule so the modified input can be added to the result list
 				currentrule = mungeruledict[rule]  # Pull the data for the current rule
 				if debug:  # If we are debugging
