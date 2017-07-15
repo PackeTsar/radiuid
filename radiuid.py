@@ -1,6 +1,6 @@
 #!/usr/bin/python
 
-#####        RadiUID Server v2.4.1         #####
+#####        RadiUID Server v2.4.2         #####
 #####       Written by John W Kerns        #####
 #####      http://blog.packetsar.com       #####
 ##### https://github.com/PackeTsar/radiuid #####
@@ -17,7 +17,7 @@ import platform
 import xml.etree.ElementTree as ElementTree
 
 ##### Inform RadiUID version here #####
-version = "2.4.1"
+version = "2.4.2"
 
 ##### Set some internal settings #####
 etcconfigfile = '/etc/radiuid/radiuid.conf'
