@@ -1461,7 +1461,11 @@ class data_processing(object):
 				cleaned = "start"
 			elif "stop" in value.lower():
 				cleaned = "stop"
-			newdict[key] = cleaned
+			try:
+				newdict[key] = cleaned
+			except UnboundLocalError:
+				self.filemgmt.logwriter("normal", self.ui.color("Unrecognized RADIUS Accounting status type! Dumping User-ID!", self.ui.red))
+				self.filemgmt.logwriter("normal", self.ui.color("Status: '%s'" % value, self.ui.red))
 		self.filemgmt.logwriter("normal", "Status List Cleaned Up!")
 		return newdict
 	##### Merge dictionary values from two dictionaries into one dictionary and remove duplicates #####
