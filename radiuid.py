@@ -1,6 +1,6 @@
 #!/usr/bin/python
 
-#####        RadiUID Server v2.4.3         #####
+#####        RadiUID Server v2.4.4         #####
 #####       Written by John W Kerns        #####
 #####      http://blog.packetsar.com       #####
 ##### https://github.com/PackeTsar/radiuid #####
@@ -17,7 +17,7 @@ import platform
 import xml.etree.ElementTree as ElementTree
 
 ##### Inform RadiUID version here #####
-version = "2.4.3"
+version = "dev2.4.4"
 
 ##### Set some internal settings #####
 etcconfigfile = '/etc/radiuid/radiuid.conf'
@@ -1438,6 +1438,7 @@ class data_processing(object):
 	##### Removes unwanted data from the lines with useful usernames in them #####
 	def clean_names(self, dictionary):
 		newdict = {}
+		self.filemgmt.logwriter("normal", str(dictionary))  # REMOVE ME
 		for key, value in dictionary.iteritems():
 			if "'" in value:
 				username_regex = "(\'.*\')"
@@ -1445,8 +1446,12 @@ class data_processing(object):
 			elif '"' in value:
 				username_regex = '(\".*\")'
 				removequote = '"'
+			self.filemgmt.logwriter("normal", username_regex)  # REMOVE ME
+			self.filemgmt.logwriter("normal", value)  # REMOVE ME
 			clean1 = re.findall(username_regex, value, flags=0)[0]
+			self.filemgmt.logwriter("normal", clean1)  # REMOVE ME
 			cleaned = clean1.replace(removequote, "")
+			self.filemgmt.logwriter("normal", cleaned)  # REMOVE ME
 			newdict[key] = cleaned
 		self.filemgmt.logwriter("normal", "Username List Cleaned Up!")
 		return newdict
