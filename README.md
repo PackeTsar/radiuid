@@ -6,7 +6,7 @@ An application to extract User-to-IP mappings from RADIUS accounting data and se
 
 ####   VERSION   ####
 -----------------------------------------
-The version of RadiUID documented here is: **v2.4.3**
+The version of RadiUID documented here is: **v2.5.0**
 
 
 ####   TABLE OF CONTENTS   ####
@@ -33,9 +33,10 @@ The version of RadiUID documented here is: **v2.4.3**
 20. [2.4.0 TO 2.4.1 Updates](#updates-in-v240----v241)
 21. [2.4.1 TO 2.4.2 Updates](#updates-in-v241----v242)
 22. [2.4.2 TO 2.4.3 Updates](#updates-in-v242----v243)
-23. [Upgrade Processes](#upgrade-processes)
-24. [Docker Files](#dockerfiles)
-25. [Contributing](#contributing)
+23. [2.4.3 TO 2.5.0 Updates](#updates-in-v243----v250)
+24. [Upgrade Processes](#upgrade-processes)
+25. [Docker Files](#dockerfiles)
+26. [Contributing](#contributing)
 
 
 ####   WHAT IS RADIUID   ####
@@ -426,16 +427,27 @@ With the exposure of the `tlsversion` and `radiusstopaction` elements to configu
 
 
 
+####   UPDATES IN V2.4.3 --> V2.5.0   ####
+--------------------------------------
+
+**BUG FIXES:**
+
+- *OTHER*: FreeRADIUS not being installed when RadiUID gets installed with wizard and is reset before completion.
+
+- *ISSUE #32*: Apostrophes in a username will cause a crash of the RadiUID process due to the method of string processing. The processing method has been changed to repair this issue.
+
+
+
 ####   UPGRADE PROCESSES   ####
 --------------------------------------
 
-**Upgrading from v2.X to v2.4.3:**
+**Upgrading from v2.X to v2.5.0:**
 
 1. Perform a `radiuid show config set` command and save the `set` commands displayed in a safe place (just in case)
 2. Download the code from the GitHub repo by using `git clone https://github.com/PackeTsar/radiuid.git`
     - If the "radiuid" folder already exists, you can use git to update the clone `cd radiuid/; git pull`
 3. Move to the radiuid folder created by git using the `cd radiuid/` command
-4. Change to the latest branch using the command `git checkout v2.4.3`
+4. Change to the latest branch using the command `git checkout v2.5.0`
 5. Perform a quick reinstall/update of RadiUID using the command `python radiuid.py request reinstall keep-config`
 6. Type in CONFIRM and hit ENTER to confirm you want to perform the reinstall
 7. Once the installer exits, you should run `radiuid show config set` and see your configuration from before.
@@ -479,9 +491,9 @@ These are the dockerfile script files used to build the SSH and non-SSH Docker i
     RUN echo '%wheel ALL=(ALL) ALL' >> /etc/sudoers
     
     ### Download and install RadiUID from latest release ###
-    RUN curl -sL https://codeload.github.com/PackeTsar/radiuid/tar.gz/2.4.3 | tar xz
-    RUN cd radiuid-2.4.3;python radiuid.py request reinstall replace-config no-confirm
-    RUN cd radiuid-2.4.3;python radiuid.py request freeradius-install no-confirm
+    RUN curl -sL https://codeload.github.com/PackeTsar/radiuid/tar.gz/2.5.0 | tar xz
+    RUN cd radiuid-2.5.0;python radiuid.py request reinstall replace-config no-confirm
+    RUN cd radiuid-2.5.0;python radiuid.py request freeradius-install no-confirm
     
     ### Expose ports and provide run commands ###
     EXPOSE 1813/udp
@@ -495,9 +507,9 @@ These are the dockerfile script files used to build the SSH and non-SSH Docker i
     MAINTAINER John W Kerns "jkerns@packetsar.com"
     
     ### Download and install RadiUID from latest release ###
-    RUN curl -sL https://codeload.github.com/PackeTsar/radiuid/tar.gz/2.4.3 | tar xz
-    RUN cd radiuid-2.4.3;python radiuid.py request reinstall replace-config no-confirm
-    RUN cd radiuid-2.4.3;python radiuid.py request freeradius-install no-confirm
+    RUN curl -sL https://codeload.github.com/PackeTsar/radiuid/tar.gz/2.5.0 | tar xz
+    RUN cd radiuid-2.5.0;python radiuid.py request reinstall replace-config no-confirm
+    RUN cd radiuid-2.5.0;python radiuid.py request freeradius-install no-confirm
     
     ### Expose ports and provide run commands ###
     EXPOSE 1813/udp
