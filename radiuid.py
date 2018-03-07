@@ -1,6 +1,6 @@
 #!/usr/bin/python
 
-#####        RadiUID Server v2.4.4         #####
+#####        RadiUID Server v2.5.0         #####
 #####       Written by John W Kerns        #####
 #####      http://blog.packetsar.com       #####
 ##### https://github.com/PackeTsar/radiuid #####
@@ -17,7 +17,7 @@ import platform
 import xml.etree.ElementTree as ElementTree
 
 ##### Inform RadiUID version here #####
-version = "dev2.4.4"
+version = "v2.5.0"
 
 ##### Set some internal settings #####
 etcconfigfile = '/etc/radiuid/radiuid.conf'
@@ -1438,7 +1438,6 @@ class data_processing(object):
 	##### Removes unwanted data from the lines with useful usernames in them #####
 	def clean_names(self, dictionary):
 		newdict = {}
-		self.filemgmt.logwriter("normal", str(dictionary))  # REMOVE ME
 		for key, value in dictionary.iteritems():
 			if "'" in value:
 				username_regex = "(\'.*\')"
@@ -1446,12 +1445,9 @@ class data_processing(object):
 			elif '"' in value:
 				username_regex = '(\".*\")'
 				removequote = '"'
-			self.filemgmt.logwriter("normal", username_regex)  # REMOVE ME
-			self.filemgmt.logwriter("normal", value)  # REMOVE ME
-			clean1 = re.findall(username_regex, value, flags=0)[0]
-			self.filemgmt.logwriter("normal", clean1)  # REMOVE ME
-			cleaned = clean1.replace(removequote, "")
-			self.filemgmt.logwriter("normal", cleaned)  # REMOVE ME
+			words = value.split(" ")
+			cleaned = words[len(words)-1]
+			cleaned = cleaned[1:len(cleaned)-2]
 			newdict[key] = cleaned
 		self.filemgmt.logwriter("normal", "Username List Cleaned Up!")
 		return newdict
@@ -2875,7 +2871,7 @@ class installer_maintenance_utility(object):
 					print self.ui.color("***** Very nice....Great Success!!!", self.ui.green)
 			if freeradiusrestart == 'no':
 				print self.ui.color("~~~ OK, leaving it off...", self.ui.yellow)
-		elif radcheck["status"] == "not-found":
+		elif radcheck["status"] == "not-found" or radcheck["status"] == "unknown":
 			freeradiusinstall = self.ui.yesorno(
 				"Looks like FreeRADIUS is not installed. It is required by RadiUID. Is it ok to install FreeRADIUS?")
 			if freeradiusinstall == 'yes':
