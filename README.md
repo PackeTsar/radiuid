@@ -436,6 +436,8 @@ With the exposure of the `tlsversion` and `radiusstopaction` elements to configu
 
 - *ISSUE #32*: Apostrophes in a username will cause a crash of the RadiUID process due to the method of string processing. The processing method has been changed to repair this issue.
 
+- *ISSUE #36*: Added the ability to configure a custom port on a target using the `radiuid set target <target_id> port <port_number>` syntax.
+
 
 
 ####   UPGRADE PROCESSES   ####
