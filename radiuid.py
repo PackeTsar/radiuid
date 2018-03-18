@@ -427,15 +427,6 @@ class file_management(object):
 				result["status"] = "pass" # Then all its characters are legal and it passes the check
 				result["messages"].append({"OK": "No illegal characters found in password"}) # Append a message to the result
 		return result
-	def check_version(self, inputversion):
-		result = {"status": "fail", "messages": []} # Start with a failed result
-		if inputversion == "6" or inputversion == "7":
-			result["status"] = "pass"
-			result["messages"].append({"OK": "Version is allowed"})
-		else:
-			result["status"] = "fail"
-			result["messages"].append({"FATAL": "Only versions 6 and 7 allowed"})
-		return result
 	def check_targets(self, targetdict):
 		result = {}
 		for target in targetdict:
@@ -457,11 +448,6 @@ class file_management(object):
 				result[targetname].update({"passwordcheck": self.check_userpass("password", target["password"])})
 			except KeyError:
 				result[targetname].update({"passwordcheck": {"status": "fail", "messages": [{"FATAL": "<password> parameter does not exist for this target"}]}})
-			##### Check Version #####
-			try:
-				result[targetname].update({"versioncheck": self.check_version(target["version"])})
-			except KeyError:
-				result[targetname].update({"versioncheck": {"status": "fail", "messages": [{"FATAL": "<version> parameter does not exist for this target"}]}})
 			##### Read Results #####
 			warnings = 0
 			for check in result[targetname].keys():
@@ -1746,42 +1732,37 @@ class palo_alto_firewall_interaction(object):
 	def xml_formatter_v67(self, ipanduserdict, targetlist):
 		xmldict = {}
 		for target in targetlist:
-			if target['version'] == '7' or target['version'] == '6':
-				hostname = target['hostname'] + ":vsys" + target['vsys']
-				xmldict[hostname] = []
-				ipaddresses = ipanduserdict.keys()
-				for ip in ipaddresses:
-					username = ipanduserdict[ip]["username"]
-					if userdomain == None:
-						entry = '<entry name="%s" ip="%s" timeout="%s">' % (username, ip, timeout)
-					else:
-						entry = '<entry name="%s\%s" ip="%s" timeout="%s">' % (userdomain, username, ip, timeout)
-					xmldict[hostname].append(entry)
-					entry = ''
-			else:
-				self.filemgmt.logwriter("normal", self.ui.color("PAN-OS version not supported for XML push!", self.ui.red))
-				quit()
+			hostname = target['hostname'] + ":vsys" + target['vsys']
+			xmldict[hostname] = []
+			ipaddresses = ipanduserdict.keys()
+			for ip in ipaddresses:
+				username = ipanduserdict[ip]["username"]
+				if userdomain == None:
+					entry = '<entry name="%s" ip="%s" timeout="%s">' % (username, ip, timeout)
+				else:
+					entry = '<entry name="%s\%s" ip="%s" timeout="%s">' % (userdomain, username, ip, timeout)
+				xmldict[hostname].append(entry)
+				entry = ''
 		return xmldict
 	##### Accepts a list of XML-formatted IP-to-User mappings and produces a list of complete and encoded URLs which are used to push UID data #####
 	##### Each URL will contain no more than 100 UID mappings which can all be pushed at the same time by the push_uids method #####
 	def xml_assembler_v67(self, ipuserxmldict, targetlist):
 		finishedurldict = {}
 		for host in targetlist:
-			if host['version'] == '7' or host['version'] == '6':
-				xmluserdata = ""
-				hostname = host['hostname']
-				vsys = host['vsys']
-				if "port" in host:
-					port = host['port']
-				else:
-					port = "443"
-				hostxmlentries = ipuserxmldict[hostname + ":vsys" + vsys]
-				finishedurllist = []
-				while len(hostxmlentries) > 0:
-					for entry in hostxmlentries[:maxuidspercall]:
-						xmluserdata = xmluserdata + entry + "\n</entry>\n"
-						hostxmlentries.remove(entry)
-					urldecoded = '<uid-message>\n\
+			xmluserdata = ""
+			hostname = host['hostname']
+			vsys = host['vsys']
+			if "port" in host:
+				port = host['port']
+			else:
+				port = "443"
+			hostxmlentries = ipuserxmldict[hostname + ":vsys" + vsys]
+			finishedurllist = []
+			while len(hostxmlentries) > 0:
+				for entry in hostxmlentries[:maxuidspercall]:
+					xmluserdata = xmluserdata + entry + "\n</entry>\n"
+					hostxmlentries.remove(entry)
+				urldecoded = '<uid-message>\n\
 	<version>1.0</version>\n\
 	<type>update</type>\n\
 	<payload>\n\
@@ -1790,16 +1771,13 @@ class palo_alto_firewall_interaction(object):
 	</login>\n\
 	</payload>\n\
 	</uid-message>'
-					urljunk = urllib.quote_plus(urldecoded)
-					finishedurllist.append('https://' + hostname + ":" + port + '/api/?key=' + host['apikey'] + '&type=user-id&vsys=vsys' + vsys +'&cmd=' + urljunk)
-					xmluserdata = ""
-				finishedurldict.update({hostname + ":vsys" + vsys: finishedurllist})
-				del hostname
-				del hostxmlentries
-				del vsys
-			else:
-				self.filemgmt.logwriter("normal", self.ui.color("PAN-OS version not supported for XML push!", self.ui.red))
-				quit()
+				urljunk = urllib.quote_plus(urldecoded)
+				finishedurllist.append('https://' + hostname + ":" + port + '/api/?key=' + host['apikey'] + '&type=user-id&vsys=vsys' + vsys +'&cmd=' + urljunk)
+				xmluserdata = ""
+			finishedurldict.update({hostname + ":vsys" + vsys: finishedurllist})
+			del hostname
+			del hostxmlentries
+			del vsys
 		return finishedurldict
 	#######################################################
 	#######         PAN Interaction Methods         #######
@@ -2007,7 +1985,7 @@ class radiuid_main_process(object):
 		self.filemgmt.logwriter("normal", "***********CHECKING TARGETS FOR INCOMPLETE OR INCORRECT CONFIGS***********")
 		self.filemgmt.scrub_targets("noisy", "scrub")
 		self.filemgmt.logwriter("normal", "***********LOADED THE BELOW TARGETS***********")
-		self.filemgmt.logwriter("normal", "\n" + self.ui.indenter("\t\t\t", self.ui.make_table(["hostname", "vsys", "username", "password", "version"], targets)))
+		self.filemgmt.logwriter("normal", "\n" + self.ui.indenter("\t\t\t", self.ui.make_table(["hostname", "vsys", "username", "password"], targets)))
 		##### Initial log entry and help for anybody starting the .py program without first installing it #####
 		self.filemgmt.logwriter("normal", "***********RADIUID INITIALIZING... IF PROGRAM FAULTS NOW, MAKE SURE YOU SUCCESSFULLY RAN THE INSTALLER ('python radiuid.py install')***********")
 		##### Explicitly pull PAN key now and store API key in the main namespace #####
@@ -2616,7 +2594,7 @@ _radiuid_complete()
     fi
     if [ "$prev4" == "target" ]; then
       if [ "$prev5" == "set" ]; then
-        COMPREPLY=( $(compgen -W "username password version" -- $cur) )
+        COMPREPLY=( $(compgen -W "username password port" -- $cur) )
       fi
     fi
     if [ "$prev4" == "munge" ]; then
@@ -2648,12 +2626,12 @@ _radiuid_complete()
   elif [ $COMP_CWORD -eq 8 ]; then
     case "$prev2" in
       username)
-        COMPREPLY=( $(compgen -W "password version" -- $cur) )
+        COMPREPLY=( $(compgen -W "password port" -- $cur) )
         ;;
       password)
-        COMPREPLY=( $(compgen -W "username version" -- $cur) )
+        COMPREPLY=( $(compgen -W "username port" -- $cur) )
         ;;
-      version)
+      port)
         COMPREPLY=( $(compgen -W "username password" -- $cur) )
         ;;
       *)
@@ -2664,19 +2642,19 @@ _radiuid_complete()
     case "$prev4" in
       username)
         if [ "$prev2" == "password" ]; then
-            COMPREPLY=( $(compgen -W "version" -- $cur) )
-        elif [ "$prev2" == "version" ]; then
+            COMPREPLY=( $(compgen -W "port" -- $cur) )
+        elif [ "$prev2" == "port" ]; then
             COMPREPLY=( $(compgen -W "password" -- $cur) )
         fi
         ;;
       password)
         if [ "$prev2" == "username" ]; then
-            COMPREPLY=( $(compgen -W "version" -- $cur) )
-        elif [ "$prev2" == "version" ]; then
+            COMPREPLY=( $(compgen -W "port" -- $cur) )
+        elif [ "$prev2" == "port" ]; then
             COMPREPLY=( $(compgen -W "username" -- $cur) )
         fi
         ;;
-      version)
+      port)
         if [ "$prev2" == "username" ]; then
             COMPREPLY=( $(compgen -W "password" -- $cur) )
         elif [ "$prev2" == "password" ]; then
@@ -2693,8 +2671,8 @@ _radiuid_complete()
     if [ "$prev" == "password" ]; then
       COMPREPLY=( $(compgen -W "<password> -" -- $cur) )
     fi
-    if [ "$prev" == "version" ]; then
-      COMPREPLY=( $(compgen -W "<pan-os-version> -" -- $cur) )
+    if [ "$prev" == "port" ]; then
+      COMPREPLY=( $(compgen -W "<tcp-port-number> -" -- $cur) )
     fi
     if [ "$prev" == "from-match" ]; then
       COMPREPLY=( $(compgen -W "<regex-pattern> any" -- $cur) )
@@ -2713,8 +2691,8 @@ _radiuid_complete()
       password)
         COMPREPLY=( $(compgen -W "<password> -" -- $cur) )
         ;;
-      version)
-        COMPREPLY=( $(compgen -W "<pan-os-version> -" -- $cur) )
+      port)
+        COMPREPLY=( $(compgen -W "<tcp-port-number> -" -- $cur) )
         ;;
       from-match)
         COMPREPLY=( $(compgen -W "<regex-pattern> any" -- $cur) )
@@ -2993,7 +2971,7 @@ class installer_maintenance_utility(object):
 			self.ui.progress('Reading:', 1)
 			try:
 				self.filemgmt.scrub_targets("noisy", "scrub")
-				print self.ui.make_table(["hostname", "vsys",  'username', 'password', 'version'], targets)
+				print self.ui.make_table(["hostname", "vsys",  'username', 'password'], targets)
 			except NameError:
 				print self.ui.color("\n****************No firewall targets currently configured****************\n", self.ui.yellow)
 			print "\n\n"
@@ -3010,12 +2988,11 @@ class installer_maintenance_utility(object):
 					addvsys = self.imum.change_setting('vsys1', 'Enter the Virtual System ID of the target firewall to recieve User-ID mappings').replace("vsys", "")
 					addusername = self.imum.change_setting('admin', 'Enter the administrative USERNAME to use for authentication against the firewall')
 					addpassword = self.imum.change_setting('admin', 'Enter the PASSWORD for the username you just entered')
-					addversion = self.imum.change_setting('7', 'Enter the major software version running on the firewall')
-					newtargets.append({'hostname': addhostname, 'vsys': addvsys, 'username': addusername, 'password': addpassword, 'version': addversion})
+					newtargets.append({'hostname': addhostname, 'vsys': addvsys, 'username': addusername, 'password': addpassword})
 					print "\n\n"
 					anothertarget = self.ui.yesorno("Do you want to add another target firewall?")
 				print "\n****************New Targets Are:****************\n"
-				print self.ui.make_table(["hostname", "vsys",  'username', 'password', 'version'], newtargets)
+				print self.ui.make_table(["hostname", "vsys",  'username', 'password'], newtargets)
 				print "\n\n\n"
 			raw_input(self.ui.color("\n\n>>>>> Hit ENTER to see what the new config will look like...\n\n>>>>>", self.ui.cyan))
 			print "\n\n\n"
@@ -3411,11 +3388,12 @@ class command_line_interpreter(object):
 			print "\n - set target <hostname>:<vsys-id> [parameters]  |  Parameters: hostname and vsys <hostname>:<vsys-id>"
 			print "                                                 |              username <username> "
 			print "                                                 |              password <password> "
-			print "                                                 |              version  <PAN-OS version #> "
+			print "                                                 |              port  <TCP port number>"
 			print "                                                 |              "
 			print "                                                 |  Examples:   'set target 192.168.1.1 username admin'"
 			print "                                                 |              'set target pan1.domain.com:vsys1 password P@s$w0rd'"
-			print "                                                 |              'set target 10.0.0.10:2 username admin password P@ssword version 6\n"
+			print "                                                 |              'set target 10.0.0.10:2 username admin password P@ssword"
+			print "                                                 |              'set target 10.0.0.10:2 username admin password P@ssword port 4433\n"
 		elif arguments == "set munge" or arguments == "set munge ?":
 			print "\n - set munge <rule>.<step> [parameters] |  Parameters: match (any | <regex>) (complete | partial)"
 			print "                                        |              set-variable <variable name> (from-match | from-string) <regex or string>"
@@ -3735,7 +3713,7 @@ class command_line_interpreter(object):
 			##############################
 			## Compile arguments ##
 			targetparams = {'hostname': hostname, "vsys": vsys}
-			searchqueries = ['username', 'password', 'version', 'port']
+			searchqueries = ['username', 'password', 'port']
 			cliparams = sys.argv[4:]
 			targetindices = self.dp.find_index_in_list(searchqueries, cliparams)
 			for key in targetindices:
@@ -3774,22 +3752,6 @@ class command_line_interpreter(object):
 						if message.keys()[0] == "WARNING":
 							print "\n" + self.ui.color(time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + "****************" + message.keys()[0] + ": " + message.values()[0] + "****************\n", self.ui.yellow)
 					inputcheck.update({"passwordcheck": "pass"})
-			except KeyError:
-				null = None
-			try:
-				versioncheck = self.filemgmt.check_version(targetparams["version"])
-				if versioncheck["status"] == "fail":
-					for message in versioncheck["messages"]:
-						if message.keys()[0] == "FATAL":
-							print "\n" + self.ui.color(time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + "****************" + message.keys()[0] + ": " + message.values()[0] + "****************\n", self.ui.red)
-						elif message.keys()[0] == "WARNING":
-							print "\n" + self.ui.color(time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + "****************" + message.keys()[0] + ": " + message.values()[0] + "****************\n", self.ui.yellow)
-					inputcheck.update({"versioncheck": "fail"})
-				else:
-					for message in versioncheck["messages"]:
-						if message.keys()[0] == "WARNING":
-							print "\n" + self.ui.color(time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + "****************" + message.keys()[0] + ": " + message.values()[0] + "****************\n", self.ui.yellow)
-					inputcheck.update({"versioncheck": "pass"})
 			except KeyError:
 				null = None
 			###########################################
