@@ -1771,6 +1771,10 @@ class palo_alto_firewall_interaction(object):
 				xmluserdata = ""
 				hostname = host['hostname']
 				vsys = host['vsys']
+				if "port" in host:
+					port = host['port']
+				else:
+					port = "443"
 				hostxmlentries = ipuserxmldict[hostname + ":vsys" + vsys]
 				finishedurllist = []
 				while len(hostxmlentries) > 0:
@@ -1787,7 +1791,7 @@ class palo_alto_firewall_interaction(object):
 	</payload>\n\
 	</uid-message>'
 					urljunk = urllib.quote_plus(urldecoded)
-					finishedurllist.append('https://' + hostname + '/api/?key=' + host['apikey'] + '&type=user-id&vsys=vsys' + vsys +'&cmd=' + urljunk)
+					finishedurllist.append('https://' + hostname + ":" + port + '/api/?key=' + host['apikey'] + '&type=user-id&vsys=vsys' + vsys +'&cmd=' + urljunk)
 					xmluserdata = ""
 				finishedurldict.update({hostname + ":vsys" + vsys: finishedurllist})
 				del hostname
@@ -1810,7 +1814,11 @@ class palo_alto_firewall_interaction(object):
 		for target in targetlist:
 			encodedusername = urllib.quote_plus(target['username'])
 			encodedpassword = urllib.quote_plus(target['password'])
-			url = 'https://' + target['hostname'] + '/api/?type=keygen&user=' + encodedusername + '&password=' + encodedpassword
+			if "port" in target:
+				port = target['port']
+			else:
+				port = "443"
+			url = 'https://' + target['hostname'] + ":" + port + '/api/?type=keygen&user=' + encodedusername + '&password=' + encodedpassword
 			try:
 				try:
 					gcontext = ssl.SSLContext(tlsobj)
@@ -1926,7 +1934,11 @@ class palo_alto_firewall_interaction(object):
 		encodedcall = urllib.quote_plus("<show><user><ip-user-mapping><all></all></ip-user-mapping></user></show>")
 		result = {}
 		for target in targetlist:
-			url = 'https://' + target['hostname'] + '/api/?key=' + target['apikey'] + "&type=op&vsys=vsys" + target['vsys'] + "&cmd=" + encodedcall
+			if "port" in target:
+				port = target['port']
+			else:
+				port = "443"
+			url = 'https://' + target['hostname'] + ":" + port + '/api/?key=' + target['apikey'] + "&type=op&vsys=vsys" + target['vsys'] + "&cmd=" + encodedcall
 			try:
 				gcontext = ssl.SSLContext(tlsobj)
 				gcontext.check_hostname = False
@@ -1945,8 +1957,12 @@ class palo_alto_firewall_interaction(object):
 			encodedcall2 = urllib.quote_plus("<clear><user-cache-mp><ip>" + userip + "</ip></user-cache-mp></clear>")
 		result = {}
 		for target in targetlist:
-			url1 = 'https://' + target['hostname'] + '/api/?key=' + target['apikey'] + "&type=op&vsys=vsys" + target['vsys'] + "&cmd=" + encodedcall1
-			url2 = 'https://' + target['hostname'] + '/api/?key=' + target['apikey'] + "&type=op&vsys=vsys" + target['vsys'] + "&cmd=" + encodedcall2
+			if "port" in target:
+				port = target['port']
+			else:
+				port = "443"
+			url1 = 'https://' + target['hostname'] + ":" + port + '/api/?key=' + target['apikey'] + "&type=op&vsys=vsys" + target['vsys'] + "&cmd=" + encodedcall1
+			url2 = 'https://' + target['hostname'] + ":" + port + '/api/?key=' + target['apikey'] + "&type=op&vsys=vsys" + target['vsys'] + "&cmd=" + encodedcall2
 			result.update({target['hostname'] + ":vsys" + target['vsys']: {}})
 			try:
 				gcontext = ssl.SSLContext(tlsobj)
@@ -3681,8 +3697,9 @@ class command_line_interpreter(object):
 			###################################
 			inputcheck = {}
 			if ":" in sys.argv[3]:
-				hostname = sys.argv[3].split(":")[0]
-				vsys = sys.argv[3].split(":")[1].replace("vsys", "")
+				words = sys.argv[3].split(":")
+				hostname = words[0]
+				vsys = words[1].replace("vsys", "")
 			else:
 				hostname = sys.argv[3]
 				vsys = "1"
@@ -3718,7 +3735,7 @@ class command_line_interpreter(object):
 			##############################
 			## Compile arguments ##
 			targetparams = {'hostname': hostname, "vsys": vsys}
-			searchqueries = ['username', 'password', 'version']
+			searchqueries = ['username', 'password', 'version', 'port']
 			cliparams = sys.argv[4:]
 			targetindices = self.dp.find_index_in_list(searchqueries, cliparams)
 			for key in targetindices:
