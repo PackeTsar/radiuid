@@ -89,7 +89,7 @@ OS:			**Any modern Debian, RHEL distro (CentOS 6 or 7, Ubuntu 14 or 16...), or D
 
 Interpreter:		**Python 2.7.X** *(Also works on Python 2.6.6 and up)*
 
-PAN-OS Version:		**6.X and 7.X**
+PAN-OS Version:		**6.X, 7.X, and 8.X have been tested**
 
 
 
@@ -437,6 +437,8 @@ With the exposure of the `tlsversion` and `radiusstopaction` elements to configu
 - *ISSUE #32*: Apostrophes in a username will cause a crash of the RadiUID process due to the method of string processing. The processing method has been changed to repair this issue.
 
 - *ISSUE #36*: Added the ability to configure a custom port on a target using the `radiuid set target <target_id> port <port_number>` syntax.
+
+- *OTHER*: Removed PAN-OS version awareness since there are no differences between major versions in API calls
 
 
 
