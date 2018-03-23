@@ -1949,7 +1949,7 @@ class palo_alto_firewall_interaction(object):
 				result1 = urllib2.urlopen(url1, context=gcontext).read()
 				result2 = urllib2.urlopen(url2, context=gcontext).read()
 			except Exception as e:
-				self.filemgmt.logwriter("normal", e)
+				print(e)
 				result1 = urllib2.urlopen(url1).read()
 				result2 = urllib2.urlopen(url2).read()
 			result[target['hostname'] + ":vsys" + target['vsys']].update({"DP-CLEAR": result1})
