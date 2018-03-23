@@ -1948,7 +1948,8 @@ class palo_alto_firewall_interaction(object):
 				gcontext.verify_mode = ssl.CERT_NONE
 				result1 = urllib2.urlopen(url1, context=gcontext).read()
 				result2 = urllib2.urlopen(url2, context=gcontext).read()
-			except:
+			except Exception as e:
+				self.filemgmt.logwriter("normal", e)
 				result1 = urllib2.urlopen(url1).read()
 				result2 = urllib2.urlopen(url2).read()
 			result[target['hostname'] + ":vsys" + target['vsys']].update({"DP-CLEAR": result1})
