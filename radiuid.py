@@ -805,7 +805,7 @@ class file_management(object):
 			if "FATAL" not in clients:
 				setclientlist = []
 				for client in clients:
-					setclientlist.append(" set client " + client['IP Block'] + " " + client['Shared Secret'])
+					setclientlist.append(" set client " + client['Family'] + " " + client['IP Block'] + " " + client['Shared Secret'])
 			#### Compile set commands for uninstalled and installed CLI format ####
 			setmunge = ""
 			if tomunge:
@@ -1117,8 +1117,15 @@ class file_management(object):
 				clientfilelines.append("###################### RadiUID Generated Settings #####################\n")
 				clientfilelines.append("################### Be Careful When Changing Manually #################\n")
 			for entry in enteredclients:
+				if entry["Family"] == "ipv4":
+					fam = "ipv4addr"
+				elif entry["Family"] == "ipv6":
+					fam = "ipv6addr"
+				else:
+					return "FATAL: Unknown IP family %s" % entry["Family"]
 				clientfilelines.append('\n')
 				clientfilelines.append('client ' + entry["IP Block"] + ' {\n')
+				clientfilelines.append('    '+fam+'    = ' + entry["IP Block"] + '\n')
 				clientfilelines.append('    secret      = ' + entry["Shared Secret"] + '\n')
 				clientfilelines.append('    shortname   = Created_By_RadiUID\n')
 				clientfilelines.append(' }\n')
@@ -1133,14 +1140,26 @@ class file_management(object):
 			del radclientdatalist[0:3]
 			result = []
 			while len(radclientdatalist) > 0:
-				ipblock = radclientdatalist[0]
-				ipblock = ipblock.replace("client ", "")
-				ipblock = ipblock.replace(" {\n", "")
-				secret = radclientdatalist[1]
-				secret = secret.replace("    secret      = ", "")
-				secret = secret.replace("\n", "")
-				result.append({"IP Block": ipblock, "Shared Secret": secret})
-				del ipblock,secret,radclientdatalist[0:5]
+				if "    ipv" in radclientdatalist[1]:
+					ipwords = radclientdatalist[1].split(" ")
+					ipblock = ipwords[len(ipwords)-1]
+					ipblock = ipblock.replace("\n", "")
+					family = ipwords[4]
+					family = family.replace("addr", "")
+					secwords = radclientdatalist[2].split(" ")
+					secret = secwords[len(secwords)-1]
+					secret = secret.replace("\n", "")
+					result.append({"IP Block": ipblock, "Shared Secret": secret, "Family": family})
+					del ipblock,secret,radclientdatalist[0:6]
+				else:
+					ipblock = radclientdatalist[0]
+					ipblock = ipblock.replace("client ", "")
+					ipblock = ipblock.replace(" {\n", "")
+					secret = radclientdatalist[1]
+					secret = secret.replace("    secret      = ", "")
+					secret = secret.replace("\n", "")
+					result.append({"IP Block": ipblock, "Shared Secret": secret, "Family": "ipv4"})
+					del ipblock,secret,radclientdatalist[0:5]
 			return result
 		if mode == "showraw":
 			del radclientdatalist[0:3]
@@ -2413,7 +2432,7 @@ _radiuid_complete()
         if [ "$prev2" == "clear" ]; then
           COMPREPLY=( $(compgen -W "${clients} all" -- ${cur}) )
         elif [ "$prev2" == "set" ]; then
-          COMPREPLY=( $(compgen -W "- <ip-block>" -- ${cur}) )
+          COMPREPLY=( $(compgen -W "ipv4 ipv6" -- $cur) )
         fi
         ;;
       clients)
@@ -2519,7 +2538,7 @@ _radiuid_complete()
     fi
     if [ "$prev2" == "client" ]; then
       if [ "$prev3" == "set" ]; then
-        COMPREPLY=( $(compgen -W "<shared-secret> -" -- $cur) )
+        COMPREPLY=( $(compgen -W "<ip-block> -" -- $cur) )
       fi
     fi
     if [ "$prev2" == "munge" ]; then
@@ -2579,6 +2598,11 @@ _radiuid_complete()
     if [ "$prev3" == "all" ]; then
       if [ "$prev4" == "push" ]; then
         COMPREPLY=( $(compgen -W "bypass-munge <cr>" -- $cur) )
+      fi
+    fi
+    if [ "$prev3" == "client" ]; then
+      if [ "$prev4" == "set" ]; then
+        COMPREPLY=( $(compgen -W "<secret> -" -- $cur) )
       fi
     fi
   elif [ $COMP_CWORD -eq 6 ]; then
@@ -3261,7 +3285,7 @@ class command_line_interpreter(object):
 				print "\n\n"
 				print self.ui.color("Something Went Wrong!", self.ui.red)
 			else:
-				print self.ui.make_table(["IP Block", "Shared Secret"], clientinfo)
+				print self.ui.make_table(["IP Block", "Family", "Shared Secret"], clientinfo)
 				print "\n\n"
 				print self.ui.color("Success!", self.ui.green)
 			print self.ui.color("#" * len(header), self.ui.magenta)
@@ -3362,7 +3386,7 @@ class command_line_interpreter(object):
 			print " - set looptime <seconds>                        |     Set the waiting loop time (in seconds) to pause between checks of the RADIUS logs"
 			print " - set tlsversion (1.0 | 1.1 | 1.2)              |     Set the version of TLS used for XML API communication with the firewall targets"
 			print " - set radiusstopaction (clear | ignore | push)  |     Set the action taken by RadiUID when RADIUS stop messages are received"
-			print " - set client <ip-block> <shared-secret>         |     Set configuration elements for RADIUS clients to send accounting data FreeRADIUS"
+			print " - set client (ipv4|ipv6) <ip-block> <secret>    |     Set configuration elements for RADIUS clients to send accounting data FreeRADIUS"
 			print " - set munge <rule>.<step> [parameters]          |     Set munge (string processing rules) for User-IDs"
 			print " - set target <hostname>:<vsys-id> [parameters]  |     Set configuration elements for existing or new firewall targets\n"
 		elif arguments == "set logfile" or arguments == "set logfile ?":
@@ -3384,7 +3408,7 @@ class command_line_interpreter(object):
 		elif arguments == "set radiusstopaction" or arguments == "set radiusstopaction ?":
 			print "\n - set radiusstopaction (clear | ignore | push)  |  Example: 'set radiusstopaction clear'\n"
 		elif arguments == "set client" or arguments == "set client ?":
-			print "\n - set client <ip-block> <shared-secret>  |  Example: 'set client 10.0.0.0/8 password123'\n"
+			print "\n - set client (ipv4|ipv6) <ip-block> <secret>  |  Example: 'set client ipv4 10.0.0.0/8 password123'\n"
 		elif arguments == "set target" or arguments == "set target ?":
 			print "\n - set target <hostname>:<vsys-id> [parameters]  |  Parameters: hostname and vsys <hostname>:<vsys-id>"
 			print "                                                 |              username <username> "
@@ -3639,17 +3663,18 @@ class command_line_interpreter(object):
 			header = "########################## EXECUTING COMMAND: " + arguments + " ##########################"
 			print self.ui.color(header, self.ui.magenta)
 			print self.ui.color("#" * len(header), self.ui.magenta)
-			if self.filemgmt.ip_checker("cidr", sys.argv[3]) == "pass":
+			family = sys.argv[3]
+			if family == "ipv4" or family == "ipv6":
 				if len(sys.argv) > 4:
 					print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " +"**************** " + sys.argv[3] + " looks like a legit IPv4 CIDR Block****************\n"
-					newclient = self.filemgmt.freeradius_client_editor("append", [{'Shared Secret': sys.argv[4], 'IP Block': sys.argv[3]}])
+					newclient = self.filemgmt.freeradius_client_editor("append", [{'Shared Secret': sys.argv[5], 'IP Block': sys.argv[4], "Family": sys.argv[3]}])
 					if "FATAL" in newclient:
 						self.filemgmt.logwriter("cli", self.ui.color(newclient, self.ui.red))
 						print "\n\n"
 						print self.ui.color("Something Went Wrong!", self.ui.red)
 					else:
 						print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " +"**************** New clients added ****************\n"
-						print self.ui.make_table(["IP Block", "Shared Secret"], self.filemgmt.freeradius_client_editor("show", ""))
+						print self.ui.make_table(["IP Block", "Family", "Shared Secret"], self.filemgmt.freeradius_client_editor("show", ""))
 						print "\n\n"
 						print self.ui.color("Success!", self.ui.green)
 				else:
@@ -3659,7 +3684,7 @@ class command_line_interpreter(object):
 					print self.ui.color("Something Went Wrong!", self.ui.red)
 			else:
 				print "\n"
-				print self.ui.color(time.strftime("%Y-%m-%d %H:%M:%S") + ":   " +"**************** " + sys.argv[3] + " is not a legit IPv4 CIDR Block****************\n", self.ui.red)
+				print self.ui.color(time.strftime("%Y-%m-%d %H:%M:%S") + ":   " +"**************** " + sys.argv[3] + " is not a legit IP family****************\n", self.ui.red)
 				print "\n"
 				print self.ui.color("Something Went Wrong!", self.ui.red)
 			print self.ui.color("#" * len(header), self.ui.magenta)
@@ -4125,7 +4150,7 @@ class command_line_interpreter(object):
 					print "\n\n"
 					print self.ui.color("Something Went Wrong!", self.ui.red)
 				else:
-					print self.ui.make_table(["IP Block", "Shared Secret"], self.filemgmt.freeradius_client_editor("show", ""))
+					print self.ui.make_table(["IP Block", "Family", "Shared Secret"], self.filemgmt.freeradius_client_editor("show", ""))
 					print "\n"
 					print self.ui.color("Success!", self.ui.green)
 			else:
@@ -4144,7 +4169,7 @@ class command_line_interpreter(object):
 						print "\n"
 						self.filemgmt.logwriter("cli", "**************** Removing client IP block " + sys.argv[3] + " ****************")
 						self.filemgmt.freeradius_client_editor("clear", [{'IP Block': sys.argv[3]}])
-						print self.ui.make_table(["IP Block", "Shared Secret"], self.filemgmt.freeradius_client_editor("show", ""))
+						print self.ui.make_table(["IP Block", "Family", "Shared Secret"], self.filemgmt.freeradius_client_editor("show", ""))
 						print "\n"
 						print self.ui.color("Success!", self.ui.green)
 					else:
@@ -4823,7 +4848,7 @@ class command_line_interpreter(object):
 			print " - set looptime                                   |  Set the waiting loop time (in seconds) to pause between checks of the RADIUS logs"
 			print " - set tlsversion (1.0 | 1.1 | 1.2)               |  Set the version of TLS used for XML API communication with the firewall targets"
 			print " - set radiusstopaction (clear | ignore | push)   |  Set the action taken by RadiUID when RADIUS stop messages are received"
-			print " - set client <ip-block> <shared-secret>          |  Set configuration elements for RADIUS clients to send accounting data FreeRADIUS"
+			print " - set client (ipv4|ipv6) <ip-block> <secret>     |  Set configuration elements for RADIUS clients to send accounting data FreeRADIUS"
 			print " - set munge <rule>.<step> [parameters]           |  Set munge (string processing rules) for User-IDs"
 			print " - set target <hostname>:<vsys-id> [parameters]   |  Set configuration elements for existing or new firewall targets"
 			print "-------------------------------------------------------------------------------------------------------------------------------\n"
