@@ -751,7 +751,6 @@ class file_management(object):
 			try:
 				logfile = configdict['globalsettings']['paths']['logfile']
 				radiuslogpath = configdict['globalsettings']['paths']['radiuslogpath']
-				acctlogcopypath = configdict['globalsettings']['paths']['acctlogcopypath']
 				maxloglines = configdict['globalsettings']['logging']['maxloglines']
 				userdomain = configdict['globalsettings']['uidsettings']['userdomain']
 				timeout = configdict['globalsettings']['uidsettings']['timeout']
@@ -761,7 +760,8 @@ class file_management(object):
 				ipaddressterm = configdict['globalsettings']['searchterms']['ipaddressterm']
 				usernameterm = configdict['globalsettings']['searchterms']['usernameterm']
 				delineatorterm = configdict['globalsettings']['searchterms']['delineatorterm']
-			except KeyError:
+				acctlogcopypath = configdict['globalsettings']['paths']['acctlogcopypath']
+			except Exception as e:
 				return "WARNING: Could not import some important settings"
 			try:
 				##### Publish list of firewall targets into main namespace #####
