@@ -10,6 +10,7 @@ import re
 import sys
 import ssl
 import time
+import shutil
 import urllib
 import urllib2
 import commands
@@ -537,10 +538,26 @@ class file_management(object):
 			return filelist
 		else:
 			return filelist
+	def acct_copy(self, filename):
+		file = os.path.split(filename)[1]
+		newpath = os.path.join(acctlogcopypath, file)
+		if os.path.isfile(newpath):
+			self.logwriter("normal", "Appending file %s to %s " % (filename, newpath))
+			f = open(filename, "r")
+			g = open(newpath, "a")
+			g.write("\n\n")
+			g.write(f.read())
+			f.close()
+			g.close()
+		else:
+			self.logwriter("normal", "Copying file %s to %s " % (filename, acctlogcopypath))
+			shutil.copy2(filename, acctlogcopypath)
 	##### Delete all files in provided list #####
 	##### Used to remove the FreeRADIUS log files so the next iteration of RadiUID doesn't pick up redundant information #####
 	def remove_files(self, filelist):
 		for filename in filelist:
+			if acctlogcopypath:
+				self.acct_copy(filename)
 			os.remove(filename)
 			self.logwriter("normal", "Removed file: " + filename)
 	##### Writes the new config data to the config file #####
@@ -661,6 +678,7 @@ class file_management(object):
 	def publish_config(self, mode):
 		global configdict
 		global radiuslogpath
+		global acctlogcopypath
 		global logfile
 		global maxloglines
 		global userdomain
@@ -691,6 +709,8 @@ class file_management(object):
 				self.logwriter("normal", "Initialized variable:" "\t" + "logfile" + "\t\t\t\t" + "with value:" + "\t" + self.ui.color(logfile, self.ui.green))
 				radiuslogpath = configdict['globalsettings']['paths']['radiuslogpath']
 				self.logwriter("normal", "Initialized variable:" "\t" + "radiuslogpath" + "\t\t\t" + "with value:" + "\t" + self.ui.color(radiuslogpath, self.ui.green))
+				acctlogcopypath = configdict['globalsettings']['paths']['acctlogcopypath']
+				self.logwriter("normal", "Initialized variable:" "\t" + "acctlogcopypath" + "\t\t\t" + "with value:" + "\t" + self.ui.color(str(acctlogcopypath), self.ui.green))
 				maxloglines = configdict['globalsettings']['logging']['maxloglines']
 				self.logwriter("normal", "Initialized variable:" "\t" + "maxloglines" + "\t\t\t" + "with value:" + "\t" + self.ui.color(maxloglines, self.ui.green))
 				ipaddressterm = configdict['globalsettings']['searchterms']['ipaddressterm']
@@ -731,6 +751,7 @@ class file_management(object):
 			try:
 				logfile = configdict['globalsettings']['paths']['logfile']
 				radiuslogpath = configdict['globalsettings']['paths']['radiuslogpath']
+				acctlogcopypath = configdict['globalsettings']['paths']['acctlogcopypath']
 				maxloglines = configdict['globalsettings']['logging']['maxloglines']
 				userdomain = configdict['globalsettings']['uidsettings']['userdomain']
 				timeout = configdict['globalsettings']['uidsettings']['timeout']
@@ -825,6 +846,7 @@ class file_management(object):
 				userdomaintext = userdomain
 			setcommands = \
 				"" + prepend + " set radiuslogpath " + radiuslogpath + "\n!\n"\
+				"" + prepend + " set acctlogcopypath " + str(acctlogcopypath) + "\n!\n"\
 				"" + prepend + " set logfile " + logfile + "\n!\n"\
 				"" + prepend + " set maxloglines " + maxloglines + "\n!\n"\
 				"" + prepend + " set userdomain " + userdomaintext + "\n!\n"\
@@ -866,6 +888,14 @@ class file_management(object):
 			tlsversion.text = "1.2"
 			stop_action = ElementTree.SubElement(misc, 'radiusstopaction')
 			stop_action.text = "clear"
+		if len(self.root.findall('.//acctlogcopypath')) == 0: # If <acctlogcopypath> XML elements do not exist
+			self.ui.progress("Extending Config Schema: ", 1)
+			for element in list(globalsettings):
+				if element.tag == 'paths':
+					paths = element
+			acctlogcopypath = ElementTree.SubElement(paths, 'acctlogcopypath')
+			acctlogcopypath.text = None
+
 	##### Add or edit target firewalls in XML configuration elements #####
 	##### Input is a list of dictionaries which contain any number of parameters for a firewall target, but a hostname parameter is required #####
 	##### Method will detect if the 'targets' element already exists and will create it if it doesn't #####
@@ -2378,7 +2408,7 @@ _radiuid_complete()
         COMPREPLY=( $(compgen -W "log acct-logs run config clients status mappings" -- $cur) )
         ;;
       "set")
-        COMPREPLY=( $(compgen -W "tlsversion radiusstopaction looptime logfile maxloglines radiuslogpath userdomain timeout target client munge" -- $cur) )
+        COMPREPLY=( $(compgen -W "tlsversion radiusstopaction looptime logfile maxloglines radiuslogpath acctlogcopypath userdomain timeout target client munge" -- $cur) )
         ;;
       push)
         local targets=$(for target in `radiuid targets`; do echo $target ; done)
@@ -2443,6 +2473,11 @@ _radiuid_complete()
       radiuslogpath)
         if [ "$prev2" == "set" ]; then
           COMPREPLY=( $(compgen -W "<directory-path> -" -- $cur) )
+        fi
+        ;;
+      acctlogcopypath)
+        if [ "$prev2" == "set" ]; then
+          COMPREPLY=( $(compgen -W "<directory-path> None" -- $cur) )
         fi
         ;;
       logfile)
@@ -3380,6 +3415,7 @@ class command_line_interpreter(object):
 		elif arguments == "set" or arguments == "set ?":
 			print "\n - set logfile <file path>                       |     Set the RadiUID logfile path"
 			print " - set radiuslogpath <directory path>            |     Set the path used to find FreeRADIUS accounting log files"
+			print " - set acctlogcopypath <directory path>          |     Set the path where RadiUID should copy acct log files before deletion"
 			print " - set maxloglines <number-of-lines>             |     Set the max number of lines allowed in the log ('0' turns circular logging off)"
 			print " - set userdomain (none | <domain name>)         |     Set the domain name prepended to User-ID mappings"
 			print " - set timeout <minutes>                         |     Set the timeout (in minutes) for User-ID mappings sent to the firewall targets"
@@ -3393,6 +3429,8 @@ class command_line_interpreter(object):
 			print "\n - set logfile <file path>  |  Example: 'set logfile /etc/radiuid/radiuid.log'\n"
 		elif arguments == "set radiuslogpath" or arguments == "set radiuslogpath ?":
 			print "\n - set radiuslogpath <directory path>  |  Example: 'set radiuslogpath /var/log/radius/radacct/'\n"
+		elif arguments == "set acctlogcopypath" or arguments == "set acctlogcopypath ?":
+			print "\n - set acctlogcopypath <directory path>  |  Example: 'set acctlogcopypath /root/logs/acctlogs/'\n"
 		elif arguments == "set maxloglines" or arguments == "set maxloglines ?":
 			print "\n - set maxloglines <number-of-lines>  |  Examples: 'set maxloglines 1000'   (circular logging enabled at 1000 lines)"
 			print "                                      |            'set maxloglines 0'      (circular logging disabled)"
@@ -3522,6 +3560,42 @@ class command_line_interpreter(object):
 					print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " +"<radiuslogpath> configuration element changed to :\n"
 					self.filemgmt.show_config_item('xml', "none", 'radiuslogpath')
 				if self.filemgmt.get_globalconfig_item('radiuslogpath') == sys.argv[3]:
+					print self.ui.color("Success!", self.ui.green)
+				else:
+					print self.ui.color("Something Went Wrong!", self.ui.red)
+			print self.ui.color("#" * len(header), self.ui.magenta)
+			print self.ui.color("#" * len(header), self.ui.magenta)
+		##### SET ACCTLOGCOPYPATH #####
+		elif self.cat_list(sys.argv[1:3]) == "set acctlogcopypath" and len(re.findall("^(\/*)", sys.argv[3])) > 0:
+			self.filemgmt.logwriter("cli", "##### COMMAND '" + arguments + "' ISSUED FROM CLI BY USER '" + self.imum.currentuser()+ "' #####")
+			header = "########################## EXECUTING COMMAND: " + arguments + " ##########################"
+			print self.ui.color(header, self.ui.magenta)
+			print self.ui.color("#" * len(header), self.ui.magenta)
+			if self.filemgmt.get_globalconfig_item('acctlogcopypath') == sys.argv[3]:
+				print self.ui.color("\n" + time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + "****************Entered value is the same as current value****************\n", self.ui.green)
+			else:
+				if sys.argv[3].lower() != "none":
+					pathcheck = self.filemgmt.check_path("dir",sys.argv[3])
+				else:
+					pathcheck = ["pass"]
+				if pathcheck[0] == "fail":
+					for error in pathcheck[1:]:
+						print self.ui.color(time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + "****************ERROR: " + error + "****************", self.ui.red)
+				elif pathcheck[0] == "pass":
+					print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " +"****************Making sure directory: "+ sys.argv[3] + " exists****************\n"
+					if sys.argv[3].lower() != "none":
+						pathexists = self.filemgmt.file_exists(sys.argv[3])
+						if pathexists == "no":
+							print self.ui.color(time.strftime("%Y-%m-%d %H:%M:%S") + ":   " + "****************WARNING: Directory path doesn't exist****************\n", self.ui.yellow)
+					if sys.argv[3].lower() == "none":
+						self.filemgmt.change_config_item('acctlogcopypath', None)
+					else:
+						self.filemgmt.change_config_item('acctlogcopypath', sys.argv[3])
+					print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " +"****************Writing config change to: "+ configfile + "****************\n"
+					self.filemgmt.save_config()
+					print time.strftime("%Y-%m-%d %H:%M:%S") + ":   " +"<acctlogcopypath> configuration element changed to :\n"
+					self.filemgmt.show_config_item('xml', "none", 'acctlogcopypath')
+				if self.filemgmt.get_globalconfig_item('acctlogcopypath') == sys.argv[3]:
 					print self.ui.color("Success!", self.ui.green)
 				else:
 					print self.ui.color("Something Went Wrong!", self.ui.red)
@@ -4777,6 +4851,7 @@ class command_line_interpreter(object):
 				print "\n\n****************Re-installing/upgrading the RadiUID service...****************\n"
 				self.imum.copy_radiuid("keep-config")
 				self.imum.install_radiuid()
+				print "\n\n****************Checking Config File Schema****************\n"
 				self.filemgmt.extend_config_schema()
 				self.filemgmt.save_config()
 				print "\n"
@@ -4841,7 +4916,8 @@ class command_line_interpreter(object):
 			print " - show mappings (<target> | all | consistency)   |  Show the current IP-to-User mappings of one or all targets or check consistency"
 			print "-------------------------------------------------------------------------------------------------------------------------------\n"
 			print " - set logfile                                    |  Set the RadiUID logfile path"
-			print " - set radiuslogpath                              |  Set the path used to find FreeRADIUS accounting log files"
+			print " - set radiuslogpath <directory path>             |  Set the path used to find FreeRADIUS accounting log files"
+			print " - set acctlogcopypath <directory path>           |  Set the path where RadiUID should copy acct log files before deletion"
 			print " - set maxloglines <number-of-lines>              |  Set the max number of lines allowed in the log ('0' turns circular logging off)"
 			print " - set userdomain (none | <domain name>)          |  Set the domain name prepended to User-ID mappings"
 			print " - set timeout                                    |  Set the timeout (in minutes) for User-ID mappings sent to the firewall targets"
